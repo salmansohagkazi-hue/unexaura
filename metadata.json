@@ -1,0 +1,6 @@
+{
+  "name": "UNEX AURA - Premium Wall Decor",
+  "description": "UNEX AURA laser-cut stainless steel wall & home decor e-commerce platform with 'See It On Your Wall' room preview, weight-based delivery calculator, multi-currency support, and full admin management.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

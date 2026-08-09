@@ -1,0 +1,53 @@
+@import "tailwindcss";
+
+@layer components {
+  /* High-performance, silky smooth tactile click animations */
+  button, 
+  [role="button"],
+  .btn-touch {
+    -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
+    transform: translateZ(0);
+    backface-visibility: hidden;
+    transition: transform 0.18s cubic-bezier(0.16, 1, 0.3, 1), 
+                box-shadow 0.18s cubic-bezier(0.16, 1, 0.3, 1), 
+                background-color 0.15s ease, 
+                border-color 0.15s ease, 
+                opacity 0.15s ease;
+  }
+
+  /* Micro hover elevation - gentle lift without jitter */
+  button:hover:not(:disabled):not(:active), 
+  [role="button"]:hover:not(:disabled):not(:active) {
+    transform: translateY(-1px) translateZ(0);
+  }
+
+  /* Smooth press down feedback - natural spring feel */
+  button:active:not(:disabled), 
+  [role="button"]:active:not(:disabled) {
+    transform: scale(0.97) translateY(0px) translateZ(0);
+    transition-duration: 0.08s;
+  }
+
+  /* Icon buttons and small circular controls get a slightly punchier scale */
+  .icon-btn:active:not(:disabled) {
+    transform: scale(0.92) translateZ(0);
+  }
+
+  /* Smooth transitions for links and interactive cards */
+  .card-touch {
+    -webkit-tap-highlight-color: transparent;
+    transition: transform 0.22s cubic-bezier(0.16, 1, 0.3, 1), 
+                box-shadow 0.22s cubic-bezier(0.16, 1, 0.3, 1), 
+                border-color 0.2s ease;
+  }
+
+  .card-touch:hover {
+    transform: translateY(-3px) translateZ(0);
+  }
+
+  .card-touch:active {
+    transform: translateY(-1px) scale(0.99) translateZ(0);
+    transition-duration: 0.08s;
+  }
+}

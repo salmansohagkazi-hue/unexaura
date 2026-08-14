@@ -50,6 +50,11 @@ interface AppContextType {
   getWishlistCount: () => number;
   getWishlistProducts: () => Product[];
 
+  // Product Management
+  addProduct: (product: any) => Promise<Product>;
+  updateProduct: (product: Product) => Promise<boolean>;
+  deleteProduct: (id: number) => Promise<boolean>;
+
   // Coupon Management
   applyCoupon: (code: string) => { success: boolean; message: string };
   removeCoupon: () => void;
@@ -65,9 +70,38 @@ interface AppContextType {
 const AppContext = createContext<AppContextType | undefined>(undefined);
 
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [products, setProducts] = useState<Product[]>(INITIAL_PRODUCTS);
-  const [categories, setCategories] = useState<Category[]>(INITIAL_CATEGORIES);
-  const [settings, setSettings] = useState<StoreSettings>(INITIAL_SETTINGS);
+  const [products, setProducts] = useState<Product[]>(() => {
+    try {
+      const saved = localStorage.getItem('unex_products');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch {}
+    return INITIAL_PRODUCTS;
+  });
+
+  const [categories, setCategories] = useState<Category[]>(() => {
+    try {
+      const saved = localStorage.getItem('unex_categories');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch {}
+    return INITIAL_CATEGORIES;
+  });
+
+  const [settings, setSettings] = useState<StoreSettings>(() => {
+    try {
+      const saved = localStorage.getItem('unex_store_settings');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        return { ...INITIAL_SETTINGS, ...parsed };
+      }
+    } catch {}
+    return INITIAL_SETTINGS;
+  });
   const [coupons, setCoupons] = useState<Coupon[]>(() => {
     try {
       const saved = localStorage.getItem('unex_coupons');
@@ -524,6 +558,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const updateSettings = async (newSettings: Partial<StoreSettings>) => {
+    setSettings(prev => {
+      const updated = { ...prev, ...newSettings };
+      try {
+        localStorage.setItem('unex_store_settings', JSON.stringify(updated));
+      } catch {}
+      return updated;
+    });
+
     try {
       const res = await fetch('/api/settings', {
         method: 'POST',
@@ -532,13 +574,84 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       });
       if (res.ok) {
         const data = await res.json();
-        setSettings(data.settings);
-        showToast('Store settings saved successfully!');
+        if (data.settings) {
+          setSettings(data.settings);
+          try {
+            localStorage.setItem('unex_store_settings', JSON.stringify(data.settings));
+          } catch {}
+        }
       }
     } catch {
-      setSettings(prev => ({ ...prev, ...newSettings }));
-      showToast('Settings saved locally');
+      // Offline / static hosting fallback
     }
+  };
+
+  // Product Management
+  const addProduct = async (prodPayload: any): Promise<Product> => {
+    const nextId = (Math.max(0, ...products.map(p => p.id)) + 1) || Date.now();
+    const newProd: Product = {
+      ...prodPayload,
+      id: prodPayload.id || nextId,
+      slug: prodPayload.slug || (prodPayload.name || '').toLowerCase().replace(/[^a-z0-9]+/g, '-')
+    };
+
+    setProducts(prev => {
+      const updated = [newProd, ...prev];
+      try {
+        localStorage.setItem('unex_products', JSON.stringify(updated));
+      } catch {}
+      return updated;
+    });
+
+    try {
+      await fetch('/api/products', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(newProd)
+      });
+    } catch (e) {
+      console.warn('Product saved locally:', e);
+    }
+
+    return newProd;
+  };
+
+  const updateProduct = async (productToUpdate: Product): Promise<boolean> => {
+    setProducts(prev => {
+      const updated = prev.map(p => p.id === productToUpdate.id ? { ...p, ...productToUpdate } : p);
+      try {
+        localStorage.setItem('unex_products', JSON.stringify(updated));
+      } catch {}
+      return updated;
+    });
+
+    try {
+      await fetch('/api/products', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(productToUpdate)
+      });
+    } catch (e) {
+      console.warn('Product updated locally:', e);
+    }
+
+    return true;
+  };
+
+  const deleteProduct = async (id: number): Promise<boolean> => {
+    setProducts(prev => {
+      const updated = prev.filter(p => p.id !== id);
+      try {
+        localStorage.setItem('unex_products', JSON.stringify(updated));
+      } catch {}
+      return updated;
+    });
+
+    try {
+      await fetch(`/api/products/${id}`, { method: 'DELETE' });
+    } catch {}
+
+    return true;
   };
 
   // Coupons management
@@ -559,34 +672,76 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const addCoupon = (newCoupon: Omit<Coupon, 'id'>) => {
     const newId = Date.now();
-    setCoupons(prev => [...prev, { ...newCoupon, id: newId }]);
+    setCoupons(prev => {
+      const updated = [...prev, { ...newCoupon, id: newId }];
+      try {
+        localStorage.setItem('unex_coupons', JSON.stringify(updated));
+      } catch {}
+      return updated;
+    });
     showToast(`কুপন কোড "${newCoupon.code}" যোগ করা হয়েছে!`);
   };
 
   const deleteCoupon = (id: number) => {
-    setCoupons(prev => prev.filter(c => c.id !== id));
+    setCoupons(prev => {
+      const updated = prev.filter(c => c.id !== id);
+      try {
+        localStorage.setItem('unex_coupons', JSON.stringify(updated));
+      } catch {}
+      return updated;
+    });
     showToast('কুপন মুছে ফেলা হয়েছে');
   };
 
   // Category management
   const addCategory = (catData: Omit<Category, 'id'>) => {
+    const newId = (Math.max(0, ...categories.map(c => c.id)) + 1) || Date.now();
     const newCat: Category = {
       ...catData,
-      id: Date.now(),
+      id: newId,
       slug: catData.slug || (catData.name || '').toLowerCase().replace(/\s+/g, '-')
     };
-    setCategories(prev => [...prev, newCat]);
+    setCategories(prev => {
+      const updated = [...prev, newCat];
+      try {
+        localStorage.setItem('unex_categories', JSON.stringify(updated));
+      } catch {}
+      return updated;
+    });
+    fetch('/api/categories', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(newCat)
+    }).catch(() => {});
     showToast(`ক্যাটাগরি "${newCat.name}" তৈরি করা হয়েছে!`);
   };
 
   const updateCategory = (id: number, catData: Partial<Category>) => {
-    setCategories(prev => prev.map(c => c.id === id ? { ...c, ...catData } : c));
+    setCategories(prev => {
+      const updated = prev.map(c => c.id === id ? { ...c, ...catData } : c);
+      try {
+        localStorage.setItem('unex_categories', JSON.stringify(updated));
+      } catch {}
+      return updated;
+    });
+    fetch('/api/categories', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id, ...catData })
+    }).catch(() => {});
     showToast('ক্যাটাগরি আপডেট করা হয়েছে!');
   };
 
   const deleteCategory = (id: number) => {
-    setCategories(prev => prev.filter(c => c.id !== id));
-    showToast('ক্যাটাগরি ডিলিট করা হয়েছে');
+    setCategories(prev => {
+      const updated = prev.filter(c => c.id !== id);
+      try {
+        localStorage.setItem('unex_categories', JSON.stringify(updated));
+      } catch {}
+      return updated;
+    });
+    fetch(`/api/categories/${id}`, { method: 'DELETE' }).catch(() => {});
+    showToast('ক্যাটাগরি মুছে ফেলা হয়েছে');
   };
 
   const toggleWishlist = (productId: number) => {
@@ -645,6 +800,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       addOrder,
       updateOrderStatus,
       updateSettings,
+      addProduct,
+      updateProduct,
+      deleteProduct,
       toggleWishlist,
       isInWishlist,
       getWishlistCount,

@@ -48,7 +48,10 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate }) => {
     refreshCategories,
     orders,
     refreshOrders,
-    updateOrderStatus
+    updateOrderStatus,
+    addProduct,
+    updateProduct,
+    deleteProduct
   } = useApp();
 
   useSEO({
@@ -78,6 +81,10 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate }) => {
   const [newAdminPass, setNewAdminPass] = useState('');
   const [confirmAdminPass, setConfirmAdminPass] = useState('');
 
+  // Product filter state
+  const [selectedCatFilter, setSelectedCatFilter] = useState<number | 'all'>('all');
+  const [productSearch, setProductSearch] = useState<string>('');
+
   // Product edit modal state
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
 
@@ -85,25 +92,29 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate }) => {
   const [showAddModal, setShowAddModal] = useState(false);
   const [newProdName, setNewProdName] = useState('');
   const [newProdCatId, setNewProdCatId] = useState<number>(0);
-  const [newProdMaterial, setNewProdMaterial] = useState<string>('Surgical Stainless Steel (Laser-Cut)');
-  const [newProdDesc, setNewProdDesc] = useState<string>('');
+  const [newProdMaterial, setNewProdMaterial] = useState<string>('Surgical Stainless Steel (2mm Thickness)');
+  const [newProdDesc, setNewProdDesc] = useState<string>('Precision laser-cut stainless steel wall art featuring 3D floating visual depth.');
   const [newProdBanglaDesc, setNewProdBanglaDesc] = useState<string>('');
-  const [newProdImg, setNewProdImg] = useState<string>('https://images.unsplash.com/photo-1513519245088-0e12902e5a38?auto=format&fit=crop&w=1000&q=80');
-  const [newProdPlacements, setNewProdPlacements] = useState<Placement[]>([]);
+  
+  // 5 Room View Images for New Product
+  const [newProdDrawingRoomImg, setNewProdDrawingRoomImg] = useState<string>('https://images.unsplash.com/photo-1513519245088-0e12902e5a38?auto=format&fit=crop&w=1000&q=80');
+  const [newProdOfficeRoomImg, setNewProdOfficeRoomImg] = useState<string>('https://images.unsplash.com/photo-1513694203232-719a280e022f?auto=format&fit=crop&w=1200&q=80');
+  const [newProdPrayerOrReadingRoomImg, setNewProdPrayerOrReadingRoomImg] = useState<string>('https://images.unsplash.com/photo-1618221195710-dd6b41faaea6?auto=format&fit=crop&w=1200&q=80');
+  const [newProdBedroomImg, setNewProdBedroomImg] = useState<string>('https://images.unsplash.com/photo-1616486338812-3dadae4b4ace?auto=format&fit=crop&w=1200&q=80');
+  const [newProdCloseViewImg, setNewProdCloseViewImg] = useState<string>('https://images.unsplash.com/photo-1513519245088-0e12902e5a38?auto=format&fit=crop&w=1000&q=80');
 
-  // Sizes state for Add New Product (Medium & Large)
-  const [newProdMediumName, setNewProdMediumName] = useState('Medium (2.5 Feet / 75x40cm)');
-  const [newProdMediumDimensions, setNewProdMediumDimensions] = useState('75cm × 40cm × 2mm');
-  const [newProdMediumPrice, setNewProdMediumPrice] = useState<number>(4500);
-  const [newProdMediumOldPrice, setNewProdMediumOldPrice] = useState<number>(5800);
+  // Sizes state for Add New Product (Medium & Large with Length × Width)
+  const [newProdMediumDimensions, setNewProdMediumDimensions] = useState('75cm × 40cm');
+  const [newProdMediumPrice, setNewProdMediumPrice] = useState<number>(5500);
+  const [newProdMediumOldPrice, setNewProdMediumOldPrice] = useState<number>(6800);
   const [newProdMediumWeight, setNewProdMediumWeight] = useState<number>(1400);
 
-  const [newProdLargeName, setNewProdLargeName] = useState('Large (4 Feet / 120x60cm)');
-  const [newProdLargeDimensions, setNewProdLargeDimensions] = useState('120cm × 60cm × 2mm');
-  const [newProdLargePrice, setNewProdLargePrice] = useState<number>(6300);
-  const [newProdLargeOldPrice, setNewProdLargeOldPrice] = useState<number>(8100);
+  const [newProdLargeDimensions, setNewProdLargeDimensions] = useState('120cm × 60cm');
+  const [newProdLargePrice, setNewProdLargePrice] = useState<number>(7500);
+  const [newProdLargeOldPrice, setNewProdLargeOldPrice] = useState<number>(9200);
   const [newProdLargeWeight, setNewProdLargeWeight] = useState<number>(2200);
-  const [newProdStock, setNewProdStock] = useState<number>(15);
+  const [newProdStock, setNewProdStock] = useState<number>(18);
+  const [newProdBadge, setNewProdBadge] = useState<'NEW' | 'HOT' | 'SALE' | ''>('NEW');
 
   // Shipping rates form state
   const [dhakaBase, setDhakaBase] = useState<number>(settings.base_charge_dhaka);
@@ -154,22 +165,60 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate }) => {
       : [
           {
             id: 's1',
-            name: 'Medium (2.5 Feet / 75x40cm)',
+            name: 'Medium (75cm × 40cm)',
             size_dimensions: p.size_dimensions || '75cm × 40cm',
             price: p.price,
             old_price: p.old_price,
-            weight_grams: p.weight_grams
+            weight_grams: p.weight_grams || 1400
           },
           {
             id: 's2',
-            name: 'Large (4 Feet / 120x60cm)',
+            name: 'Large (120cm × 60cm)',
             size_dimensions: '120cm × 60cm',
-            price: Math.round(p.price * 1.4),
-            old_price: p.old_price ? Math.round(p.old_price * 1.4) : undefined,
-            weight_grams: Math.round(p.weight_grams * 1.4)
+            price: Math.round(p.price * 1.36),
+            old_price: p.old_price ? Math.round(p.old_price * 1.36) : undefined,
+            weight_grams: Math.round((p.weight_grams || 1400) * 1.57)
           }
         ];
-    setEditingProduct({ ...p, sizes: existingSizes });
+
+    const defaultRoomImages = {
+      drawing_room: p.room_images?.drawing_room || p.image_url || '',
+      office_room: p.room_images?.office_room || p.placements?.find(x => x.room_type === 'Office')?.image_url || 'https://images.unsplash.com/photo-1513694203232-719a280e022f?auto=format&fit=crop&w=1200&q=80',
+      prayer_or_reading_room: p.room_images?.prayer_or_reading_room || p.placements?.find(x => x.room_type === 'Hallway' || x.room_type === 'Formations')?.image_url || 'https://images.unsplash.com/photo-1618221195710-dd6b41faaea6?auto=format&fit=crop&w=1200&q=80',
+      bedroom: p.room_images?.bedroom || p.placements?.find(x => x.room_type === 'Bedroom')?.image_url || 'https://images.unsplash.com/photo-1616486338812-3dadae4b4ace?auto=format&fit=crop&w=1200&q=80',
+      close_view: p.room_images?.close_view || p.image_url || ''
+    };
+
+    const defaultQualities = (p.qualities && p.qualities.length > 0) ? p.qualities : [
+      '১০০% খাঁটি সার্জিক্যাল স্টেইনলেস স্টিল - মরিচা পড়া বা রঙ চটে যাওয়ার কোনো সম্ভাবনা নেই।',
+      'প্রিসিশন ফাইবার লেজার কাটিং - প্রতিটি হরফ ও ডিজাইন অত্যন্ত নিখুঁত ও মসৃণ।',
+      '৩ডি ফ্লোটিং শ্যাডো লুক - দেয়াল থেকে ১ ইঞ্চি সামনে ভেসে থাকে যা দৃষ্টিনন্দন ছায়া তৈরি করে।',
+      'লাক্সারি স্যাটিন মেটালিক ফিনিশিং - ড্রয়িং রুম, লিভিং রুম বা বেডরুমের জন্য দারুণ মানানসই।',
+      'সহজ ইনস্টলেশন - সাথে থাকছে ফ্রি ৩ডি স্পেসার এবং ওয়াল হ্যাঙ্গিং কিট।'
+    ];
+
+    setEditingProduct({
+      ...p,
+      room_images: defaultRoomImages,
+      sizes: existingSizes,
+      qualities: defaultQualities,
+      bangla_short_desc: p.bangla_short_desc || '',
+      material: p.material || 'Surgical Stainless Steel (2mm Thickness)'
+    });
+  };
+
+  const updateEditingProductRoomImage = (roomKey: keyof NonNullable<Product['room_images']>, url: string) => {
+    if (!editingProduct) return;
+    const currentRoomImgs = {
+      ...(editingProduct.room_images || {}),
+      [roomKey]: url
+    };
+    setEditingProduct({
+      ...editingProduct,
+      room_images: currentRoomImgs,
+      // If updating drawing_room, also sync primary image_url
+      ...(roomKey === 'drawing_room' ? { image_url: url } : {})
+    });
   };
 
   const updateEditingProductSize = (index: number, field: keyof ProductSize, value: any) => {
@@ -177,8 +226,8 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate }) => {
     const currentSizes: ProductSize[] = (editingProduct.sizes && editingProduct.sizes.length >= 2)
       ? [...editingProduct.sizes]
       : [
-          { id: 's1', name: 'Medium (2.5 Feet / 75x40cm)', size_dimensions: editingProduct.size_dimensions || '75cm × 40cm', price: editingProduct.price, old_price: editingProduct.old_price, weight_grams: editingProduct.weight_grams },
-          { id: 's2', name: 'Large (4 Feet / 120x60cm)', size_dimensions: '120cm × 60cm', price: Math.round(editingProduct.price * 1.4), old_price: editingProduct.old_price ? Math.round(editingProduct.old_price * 1.4) : undefined, weight_grams: Math.round(editingProduct.weight_grams * 1.4) }
+          { id: 's1', name: 'Medium (75cm × 40cm)', size_dimensions: editingProduct.size_dimensions || '75cm × 40cm', price: editingProduct.price, old_price: editingProduct.old_price, weight_grams: editingProduct.weight_grams || 1400 },
+          { id: 's2', name: 'Large (120cm × 60cm)', size_dimensions: '120cm × 60cm', price: Math.round(editingProduct.price * 1.36), old_price: editingProduct.old_price ? Math.round(editingProduct.old_price * 1.36) : undefined, weight_grams: Math.round((editingProduct.weight_grams || 1400) * 1.57) }
         ];
 
     currentSizes[index] = {
@@ -288,91 +337,109 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate }) => {
   const handleCreateProduct = async (e: React.FormEvent) => {
     e.preventDefault();
 
+    if (!newProdName.trim()) {
+      alert('দয়া করে প্রোডাক্টের নাম লিখুন (Product Name is required)!');
+      return;
+    }
+
     if (!newProdCatId || Number(newProdCatId) <= 0) {
       alert('দয়া করে প্রোডাক্টের জন্য একটি ক্যাটাগরি নির্ধারণ করুন (Category selection is required)!');
       return;
     }
 
-    try {
-      const payload = {
-        name: newProdName,
-        category_id: Number(newProdCatId),
-        price: Number(newProdMediumPrice),
-        old_price: newProdMediumOldPrice ? Number(newProdMediumOldPrice) : undefined,
-        weight_grams: Number(newProdMediumWeight),
-        size_dimensions: newProdMediumDimensions,
-        material: newProdMaterial,
-        description: newProdDesc,
-        bangla_short_desc: newProdBanglaDesc,
-        image_url: newProdImg,
-        placements: newProdPlacements,
-        sizes: [
-          { id: 's1', name: newProdMediumName, size_dimensions: newProdMediumDimensions, price: Number(newProdMediumPrice), old_price: newProdMediumOldPrice ? Number(newProdMediumOldPrice) : undefined, weight_grams: Number(newProdMediumWeight) },
-          { id: 's2', name: newProdLargeName, size_dimensions: newProdLargeDimensions, price: Number(newProdLargePrice), old_price: newProdLargeOldPrice ? Number(newProdLargeOldPrice) : undefined, weight_grams: Number(newProdLargeWeight) }
-        ],
-        featured: true,
-        badge: 'NEW',
-        stock: Number(newProdStock || 15)
-      };
+    const selectedCat = categories.find(c => c.id === Number(newProdCatId));
+    const primaryImg = newProdDrawingRoomImg.trim() || 'https://images.unsplash.com/photo-1513519245088-0e12902e5a38?auto=format&fit=crop&w=1000&q=80';
 
-      const res = await fetch('/api/products', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
-      });
+    const roomImages = {
+      drawing_room: primaryImg,
+      office_room: newProdOfficeRoomImg.trim() || 'https://images.unsplash.com/photo-1513694203232-719a280e022f?auto=format&fit=crop&w=1200&q=80',
+      prayer_or_reading_room: newProdPrayerOrReadingRoomImg.trim() || 'https://images.unsplash.com/photo-1618221195710-dd6b41faaea6?auto=format&fit=crop&w=1200&q=80',
+      bedroom: newProdBedroomImg.trim() || 'https://images.unsplash.com/photo-1616486338812-3dadae4b4ace?auto=format&fit=crop&w=1200&q=80',
+      close_view: newProdCloseViewImg.trim() || primaryImg
+    };
 
-      if (res.ok) {
-        showToast('New product added to catalog!');
-        setShowAddModal(false);
-        setNewProdName('');
-        setNewProdCatId(0);
-        setNewProdBanglaDesc('');
-        setNewProdPlacements([]);
-        await refreshProducts();
-      } else {
-        const errData = await res.json().catch(() => ({}));
-        alert(errData.message || 'Failed to save product on server');
-      }
-    } catch {
-      showToast('New product added locally!');
-      setShowAddModal(false);
-      setNewProdName('');
-      setNewProdCatId(0);
-      setNewProdBanglaDesc('');
-      setNewProdPlacements([]);
-      await refreshProducts();
-    }
+    const payload = {
+      name: newProdName.trim(),
+      category_id: Number(newProdCatId),
+      category_name: selectedCat ? selectedCat.name : 'Wall Decor',
+      price: Number(newProdMediumPrice),
+      old_price: newProdMediumOldPrice ? Number(newProdMediumOldPrice) : undefined,
+      weight_grams: Number(newProdMediumWeight),
+      size_dimensions: newProdMediumDimensions.trim() || '75cm × 40cm',
+      material: newProdMaterial.trim() || 'Surgical Stainless Steel (2mm Thickness)',
+      description: newProdDesc.trim() || 'Precision laser-cut stainless steel wall art featuring 3D floating visual depth.',
+      bangla_short_desc: newProdBanglaDesc.trim() || 'উচ্চমানের ১০০% খাঁটি স্টেইনলেস স্টিলে তৈরি অনন্য ওয়াল আর্ট। ঘরকে দেবে প্রিমিয়াম লুক।',
+      image_url: primaryImg,
+      room_images: roomImages,
+      sizes: [
+        {
+          id: 's1',
+          name: `Medium (${newProdMediumDimensions.trim() || '75cm × 40cm'})`,
+          size_dimensions: newProdMediumDimensions.trim() || '75cm × 40cm',
+          price: Number(newProdMediumPrice),
+          old_price: newProdMediumOldPrice ? Number(newProdMediumOldPrice) : undefined,
+          weight_grams: Number(newProdMediumWeight)
+        },
+        {
+          id: 's2',
+          name: `Large (${newProdLargeDimensions.trim() || '120cm × 60cm'})`,
+          size_dimensions: newProdLargeDimensions.trim() || '120cm × 60cm',
+          price: Number(newProdLargePrice),
+          old_price: newProdLargeOldPrice ? Number(newProdLargeOldPrice) : undefined,
+          weight_grams: Number(newProdLargeWeight)
+        }
+      ],
+      qualities: [
+        '১০০% খাঁটি সার্জিক্যাল স্টেইনলেস স্টিল - মরিচা পড়া বা রঙ চটে যাওয়ার কোনো সম্ভাবনা নেই।',
+        'প্রিসিশন ফাইবার লেজার কাটিং - প্রতিটি হরফ ও ডিজাইন অত্যন্ত নিখুঁত ও মসৃণ।',
+        '৩ডি ফ্লোটিং শ্যাডো লুক - দেয়াল থেকে ১ ইঞ্চি সামনে ভেসে থাকে যা দৃষ্টিনন্দন ছায়া তৈরি করে।',
+        'লাক্সারি স্যাটিন মেটালিক ফিনিশিং - ড্রয়িং রুম, লিভিং রুম বা বেডরুমের জন্য দারুণ মানানসই।',
+        'সহজ ইনস্টলেশন - সাথে থাকছে ফ্রি ৩ডি স্পেসার এবং ওয়াল হ্যাঙ্গিং কিট।'
+      ],
+      featured: true,
+      badge: newProdBadge || 'NEW',
+      stock: Number(newProdStock || 15)
+    };
+
+    await addProduct(payload);
+    showToast(`"${newProdName}" সফলভাবে ক্যাটালগে যুক্ত হয়েছে!`);
+    setShowAddModal(false);
+    
+    // Reset form
+    setNewProdName('');
+    setNewProdCatId(0);
+    setNewProdBanglaDesc('');
   };
 
   const handleSaveEditedProduct = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingProduct) return;
 
+    if (!editingProduct.name.trim()) {
+      alert('দয়া করে প্রোডাক্টের নাম দিন!');
+      return;
+    }
+
     if (!editingProduct.category_id || Number(editingProduct.category_id) <= 0) {
       alert('দয়া করে প্রোডাক্টের জন্য একটি বৈধ ক্যাটাগরি সিলেক্ট করুন (Category is required)!');
       return;
     }
 
-    try {
-      const res = await fetch('/api/products', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(editingProduct)
-      });
+    const primaryImg = editingProduct.room_images?.drawing_room || editingProduct.image_url;
+    const mediumSize = editingProduct.sizes?.[0];
 
-      if (res.ok) {
-        showToast(`Product "${editingProduct.name}" updated successfully!`);
-        setEditingProduct(null);
-        await refreshProducts();
-      } else {
-        const errData = await res.json().catch(() => ({}));
-        alert(errData.message || 'Failed to update product details');
-      }
-    } catch {
-      showToast('Updated product details locally');
-      setEditingProduct(null);
-      await refreshProducts();
-    }
+    const updatedProduct: Product = {
+      ...editingProduct,
+      image_url: primaryImg,
+      price: mediumSize ? mediumSize.price : editingProduct.price,
+      old_price: mediumSize?.old_price !== undefined ? mediumSize.old_price : editingProduct.old_price,
+      weight_grams: mediumSize ? mediumSize.weight_grams : editingProduct.weight_grams,
+      size_dimensions: mediumSize ? mediumSize.size_dimensions : editingProduct.size_dimensions,
+    };
+
+    await updateProduct(updatedProduct);
+    showToast(`প্রোডাক্ট "${updatedProduct.name}" সফলভাবে আপডেট করা হয়েছে!`);
+    setEditingProduct(null);
   };
 
   const handleUpdateShippingSettings = async (e: React.FormEvent) => {
@@ -601,7 +668,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate }) => {
               {activeBestDealProduct && (
                 <div className="bg-white px-4 py-2 rounded-2xl border border-amber-300 flex items-center gap-3 shrink-0">
                   <img
-                    src={activeBestDealProduct.image_url}
+                    src={activeBestDealProduct.room_images?.drawing_room || activeBestDealProduct.image_url}
                     alt=""
                     className="w-8 h-8 rounded-lg object-cover border border-amber-200"
                   />
@@ -635,96 +702,332 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate }) => {
             </div>
           </div>
 
-          {/* MAIN PRODUCTS CATALOG TABLE */}
-          <div className="bg-white rounded-2xl border border-slate-200/80 shadow-xs overflow-hidden space-y-4">
-            <div className="p-4 sm:p-5 border-b border-slate-100 flex items-center justify-between">
-              <h2 className="font-extrabold text-base text-[#0f3d44]">Wall Art Catalog</h2>
-              <span className="text-xs text-slate-400">Total {products.length} Items</span>
+          {/* CATEGORY-WISE FILTER BAR & SEARCH */}
+          <div className="bg-white p-5 rounded-3xl border border-slate-200/80 shadow-xs space-y-4">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+              <div>
+                <h2 className="font-black text-base text-[#0f3d44] flex items-center gap-2">
+                  <Layers className="w-5 h-5 text-indigo-600" />
+                  <span>Category-Wise Product Management (ক্যাটাগরি ভিত্তিক পণ্য তালিকা)</span>
+                </h2>
+                <p className="text-xs text-slate-500">
+                  নির্দিষ্ট ক্যাটাগরি অনুযায়ী প্রোডাক্ট ফিল্টার করুন এবং প্রতিটি প্রোডাক্টের ৫টি রুম ছবি ও সাইজ ডিটেইলস এক ক্লিকে এডিট করুন।
+                </p>
+              </div>
+
+              {/* Search Box */}
+              <div className="relative w-full md:w-72">
+                <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                <input
+                  type="text"
+                  value={productSearch}
+                  onChange={(e) => setProductSearch(e.target.value)}
+                  placeholder="পণ্য বা ক্যাটাগরি সার্চ করুন..."
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-9 pr-3.5 py-2 text-xs font-medium text-[#0f3d44] focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                />
+              </div>
             </div>
 
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-xs">
-                <thead className="bg-slate-50 text-slate-500 font-semibold border-b border-slate-200">
-                  <tr>
-                    <th className="p-3.5">Image &amp; Name</th>
-                    <th className="p-3.5">Category</th>
-                    <th className="p-3.5">Price</th>
-                    <th className="p-3.5">Weight (g)</th>
-                    <th className="p-3.5">Today's Best Deal</th>
-                    <th className="p-3.5">Stock</th>
-                    <th className="p-3.5 text-right">Actions</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {products.map((p) => {
-                    const isCurrentBestDeal = (settings.best_deal_product_id ? p.id === settings.best_deal_product_id : p.id === (products[0]?.id || 1));
-                    return (
-                      <tr key={p.id} className={`hover:bg-slate-50/60 ${isCurrentBestDeal ? 'bg-amber-50/40' : ''}`}>
-                        <td className="p-3.5">
-                          <div className="flex items-center gap-3">
-                            <img src={p.image_url} alt="" className="w-10 h-10 object-cover rounded-xl border border-slate-200" />
-                            <div>
-                              <div className="font-bold text-[#0f3d44]">{p.name}</div>
-                              <div className="text-[10px] text-slate-400 font-mono">ID: {p.id} • Slug: {p.slug}</div>
-                            </div>
-                          </div>
-                        </td>
-                        <td className="p-3.5">
-                          <span className="bg-teal-50 text-teal-800 px-2.5 py-1 rounded-md text-[11px] font-bold border border-teal-100">
-                            {p.category_name || 'Wall Decor'}
-                          </span>
-                        </td>
-                        <td className="p-3.5 font-bold text-[#0f3d44]">{formatPrice(p.price)}</td>
-                        <td className="p-3.5 font-mono text-slate-600">{p.weight_grams}g ({ (p.weight_grams/1000).toFixed(2) }kg)</td>
-                        <td className="p-3.5">
-                          {isCurrentBestDeal ? (
-                            <span className="inline-flex items-center gap-1 font-extrabold text-[11px] text-amber-900 bg-amber-100 border border-amber-300 px-2.5 py-1 rounded-xl shadow-xs animate-pulse">
-                              <Flame className="w-3.5 h-3.5 fill-amber-600 text-amber-600" />
-                              <span>Active Best Deal</span>
-                            </span>
-                          ) : (
-                            <button
-                              onClick={() => handleSelectBestDeal(p.id)}
-                              className="text-[11px] font-bold text-slate-600 hover:text-amber-700 bg-slate-100 hover:bg-amber-50 border border-slate-200 hover:border-amber-300 px-2.5 py-1 rounded-xl transition-all cursor-pointer"
-                            >
-                              ★ Set as Deal
-                            </button>
-                          )}
-                        </td>
-                        <td className="p-3.5">
-                          {p.stock > 0 ? (
-                            <span className="font-bold text-emerald-600 bg-emerald-50 px-2.5 py-1 rounded-md border border-emerald-100">
-                              {p.stock} pcs
-                            </span>
-                          ) : (
-                            <span className="font-black text-red-600 bg-red-50 px-2.5 py-1 rounded-md border border-red-200">
-                              0 (Out of Stock)
-                            </span>
-                          )}
-                        </td>
-                        <td className="p-3.5 text-right">
-                          <button
-                            onClick={() => openEditProduct(p)}
-                            className="p-1.5 text-teal-600 hover:bg-teal-50 rounded-lg mr-1 cursor-pointer"
-                            title="Edit Product Details & Normal Images"
-                          >
-                            <Edit className="w-4 h-4" />
-                          </button>
-                          <button
-                            onClick={() => onNavigate('product', { slug: p.slug })}
-                            className="p-1.5 text-indigo-600 hover:bg-indigo-50 rounded-lg"
-                            title="View Product Page"
-                          >
-                            <Eye className="w-4 h-4" />
-                          </button>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
+            {/* Category Pills */}
+            <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-slate-100">
+              <button
+                type="button"
+                onClick={() => setSelectedCatFilter('all')}
+                className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                  selectedCatFilter === 'all'
+                    ? 'bg-[#0f3d44] text-white shadow-sm ring-2 ring-[#0f3d44]/30'
+                    : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                }`}
+              >
+                <span>সব পণ্য (All)</span>
+                <span className={`text-[10px] px-1.5 py-0.2 rounded-full ${selectedCatFilter === 'all' ? 'bg-white/20 text-white' : 'bg-slate-200 text-slate-700'}`}>
+                  {products.length}
+                </span>
+              </button>
+
+              {categories.map((c) => {
+                const count = products.filter(p => p.category_id === c.id).length;
+                const isSelected = selectedCatFilter === c.id;
+                return (
+                  <button
+                    key={c.id}
+                    type="button"
+                    onClick={() => setSelectedCatFilter(c.id)}
+                    className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                      isSelected
+                        ? 'bg-indigo-600 text-white shadow-sm ring-2 ring-indigo-400/50'
+                        : 'bg-slate-50 border border-slate-200 text-slate-700 hover:bg-indigo-50 hover:border-indigo-200 hover:text-indigo-900'
+                    }`}
+                  >
+                    <span>{c.icon ? `${c.icon} ` : '🏷️ '}{c.name}</span>
+                    <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-mono ${isSelected ? 'bg-white/20 text-white' : 'bg-slate-200 text-slate-700'}`}>
+                      {count}
+                    </span>
+                  </button>
+                );
+              })}
             </div>
           </div>
+
+          {/* MAIN PRODUCTS LIST CARDS */}
+          {(() => {
+            const filtered = products.filter(p => {
+              const matchesCat = selectedCatFilter === 'all' || p.category_id === selectedCatFilter;
+              const matchesSearch = !productSearch.trim() ||
+                p.name.toLowerCase().includes(productSearch.toLowerCase()) ||
+                (p.category_name || '').toLowerCase().includes(productSearch.toLowerCase());
+              return matchesCat && matchesSearch;
+            });
+
+            if (filtered.length === 0) {
+              return (
+                <div className="bg-white rounded-3xl border border-slate-200 p-12 text-center space-y-3">
+                  <div className="w-12 h-12 rounded-2xl bg-slate-100 text-slate-400 flex items-center justify-center mx-auto">
+                    <Search className="w-6 h-6" />
+                  </div>
+                  <h3 className="font-bold text-slate-800 text-sm">কোনো প্রোডাক্ট পাওয়া যায়নি</h3>
+                  <p className="text-xs text-slate-500">
+                    ফিল্টার পরিবর্তন করুন অথবা নতুন প্রোডাক্ট যোগ করুন।
+                  </p>
+                  <button
+                    onClick={() => { setSelectedCatFilter('all'); setProductSearch(''); }}
+                    className="px-4 py-2 bg-indigo-50 text-indigo-600 rounded-xl text-xs font-bold hover:bg-indigo-100 cursor-pointer"
+                  >
+                    রিসেট ফিল্টার
+                  </button>
+                </div>
+              );
+            }
+
+            return (
+              <div className="space-y-4">
+                {filtered.map((p) => {
+                  const isCurrentBestDeal = (settings.best_deal_product_id ? p.id === settings.best_deal_product_id : p.id === (products[0]?.id || 1));
+                  const isIslamic =
+                    p.category_id === 1 ||
+                    p.category_id === 2 ||
+                    p.category_id === 3 ||
+                    (p.category_name || '').toLowerCase().includes('islamic') ||
+                    (p.name || '').toLowerCase().includes('ayatul') ||
+                    (p.name || '').toLowerCase().includes('surah');
+
+                  const room3Label = isIslamic ? 'নামাজের ঘর' : 'রিডিং রুম';
+
+                  const rDrawing = p.room_images?.drawing_room || p.image_url || '';
+                  const rOffice = p.room_images?.office_room || p.placements?.find(x => x.room_type === 'Office')?.image_url || 'https://images.unsplash.com/photo-1513694203232-719a280e022f?auto=format&fit=crop&w=1200&q=80';
+                  const rPrayerReading = p.room_images?.prayer_or_reading_room || p.placements?.find(x => x.room_type === 'Hallway' || x.room_type === 'Formations')?.image_url || 'https://images.unsplash.com/photo-1618221195710-dd6b41faaea6?auto=format&fit=crop&w=1200&q=80';
+                  const rBedroom = p.room_images?.bedroom || p.placements?.find(x => x.room_type === 'Bedroom')?.image_url || 'https://images.unsplash.com/photo-1616486338812-3dadae4b4ace?auto=format&fit=crop&w=1200&q=80';
+                  const rCloseView = p.room_images?.close_view || p.image_url || '';
+
+                  const medSize = p.sizes?.[0] || {
+                    name: 'Medium (75cm × 40cm)',
+                    size_dimensions: p.size_dimensions || '75cm × 40cm',
+                    price: p.price,
+                    old_price: p.old_price,
+                    weight_grams: p.weight_grams
+                  };
+
+                  const lrgSize = p.sizes?.[1] || {
+                    name: 'Large (120cm × 60cm)',
+                    size_dimensions: '120cm × 60cm',
+                    price: Math.round(p.price * 1.36),
+                    old_price: p.old_price ? Math.round(p.old_price * 1.36) : undefined,
+                    weight_grams: Math.round(p.weight_grams * 1.57)
+                  };
+
+                  return (
+                    <div
+                      key={p.id}
+                      className={`bg-white rounded-3xl border p-5 sm:p-6 shadow-xs transition-all space-y-4 hover:shadow-md ${
+                        isCurrentBestDeal ? 'border-amber-300 ring-2 ring-amber-200/50 bg-amber-50/10' : 'border-slate-200/90'
+                      }`}
+                    >
+                      {/* TOP ROW: TITLE, CATEGORY, BADGES & ACTIONS */}
+                      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 border-b border-slate-100 pb-3.5">
+                        <div className="flex items-start sm:items-center gap-3">
+                          <img
+                            src={rDrawing}
+                            alt=""
+                            className="w-14 h-14 rounded-2xl object-cover border border-slate-200 shrink-0 shadow-xs"
+                          />
+                          <div className="space-y-1">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <h3 className="font-extrabold text-sm sm:text-base text-[#0f3d44]">
+                                {p.name}
+                              </h3>
+                              <span className="bg-teal-50 text-teal-800 px-2.5 py-0.5 rounded-full text-[11px] font-bold border border-teal-200">
+                                {p.category_name || 'Wall Decor'}
+                              </span>
+                              {p.badge && (
+                                <span className="bg-rose-50 text-rose-700 px-2 py-0.5 rounded-md text-[10px] font-black uppercase tracking-wider border border-rose-200">
+                                  {p.badge}
+                                </span>
+                              )}
+                              {isCurrentBestDeal && (
+                                <span className="bg-amber-100 text-amber-900 border border-amber-300 px-2 py-0.5 rounded-md text-[10px] font-black flex items-center gap-1">
+                                  <Flame className="w-3 h-3 fill-amber-600 text-amber-600" /> Best Deal Active
+                                </span>
+                              )}
+                            </div>
+                            <div className="text-[11px] text-slate-400 font-mono flex items-center gap-2">
+                              <span>ID: #{p.id}</span>
+                              <span>•</span>
+                              <span>Stock: <strong className={p.stock > 0 ? 'text-emerald-600' : 'text-rose-600'}>{p.stock} pcs</strong></span>
+                              <span>•</span>
+                              <span>Material: {p.material || 'Surgical Stainless Steel'}</span>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Top Action Buttons */}
+                        <div className="flex items-center gap-2 self-end lg:self-center">
+                          {!isCurrentBestDeal && (
+                            <button
+                              type="button"
+                              onClick={() => handleSelectBestDeal(p.id)}
+                              className="px-3 py-1.5 rounded-xl text-xs font-bold text-amber-800 bg-amber-50 hover:bg-amber-100 border border-amber-200 transition-all flex items-center gap-1 cursor-pointer"
+                              title="Set as Homepage Today's Best Deal"
+                            >
+                              <Flame className="w-3.5 h-3.5 text-amber-600" />
+                              <span>Set Best Deal</span>
+                            </button>
+                          )}
+                          <button
+                            type="button"
+                            onClick={() => onNavigate('product', { slug: p.slug })}
+                            className="px-3 py-1.5 rounded-xl text-xs font-bold text-slate-600 hover:text-[#0f3d44] bg-slate-100 hover:bg-slate-200 transition-all flex items-center gap-1 cursor-pointer"
+                            title="View on public store"
+                          >
+                            <Eye className="w-3.5 h-3.5" />
+                            <span>Preview</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => openEditProduct(p)}
+                            className="px-4 py-1.5 rounded-xl text-xs font-black text-white bg-gradient-to-r from-teal-500 via-indigo-600 to-pink-500 hover:opacity-90 shadow-sm transition-all flex items-center gap-1.5 cursor-pointer"
+                            title="Edit All 5 Room Images, Sizes & Descriptions"
+                          >
+                            <Edit className="w-3.5 h-3.5" />
+                            <span>সম্পূর্ণ এডিট করুন</span>
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* 5 ROOM VIEW THUMBNAILS ROW */}
+                      <div className="space-y-1.5">
+                        <div className="flex items-center justify-between text-[11px] font-bold text-slate-500">
+                          <span>৫টি রুম ভিউ ফটো (5 Types of Room & View Images):</span>
+                          <span className="text-[10px] text-teal-700 font-semibold">ডিফল্ট সিলেক্টেড: ড্রয়িং রুম</span>
+                        </div>
+                        <div className="grid grid-cols-2 sm:grid-cols-5 gap-2.5">
+                          {/* 1. Drawing Room */}
+                          <div className="bg-slate-50 p-2 rounded-2xl border border-slate-200 flex items-center gap-2">
+                            <img src={rDrawing} alt="Drawing Room" className="w-10 h-10 rounded-xl object-cover border border-slate-300 shrink-0" />
+                            <div className="min-w-0">
+                              <span className="text-[9px] font-black text-indigo-900 uppercase block">১. ড্রয়িং রুম</span>
+                              <span className="text-[10px] font-bold text-emerald-700 block truncate">ডিফল্ট মেইন</span>
+                            </div>
+                          </div>
+
+                          {/* 2. Office Room */}
+                          <div className="bg-slate-50 p-2 rounded-2xl border border-slate-200 flex items-center gap-2">
+                            <img src={rOffice} alt="Office Room" className="w-10 h-10 rounded-xl object-cover border border-slate-300 shrink-0" />
+                            <div className="min-w-0">
+                              <span className="text-[9px] font-black text-slate-700 uppercase block">২. অফিস রুম</span>
+                              <span className="text-[10px] font-medium text-slate-500 block truncate">অফিস স্পেস</span>
+                            </div>
+                          </div>
+
+                          {/* 3. Prayer / Reading Room */}
+                          <div className="bg-slate-50 p-2 rounded-2xl border border-slate-200 flex items-center gap-2">
+                            <img src={rPrayerReading} alt={room3Label} className="w-10 h-10 rounded-xl object-cover border border-slate-300 shrink-0" />
+                            <div className="min-w-0">
+                              <span className="text-[9px] font-black text-teal-800 uppercase block truncate">৩. {room3Label}</span>
+                              <span className="text-[10px] font-medium text-slate-500 block truncate">{isIslamic ? 'ইসলামিক ভিউ' : 'ন্যাচারাল ভিউ'}</span>
+                            </div>
+                          </div>
+
+                          {/* 4. Bedroom */}
+                          <div className="bg-slate-50 p-2 rounded-2xl border border-slate-200 flex items-center gap-2">
+                            <img src={rBedroom} alt="Bedroom" className="w-10 h-10 rounded-xl object-cover border border-slate-300 shrink-0" />
+                            <div className="min-w-0">
+                              <span className="text-[9px] font-black text-slate-700 uppercase block">৪. বেডরুম</span>
+                              <span className="text-[10px] font-medium text-slate-500 block truncate">বেডরুম স্পেস</span>
+                            </div>
+                          </div>
+
+                          {/* 5. Close View */}
+                          <div className="bg-slate-50 p-2 rounded-2xl border border-slate-200 flex items-center gap-2 col-span-2 sm:col-span-1">
+                            <img src={rCloseView} alt="Close View" className="w-10 h-10 rounded-xl object-cover border border-slate-300 shrink-0" />
+                            <div className="min-w-0">
+                              <span className="text-[9px] font-black text-slate-700 uppercase block">৫. ক্লোজ ভিউ</span>
+                              <span className="text-[10px] font-medium text-slate-500 block truncate">টেক্সচার ফিনিশ</span>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* SIZES, PRICING & WEIGHT ROW */}
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                        {/* Medium Size Card */}
+                        <div className="bg-indigo-50/50 p-3 rounded-2xl border border-indigo-100 flex items-center justify-between">
+                          <div>
+                            <span className="text-[10px] font-extrabold text-indigo-900 uppercase tracking-wider block">
+                              মিডিয়াম সাইজ (Medium)
+                            </span>
+                            <div className="text-xs font-black text-[#0f3d44]">
+                              {medSize.size_dimensions || '75cm × 40cm'}
+                            </div>
+                            <span className="text-[10px] text-slate-500">ওজন: {medSize.weight_grams || 1400}g</span>
+                          </div>
+                          <div className="text-right">
+                            <div className="text-sm font-black text-indigo-900">
+                              {formatPrice(medSize.price)}
+                            </div>
+                            {medSize.old_price && (
+                              <div className="text-[10px] text-slate-400 line-through">
+                                {formatPrice(medSize.old_price)}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Large Size Card */}
+                        <div className="bg-purple-50/50 p-3 rounded-2xl border border-purple-100 flex items-center justify-between">
+                          <div>
+                            <span className="text-[10px] font-extrabold text-purple-900 uppercase tracking-wider block">
+                              লার্জ সাইজ (Large)
+                            </span>
+                            <div className="text-xs font-black text-[#0f3d44]">
+                              {lrgSize.size_dimensions || '120cm × 60cm'}
+                            </div>
+                            <span className="text-[10px] text-slate-500">ওজন: {lrgSize.weight_grams || 2200}g</span>
+                          </div>
+                          <div className="text-right">
+                            <div className="text-sm font-black text-purple-900">
+                              {formatPrice(lrgSize.price)}
+                            </div>
+                            {lrgSize.old_price && (
+                              <div className="text-[10px] text-slate-400 line-through">
+                                {formatPrice(lrgSize.old_price)}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Bangla Description Excerpt */}
+                      {p.bangla_short_desc && (
+                        <div className="text-[11px] text-slate-600 bg-slate-50 p-2.5 rounded-xl border border-slate-100 italic">
+                          "{p.bangla_short_desc}"
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            );
+          })()}
         </div>
       )}
 
@@ -927,22 +1230,31 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate }) => {
                         type="url"
                         value={p.image_url}
                         onChange={(e) => {
-                          const updated = products.map(prod => prod.id === p.id ? { ...prod, image_url: e.target.value } : prod);
-                          // triggers product edit modal or quick sync
+                          updateProduct({ ...p, image_url: e.target.value });
                         }}
                         className="w-full bg-white border border-slate-200 rounded-lg px-2.5 py-1 text-[11px] text-[#0f3d44] font-mono"
-                        readOnly
                       />
                     </div>
                   </div>
 
-                  <button
-                    onClick={() => openEditProduct(p)}
-                    className="w-full py-2 rounded-xl text-xs font-bold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 transition-all cursor-pointer flex items-center justify-center gap-1.5"
-                  >
-                    <Edit className="w-3.5 h-3.5" />
-                    <span>Edit Product &amp; Gallery Links</span>
-                  </button>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => {
+                        showToast(`"${p.name}" এর ছবি সেভ করা হয়েছে!`);
+                      }}
+                      className="w-1/2 py-2 rounded-xl text-xs font-bold text-teal-800 bg-teal-100/80 hover:bg-teal-200 transition-all cursor-pointer flex items-center justify-center gap-1"
+                    >
+                      <Check className="w-3.5 h-3.5" />
+                      <span>Save Link</span>
+                    </button>
+                    <button
+                      onClick={() => openEditProduct(p)}
+                      className="w-1/2 py-2 rounded-xl text-xs font-bold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 transition-all cursor-pointer flex items-center justify-center gap-1"
+                    >
+                      <Edit className="w-3.5 h-3.5" />
+                      <span>Full Edit</span>
+                    </button>
+                  </div>
                 </div>
               ))}
             </div>
@@ -1408,202 +1720,386 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate }) => {
 
       {/* ADD NEW PRODUCT MODAL */}
       {showAddModal && (
-        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl max-w-lg w-full p-6 space-y-5 shadow-2xl border border-slate-200 max-h-[90vh] overflow-y-auto">
+        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4">
+          <div className="bg-white rounded-3xl max-w-2xl w-full p-5 sm:p-6 space-y-5 shadow-2xl border border-slate-200 max-h-[92vh] overflow-y-auto">
             <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-              <h3 className="font-extrabold text-base text-[#0f3d44]">
-                Add New Stainless Steel Wall Art
-              </h3>
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-xl bg-indigo-600 text-white flex items-center justify-center font-bold">
+                  <Plus className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="font-extrabold text-base text-[#0f3d44]">
+                    নতুন ওয়াল আর্ট প্রোডাক্ট যোগ করুন
+                  </h3>
+                  <p className="text-[11px] text-slate-500">
+                    ৫টি রুম ভিউ ইমেজ, ২ ধরণের সাইজ (মিডিয়াম ও লার্জ), মূল্য ও বিবরণ দিন
+                  </p>
+                </div>
+              </div>
               <button
                 type="button"
                 onClick={() => setShowAddModal(false)}
-                className="text-slate-400 hover:text-slate-600 font-bold text-lg cursor-pointer"
+                className="text-slate-400 hover:text-slate-600 font-bold text-lg p-1.5 rounded-lg hover:bg-slate-100 cursor-pointer"
               >
                 ✕
               </button>
             </div>
 
-            <form onSubmit={handleCreateProduct} className="space-y-4 text-xs">
-              <div>
-                <label className="font-semibold text-slate-700 block mb-1">Product Title *</label>
-                <input
-                  type="text"
-                  required
-                  value={newProdName}
-                  onChange={(e) => setNewProdName(e.target.value)}
-                  placeholder="e.g. 4 Qul Islamic Metal Wall Art"
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2 text-xs font-bold text-[#0f3d44]"
-                />
-              </div>
+            <form onSubmit={handleCreateProduct} className="space-y-6 text-xs">
+              {/* SECTION 1: BASIC INFORMATION */}
+              <div className="bg-slate-50/80 p-4 rounded-2xl border border-slate-200/80 space-y-3">
+                <h4 className="font-extrabold text-xs text-[#0f3d44] flex items-center gap-1.5">
+                  <span className="w-5 h-5 rounded-full bg-indigo-100 text-indigo-700 flex items-center justify-center text-[10px] font-black">১</span>
+                  <span>বেসিক তথ্য (Product Basic Information)</span>
+                </h4>
 
-              <div>
-                <label className="font-bold text-slate-700 block mb-1">
-                  Category * <span className="text-rose-600 font-normal text-[11px]">(বাধ্যতামূলক - Select Category)</span>
-                </label>
-                <select
-                  required
-                  value={newProdCatId}
-                  onChange={(e) => setNewProdCatId(Number(e.target.value))}
-                  className={`w-full border rounded-xl px-3.5 py-2 text-xs font-bold focus:outline-none transition-all ${
-                    !newProdCatId || newProdCatId === 0
-                      ? 'bg-rose-50 border-rose-300 text-rose-900 ring-2 ring-rose-200/50'
-                      : 'bg-slate-50 border-slate-200 text-[#0f3d44]'
-                  }`}
-                >
-                  <option value={0}>-- ক্যাটাগরি সিলেক্ট করুন (Select Category) * --</option>
-                  {categories.map((c) => (
-                    <option key={c.id} value={c.id}>
-                      {c.icon ? `${c.icon} ` : ''}{c.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div className="p-3 bg-slate-50 border border-slate-200 rounded-2xl space-y-3">
-                <div className="flex items-center justify-between border-b border-slate-200 pb-1.5">
-                  <h4 className="font-extrabold text-xs text-[#0f3d44]">
-                    Size Options &amp; Pricing
-                  </h4>
+                <div>
+                  <label className="font-bold text-slate-700 block mb-1">
+                    প্রোডাক্টের নাম (Product Name) *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={newProdName}
+                    onChange={(e) => setNewProdName(e.target.value)}
+                    placeholder="যেমন: Ayatul Kursi Laser-Cut Stainless Steel Wall Art"
+                    className="w-full bg-white border border-slate-200 rounded-xl px-3.5 py-2 text-xs font-bold text-[#0f3d44] focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  />
                 </div>
 
-                <div className="p-2.5 bg-white rounded-xl border border-slate-200 space-y-2">
-                  <div className="font-bold text-xs text-indigo-900">
-                    Option 1: Medium Size (ডিফল্ট)
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="font-bold text-slate-700 block mb-1">
+                      ক্যাটাগরি (Category) *
+                    </label>
+                    <select
+                      required
+                      value={newProdCatId}
+                      onChange={(e) => setNewProdCatId(Number(e.target.value))}
+                      className="w-full border border-slate-200 rounded-xl px-3.5 py-2 text-xs font-bold bg-white text-[#0f3d44] focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    >
+                      <option value={0}>-- ক্যাটাগরি সিলেক্ট করুন * --</option>
+                      {categories.map((c) => (
+                        <option key={c.id} value={c.id}>
+                          {c.icon ? `${c.icon} ` : ''}{c.name}
+                        </option>
+                      ))}
+                    </select>
                   </div>
-                  <div className="grid grid-cols-2 gap-2">
+
+                  <div>
+                    <label className="font-bold text-slate-700 block mb-1">
+                      স্টক সংখ্যা (Stock Units)
+                    </label>
+                    <input
+                      type="number"
+                      value={newProdStock}
+                      onChange={(e) => setNewProdStock(Number(e.target.value))}
+                      className="w-full bg-white border border-slate-200 rounded-xl px-3.5 py-2 text-xs font-bold text-[#0f3d44]"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="font-bold text-slate-700 block mb-1">
+                    হাইলাইট ব্যাজ (Badge)
+                  </label>
+                  <div className="flex gap-2">
+                    {(['NEW', 'HOT', 'SALE', ''] as const).map((b) => (
+                      <button
+                        key={b || 'none'}
+                        type="button"
+                        onClick={() => setNewProdBadge(b)}
+                        className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                          newProdBadge === b
+                            ? 'bg-indigo-600 text-white shadow-xs'
+                            : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-100'
+                        }`}
+                      >
+                        {b || 'কোনো ব্যাজ নেই'}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              {/* SECTION 2: 5 ROOM VIEW IMAGES */}
+              <div className="bg-indigo-50/40 p-4 rounded-2xl border border-indigo-100 space-y-3">
+                <div className="flex items-center justify-between">
+                  <h4 className="font-extrabold text-xs text-indigo-950 flex items-center gap-1.5">
+                    <span className="w-5 h-5 rounded-full bg-indigo-200 text-indigo-800 flex items-center justify-center text-[10px] font-black">২</span>
+                    <span>৫টি রুম ভিউ ইমেজ লিঙ্ক (5 Types Room Images Upload/Links)</span>
+                  </h4>
+                  <span className="text-[10px] bg-emerald-100 text-emerald-800 font-bold px-2 py-0.5 rounded-full">
+                    ১. ড্রয়িং রুম ডিফল্ট
+                  </span>
+                </div>
+                <p className="text-[11px] text-slate-600">
+                  প্রতিটি রুমের জন্য সুন্দর ছবির লিঙ্ক দিন। ওয়েবসাইট ও প্রোডাক্ট পেজে ড্রয়িং রুমের ছবিটি প্রথমে স্বয়ংক্রিয়ভাবে লোড হবে।
+                </p>
+
+                {/* 1. Drawing Room */}
+                <div className="p-3 bg-white rounded-xl border border-indigo-100 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <label className="font-black text-indigo-900 text-xs flex items-center gap-1.5">
+                      <span>১. ড্রয়িং রুম (Drawing Room)</span>
+                      <span className="text-[10px] font-bold bg-amber-100 text-amber-900 px-1.5 py-0.2 rounded-md">মেইন ফটো &amp; ডিফল্ট সিলেক্টেড</span>
+                    </label>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <img src={newProdDrawingRoomImg} alt="" className="w-12 h-12 rounded-xl object-cover border border-slate-200 shrink-0" />
+                    <input
+                      type="url"
+                      required
+                      value={newProdDrawingRoomImg}
+                      onChange={(e) => setNewProdDrawingRoomImg(e.target.value)}
+                      placeholder="ড্রয়িং রুম ভিউ ছবির লিঙ্ক..."
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-[#0f3d44] font-mono"
+                    />
+                  </div>
+                </div>
+
+                {/* 2. Office Room */}
+                <div className="p-3 bg-white rounded-xl border border-slate-200 space-y-2">
+                  <label className="font-bold text-slate-800 text-xs block">
+                    ২. অফিস রুম (Office Room View)
+                  </label>
+                  <div className="flex items-center gap-2">
+                    <img src={newProdOfficeRoomImg} alt="" className="w-12 h-12 rounded-xl object-cover border border-slate-200 shrink-0" />
+                    <input
+                      type="url"
+                      value={newProdOfficeRoomImg}
+                      onChange={(e) => setNewProdOfficeRoomImg(e.target.value)}
+                      placeholder="অফিস রুম ছবির লিঙ্ক..."
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-[#0f3d44] font-mono"
+                    />
+                  </div>
+                </div>
+
+                {/* 3. Prayer / Reading Room (Dynamic based on Category) */}
+                <div className="p-3 bg-white rounded-xl border border-teal-200 space-y-2">
+                  <label className="font-bold text-teal-900 text-xs block">
+                    ৩. নামাজের ঘর (ইসলামিক ক্যাটাগরির জন্য) / রিডিং রুম (ন্যাচারাল ক্যাটাগরির জন্য)
+                  </label>
+                  <div className="flex items-center gap-2">
+                    <img src={newProdPrayerOrReadingRoomImg} alt="" className="w-12 h-12 rounded-xl object-cover border border-slate-200 shrink-0" />
+                    <input
+                      type="url"
+                      value={newProdPrayerOrReadingRoomImg}
+                      onChange={(e) => setNewProdPrayerOrReadingRoomImg(e.target.value)}
+                      placeholder="নামাজের ঘর বা রিডিং রুম ছবির লিঙ্ক..."
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-[#0f3d44] font-mono"
+                    />
+                  </div>
+                </div>
+
+                {/* 4. Bedroom */}
+                <div className="p-3 bg-white rounded-xl border border-slate-200 space-y-2">
+                  <label className="font-bold text-slate-800 text-xs block">
+                    ৪. বেডরুম (Bedroom View)
+                  </label>
+                  <div className="flex items-center gap-2">
+                    <img src={newProdBedroomImg} alt="" className="w-12 h-12 rounded-xl object-cover border border-slate-200 shrink-0" />
+                    <input
+                      type="url"
+                      value={newProdBedroomImg}
+                      onChange={(e) => setNewProdBedroomImg(e.target.value)}
+                      placeholder="বেডরুম ছবির লিঙ্ক..."
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-[#0f3d44] font-mono"
+                    />
+                  </div>
+                </div>
+
+                {/* 5. Close View */}
+                <div className="p-3 bg-white rounded-xl border border-slate-200 space-y-2">
+                  <label className="font-bold text-slate-800 text-xs block">
+                    ৫. ক্লোজ ভিউ (Close View - ৩ডি শ্যাডো ও টেক্সচার ফিনিশ)
+                  </label>
+                  <div className="flex items-center gap-2">
+                    <img src={newProdCloseViewImg} alt="" className="w-12 h-12 rounded-xl object-cover border border-slate-200 shrink-0" />
+                    <input
+                      type="url"
+                      value={newProdCloseViewImg}
+                      onChange={(e) => setNewProdCloseViewImg(e.target.value)}
+                      placeholder="ক্লোজ ভিউ ছবির লিঙ্ক..."
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-[#0f3d44] font-mono"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* SECTION 3: SIZES (MEDIUM & LARGE - LENGTH & WIDTH ONLY), PRICES & WEIGHT */}
+              <div className="bg-slate-50/80 p-4 rounded-2xl border border-slate-200/80 space-y-3">
+                <h4 className="font-extrabold text-xs text-[#0f3d44] flex items-center gap-1.5">
+                  <span className="w-5 h-5 rounded-full bg-indigo-100 text-indigo-700 flex items-center justify-center text-[10px] font-black">৩</span>
+                  <span>সাইজ ও মূল্য নির্ধারণ (Sizes: Length × Width, Both Prices &amp; Weight)</span>
+                </h4>
+
+                {/* Medium Size */}
+                <div className="p-3 bg-white rounded-xl border border-indigo-100 space-y-2">
+                  <span className="font-black text-indigo-900 text-xs block">
+                    মিডিয়াম সাইজ (Medium Size - ডিফল্ট)
+                  </span>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                     <div>
-                      <label className="text-[10px] font-semibold text-slate-600 block">Size Name</label>
+                      <label className="text-[10px] font-bold text-slate-600 block">
+                        দৈর্ঘ্য ও প্রস্থ (Length × Width) *
+                      </label>
                       <input
                         type="text"
-                        value={newProdMediumName}
-                        onChange={(e) => setNewProdMediumName(e.target.value)}
-                        className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1 text-xs font-bold text-[#0f3d44]"
-                      />
-                    </div>
-                    <div>
-                      <label className="text-[10px] font-semibold text-slate-600 block">Dimensions</label>
-                      <input
-                        type="text"
+                        required
                         value={newProdMediumDimensions}
                         onChange={(e) => setNewProdMediumDimensions(e.target.value)}
-                        className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1 text-xs text-[#0f3d44]"
-                      />
-                    </div>
-                  </div>
-                  <div className="grid grid-cols-3 gap-2">
-                    <div>
-                      <label className="text-[10px] font-semibold text-slate-600 block">Price (৳) *</label>
-                      <input
-                        type="number"
-                        required
-                        value={newProdMediumPrice}
-                        onChange={(e) => setNewProdMediumPrice(Number(e.target.value))}
-                        className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1 text-xs font-bold text-[#0f3d44]"
+                        placeholder="যেমন: 75cm × 40cm"
+                        className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs font-bold text-[#0f3d44]"
                       />
                     </div>
                     <div>
-                      <label className="text-[10px] font-semibold text-slate-600 block">Old Price (৳)</label>
-                      <input
-                        type="number"
-                        value={newProdMediumOldPrice}
-                        onChange={(e) => setNewProdMediumOldPrice(Number(e.target.value))}
-                        className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1 text-xs text-[#0f3d44]"
-                      />
-                    </div>
-                    <div>
-                      <label className="text-[10px] font-semibold text-slate-600 block">Weight (g) *</label>
+                      <label className="text-[10px] font-bold text-slate-600 block">
+                        ওজন (Weight in grams) *
+                      </label>
                       <input
                         type="number"
                         required
                         value={newProdMediumWeight}
                         onChange={(e) => setNewProdMediumWeight(Number(e.target.value))}
-                        className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1 text-xs text-[#0f3d44]"
+                        className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs font-bold text-[#0f3d44]"
+                      />
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <label className="text-[10px] font-bold text-emerald-700 block">
+                        বিক্রয় মূল্য (Price ৳) *
+                      </label>
+                      <input
+                        type="number"
+                        required
+                        value={newProdMediumPrice}
+                        onChange={(e) => setNewProdMediumPrice(Number(e.target.value))}
+                        className="w-full bg-emerald-50/50 border border-emerald-200 rounded-lg px-2.5 py-1.5 text-xs font-black text-emerald-900"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-[10px] font-bold text-slate-500 block">
+                        পূর্বের মূল্য / কাটা মূল্য (Old Price ৳)
+                      </label>
+                      <input
+                        type="number"
+                        value={newProdMediumOldPrice}
+                        onChange={(e) => setNewProdMediumOldPrice(Number(e.target.value))}
+                        className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs text-slate-600"
                       />
                     </div>
                   </div>
                 </div>
 
-                <div className="p-2.5 bg-white rounded-xl border border-slate-200 space-y-2">
-                  <div className="font-bold text-xs text-indigo-900">
-                    Option 2: Large Size
-                  </div>
-                  <div className="grid grid-cols-2 gap-2">
+                {/* Large Size */}
+                <div className="p-3 bg-white rounded-xl border border-purple-100 space-y-2">
+                  <span className="font-black text-purple-900 text-xs block">
+                    লার্জ সাইজ (Large Size)
+                  </span>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                     <div>
-                      <label className="text-[10px] font-semibold text-slate-600 block">Size Name</label>
+                      <label className="text-[10px] font-bold text-slate-600 block">
+                        দৈর্ঘ্য ও প্রস্থ (Length × Width) *
+                      </label>
                       <input
                         type="text"
-                        value={newProdLargeName}
-                        onChange={(e) => setNewProdLargeName(e.target.value)}
-                        className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1 text-xs font-bold text-[#0f3d44]"
-                      />
-                    </div>
-                    <div>
-                      <label className="text-[10px] font-semibold text-slate-600 block">Dimensions</label>
-                      <input
-                        type="text"
+                        required
                         value={newProdLargeDimensions}
                         onChange={(e) => setNewProdLargeDimensions(e.target.value)}
-                        className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1 text-xs text-[#0f3d44]"
-                      />
-                    </div>
-                  </div>
-                  <div className="grid grid-cols-3 gap-2">
-                    <div>
-                      <label className="text-[10px] font-semibold text-slate-600 block">Price (৳) *</label>
-                      <input
-                        type="number"
-                        required
-                        value={newProdLargePrice}
-                        onChange={(e) => setNewProdLargePrice(Number(e.target.value))}
-                        className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1 text-xs font-bold text-[#0f3d44]"
+                        placeholder="যেমন: 120cm × 60cm"
+                        className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs font-bold text-[#0f3d44]"
                       />
                     </div>
                     <div>
-                      <label className="text-[10px] font-semibold text-slate-600 block">Old Price (৳)</label>
-                      <input
-                        type="number"
-                        value={newProdLargeOldPrice}
-                        onChange={(e) => setNewProdLargeOldPrice(Number(e.target.value))}
-                        className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1 text-xs text-[#0f3d44]"
-                      />
-                    </div>
-                    <div>
-                      <label className="text-[10px] font-semibold text-slate-600 block">Weight (g) *</label>
+                      <label className="text-[10px] font-bold text-slate-600 block">
+                        ওজন (Weight in grams) *
+                      </label>
                       <input
                         type="number"
                         required
                         value={newProdLargeWeight}
                         onChange={(e) => setNewProdLargeWeight(Number(e.target.value))}
-                        className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1 text-xs text-[#0f3d44]"
+                        className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs font-bold text-[#0f3d44]"
+                      />
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <label className="text-[10px] font-bold text-purple-700 block">
+                        বিক্রয় মূল্য (Price ৳) *
+                      </label>
+                      <input
+                        type="number"
+                        required
+                        value={newProdLargePrice}
+                        onChange={(e) => setNewProdLargePrice(Number(e.target.value))}
+                        className="w-full bg-purple-50/50 border border-purple-200 rounded-lg px-2.5 py-1.5 text-xs font-black text-purple-900"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-[10px] font-bold text-slate-500 block">
+                        পূর্বের মূল্য / কাটা মূল্য (Old Price ৳)
+                      </label>
+                      <input
+                        type="number"
+                        value={newProdLargeOldPrice}
+                        onChange={(e) => setNewProdLargeOldPrice(Number(e.target.value))}
+                        className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs text-slate-600"
                       />
                     </div>
                   </div>
                 </div>
               </div>
 
-              <div>
-                <label className="font-semibold text-slate-700 block mb-1">Main Image URL (প্রোডাক্ট ছবির লিঙ্ক)</label>
-                <input
-                  type="url"
-                  value={newProdImg}
-                  onChange={(e) => setNewProdImg(e.target.value)}
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2 text-xs text-[#0f3d44]"
-                />
+              {/* SECTION 4: DESCRIPTION & MATERIAL */}
+              <div className="bg-slate-50/80 p-4 rounded-2xl border border-slate-200/80 space-y-3">
+                <h4 className="font-extrabold text-xs text-[#0f3d44] flex items-center gap-1.5">
+                  <span className="w-5 h-5 rounded-full bg-indigo-100 text-indigo-700 flex items-center justify-center text-[10px] font-black">৪</span>
+                  <span>পণ্যের বিবরণ ও মেটেরিয়াল (Description &amp; Overview)</span>
+                </h4>
+
+                <div>
+                  <label className="font-bold text-slate-700 block mb-1">
+                    বাংলা সংক্ষিপ্ত বিবরণ (Bangla Short Overview)
+                  </label>
+                  <textarea
+                    rows={2}
+                    value={newProdBanglaDesc}
+                    onChange={(e) => setNewProdBanglaDesc(e.target.value)}
+                    placeholder="যেমন: ১০০% খাঁটি সার্জিক্যাল স্টেইনলেস স্টিলে তৈরি অনন্য ওয়াল আর্ট। ঘরকে দেবে প্রিমিয়াম লাক্সারি লুক।"
+                    className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs text-[#0f3d44] focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="font-bold text-slate-700 block mb-1">
+                    মেটেরিয়াল ও থিকনেস (Material)
+                  </label>
+                  <input
+                    type="text"
+                    value={newProdMaterial}
+                    onChange={(e) => setNewProdMaterial(e.target.value)}
+                    className="w-full bg-white border border-slate-200 rounded-xl px-3.5 py-2 text-xs font-bold text-[#0f3d44]"
+                  />
+                </div>
               </div>
 
               <div className="flex gap-2 pt-2">
                 <button
                   type="button"
                   onClick={() => setShowAddModal(false)}
-                  className="w-1/2 py-2.5 rounded-xl border border-slate-200 text-xs font-bold text-slate-600 hover:bg-slate-100 cursor-pointer"
+                  className="w-1/2 py-3 rounded-xl border border-slate-200 text-xs font-bold text-slate-600 hover:bg-slate-100 cursor-pointer"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="w-1/2 py-2.5 rounded-xl text-xs font-bold text-white bg-gradient-to-r from-[#14b8a6] via-[#4f46e5] via-[#9333ea] to-[#ec4899] cursor-pointer"
+                  className="w-1/2 py-3 rounded-xl text-xs font-black text-white bg-gradient-to-r from-[#14b8a6] via-[#4f46e5] via-[#9333ea] to-[#ec4899] shadow-md hover:opacity-95 cursor-pointer"
                 >
-                  Save Product
+                  সংরক্ষণ করুন (Save Product)
                 </button>
               </div>
             </form>
@@ -1611,127 +2107,476 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate }) => {
         </div>
       )}
 
-      {/* EDIT PRODUCT MODAL */}
+      {/* EDIT PRODUCT MODAL (COMPLETE EDITABLE ALL 6 ITEMS) */}
       {editingProduct && (
-        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl max-w-lg w-full p-6 space-y-5 shadow-2xl border border-slate-200 max-h-[90vh] overflow-y-auto">
+        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4">
+          <div className="bg-white rounded-3xl max-w-2xl w-full p-5 sm:p-6 space-y-5 shadow-2xl border border-slate-200 max-h-[92vh] overflow-y-auto">
+            {/* Modal Header */}
             <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-              <h3 className="font-extrabold text-base text-[#0f3d44]">
-                Edit Product: {editingProduct.name}
-              </h3>
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-teal-500 to-indigo-600 text-white flex items-center justify-center font-bold shrink-0">
+                  <Edit className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="font-extrabold text-base text-[#0f3d44]">
+                    প্রোডাক্ট সম্পূর্ণ এডিট করুন: {editingProduct.name}
+                  </h3>
+                  <p className="text-[11px] text-slate-500">
+                    ৫টি রুম ইমেজ লিঙ্ক, মিডিয়াম ও লার্জ সাইজ, উভয় প্রাইস, ওজন ও বিবরণ এডিট করুন
+                  </p>
+                </div>
+              </div>
               <button
                 type="button"
                 onClick={() => setEditingProduct(null)}
-                className="text-slate-400 hover:text-slate-600 font-bold text-lg cursor-pointer"
+                className="text-slate-400 hover:text-slate-600 font-bold text-lg p-1.5 rounded-lg hover:bg-slate-100 cursor-pointer"
               >
                 ✕
               </button>
             </div>
 
-            <form onSubmit={handleSaveEditedProduct} className="space-y-4 text-xs">
-              <div>
-                <label className="font-semibold text-slate-700 block mb-1">Product Title *</label>
-                <input
-                  type="text"
-                  required
-                  value={editingProduct.name}
-                  onChange={(e) => setEditingProduct({ ...editingProduct, name: e.target.value })}
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2 text-xs font-bold text-[#0f3d44]"
-                />
-              </div>
+            <form onSubmit={handleSaveEditedProduct} className="space-y-6 text-xs">
+              {/* 1. PRODUCT TITLE, CATEGORY, SLUG & STOCK */}
+              <div className="bg-slate-50/80 p-4 rounded-2xl border border-slate-200/80 space-y-3">
+                <h4 className="font-extrabold text-xs text-[#0f3d44] flex items-center gap-1.5">
+                  <span className="w-5 h-5 rounded-full bg-indigo-100 text-indigo-700 flex items-center justify-center text-[10px] font-black">১</span>
+                  <span>পণ্যের নাম ও ক্যাটাগরি (Product Title &amp; Category)</span>
+                </h4>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
-                  <label className="font-semibold text-slate-700 block mb-1">URL Slug</label>
+                  <label className="font-bold text-slate-700 block mb-1">
+                    প্রোডাক্টের নাম (Product Title) *
+                  </label>
                   <input
                     type="text"
-                    value={editingProduct.slug}
-                    onChange={(e) => setEditingProduct({ ...editingProduct, slug: e.target.value })}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2 text-xs font-medium text-[#0f3d44]"
+                    required
+                    value={editingProduct.name}
+                    onChange={(e) => setEditingProduct({ ...editingProduct, name: e.target.value })}
+                    className="w-full bg-white border border-slate-200 rounded-xl px-3.5 py-2 text-xs font-bold text-[#0f3d44] focus:outline-none focus:ring-2 focus:ring-indigo-500"
                   />
                 </div>
 
-                <div>
-                  <label className="font-bold text-slate-700 block mb-1">Category *</label>
-                  <select
-                    required
-                    value={editingProduct.category_id || 0}
-                    onChange={(e) => {
-                      const selectedId = Number(e.target.value);
-                      const matchedCat = categories.find(c => c.id === selectedId);
-                      setEditingProduct({
-                        ...editingProduct,
-                        category_id: selectedId,
-                        category_name: matchedCat ? matchedCat.name : editingProduct.category_name
-                      });
-                    }}
-                    className="w-full border border-slate-200 rounded-xl px-3.5 py-2 text-xs font-bold bg-slate-50 text-[#0f3d44]"
-                  >
-                    {categories.map((c) => (
-                      <option key={c.id} value={c.id}>
-                        {c.icon ? `${c.icon} ` : ''}{c.name}
-                      </option>
-                    ))}
-                  </select>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="font-bold text-slate-700 block mb-1">
+                      ক্যাটাগরি (Category) *
+                    </label>
+                    <select
+                      required
+                      value={editingProduct.category_id || 0}
+                      onChange={(e) => {
+                        const selectedId = Number(e.target.value);
+                        const matchedCat = categories.find(c => c.id === selectedId);
+                        setEditingProduct({
+                          ...editingProduct,
+                          category_id: selectedId,
+                          category_name: matchedCat ? matchedCat.name : editingProduct.category_name
+                        });
+                      }}
+                      className="w-full border border-slate-200 rounded-xl px-3.5 py-2 text-xs font-bold bg-white text-[#0f3d44] focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    >
+                      {categories.map((c) => (
+                        <option key={c.id} value={c.id}>
+                          {c.icon ? `${c.icon} ` : ''}{c.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="font-bold text-slate-700 block mb-1">
+                      URL Slug
+                    </label>
+                    <input
+                      type="text"
+                      value={editingProduct.slug}
+                      onChange={(e) => setEditingProduct({ ...editingProduct, slug: e.target.value })}
+                      className="w-full bg-white border border-slate-200 rounded-xl px-3.5 py-2 text-xs font-mono text-[#0f3d44]"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="font-bold text-slate-700 block mb-1">
+                      স্টক সংখ্যা (Stock Units)
+                    </label>
+                    <input
+                      type="number"
+                      value={editingProduct.stock}
+                      onChange={(e) => setEditingProduct({ ...editingProduct, stock: Number(e.target.value) })}
+                      className="w-full bg-white border border-slate-200 rounded-xl px-3.5 py-2 text-xs font-bold text-[#0f3d44]"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="font-bold text-slate-700 block mb-1">
+                      হাইলাইট ব্যাজ (Badge)
+                    </label>
+                    <select
+                      value={editingProduct.badge || ''}
+                      onChange={(e) => setEditingProduct({ ...editingProduct, badge: (e.target.value || null) as any })}
+                      className="w-full bg-white border border-slate-200 rounded-xl px-3.5 py-2 text-xs font-bold text-[#0f3d44]"
+                    >
+                      <option value="">কোনো ব্যাজ নেই (None)</option>
+                      <option value="NEW">NEW</option>
+                      <option value="HOT">HOT</option>
+                      <option value="SALE">SALE</option>
+                    </select>
+                  </div>
                 </div>
               </div>
 
-              <div>
-                <label className="font-semibold text-slate-700 block mb-1">Main Image URL (প্রোডাক্ট ছবির লিঙ্ক)</label>
-                <input
-                  type="url"
-                  value={editingProduct.image_url}
-                  onChange={(e) => setEditingProduct({ ...editingProduct, image_url: e.target.value })}
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2 text-xs text-[#0f3d44]"
-                />
-              </div>
+              {/* 2. 5 ROOM VIEW IMAGES WITH DYNAMIC BANGLA LABELS */}
+              {(() => {
+                const isIslamic =
+                  editingProduct.category_id === 1 ||
+                  editingProduct.category_id === 2 ||
+                  editingProduct.category_id === 3 ||
+                  (editingProduct.category_name || '').toLowerCase().includes('islamic') ||
+                  (editingProduct.name || '').toLowerCase().includes('ayatul') ||
+                  (editingProduct.name || '').toLowerCase().includes('surah');
 
-              {/* SIZES EDITING */}
-              <div className="p-3 bg-slate-50 border border-slate-200 rounded-2xl space-y-3">
-                <h4 className="font-extrabold text-xs text-[#0f3d44]">Sizes &amp; Pricing</h4>
-                {(editingProduct.sizes || []).map((sz, sIdx) => (
-                  <div key={sz.id || sIdx} className="p-2.5 bg-white rounded-xl border border-slate-200 space-y-2">
-                    <div className="font-bold text-xs text-indigo-900">
-                      {sIdx === 0 ? 'Medium Size (ডিফল্ট)' : 'Large Size'}
+                const room3Label = isIslamic ? 'নামাজের ঘর (Prayer Room)' : 'রিডিং রুম (Reading Room)';
+                const roomImages = editingProduct.room_images || {
+                  drawing_room: editingProduct.image_url || '',
+                  office_room: 'https://images.unsplash.com/photo-1513694203232-719a280e022f?auto=format&fit=crop&w=1200&q=80',
+                  prayer_or_reading_room: 'https://images.unsplash.com/photo-1618221195710-dd6b41faaea6?auto=format&fit=crop&w=1200&q=80',
+                  bedroom: 'https://images.unsplash.com/photo-1616486338812-3dadae4b4ace?auto=format&fit=crop&w=1200&q=80',
+                  close_view: editingProduct.image_url || ''
+                };
+
+                return (
+                  <div className="bg-indigo-50/40 p-4 rounded-2xl border border-indigo-100 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <h4 className="font-extrabold text-xs text-indigo-950 flex items-center gap-1.5">
+                        <span className="w-5 h-5 rounded-full bg-indigo-200 text-indigo-800 flex items-center justify-center text-[10px] font-black">২</span>
+                        <span>৫টি রুম ভিউ ইমেজ লিঙ্ক (5 Types Room Images Upload/Links)</span>
+                      </h4>
+                      <span className="text-[10px] bg-emerald-100 text-emerald-800 font-bold px-2 py-0.5 rounded-full">
+                        ১. ড্রয়িং রুম সর্বদা ডিফল্ট
+                      </span>
                     </div>
-                    <div className="grid grid-cols-2 gap-2">
-                      <div>
-                        <label className="text-[10px] font-semibold text-slate-600 block">Dimensions</label>
+                    <p className="text-[11px] text-slate-600">
+                      নিচে প্রতিটি রুমের ছবি লিঙ্ক দিন বা পরিবর্তন করুন। ড্রয়িং রুমের ছবিটি স্টোরে ডিফল্ট সিলেক্টেড থাকবে।
+                    </p>
+
+                    {/* 1. Drawing Room */}
+                    <div className="p-3 bg-white rounded-xl border border-indigo-200 space-y-2">
+                      <div className="flex items-center justify-between">
+                        <label className="font-black text-indigo-950 text-xs flex items-center gap-1.5">
+                          <span>১. ড্রয়িং রুম (Drawing Room)</span>
+                          <span className="text-[10px] font-bold bg-amber-100 text-amber-900 px-1.5 py-0.2 rounded-md">মেইন ফটো &amp; ডিফল্ট সিলেক্টেড</span>
+                        </label>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <img
+                          src={roomImages.drawing_room || editingProduct.image_url}
+                          alt="Drawing Room"
+                          className="w-12 h-12 rounded-xl object-cover border border-slate-200 shrink-0"
+                        />
                         <input
-                          type="text"
-                          value={sz.size_dimensions}
-                          onChange={(e) => updateEditingProductSize(sIdx, 'size_dimensions', e.target.value)}
-                          className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1 text-xs text-[#0f3d44]"
+                          type="url"
+                          required
+                          value={roomImages.drawing_room || ''}
+                          onChange={(e) => updateEditingProductRoomImage('drawing_room', e.target.value)}
+                          placeholder="ড্রয়িং রুম ভিউ ছবির লিঙ্ক..."
+                          className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-[#0f3d44] font-mono focus:outline-none focus:ring-2 focus:ring-indigo-500"
                         />
                       </div>
-                      <div>
-                        <label className="text-[10px] font-semibold text-slate-600 block">Price (৳) *</label>
+                    </div>
+
+                    {/* 2. Office Room */}
+                    <div className="p-3 bg-white rounded-xl border border-slate-200 space-y-2">
+                      <label className="font-bold text-slate-800 text-xs block">
+                        ২. অফিস রুম (Office Room View)
+                      </label>
+                      <div className="flex items-center gap-2">
+                        <img
+                          src={roomImages.office_room || ''}
+                          alt="Office Room"
+                          className="w-12 h-12 rounded-xl object-cover border border-slate-200 shrink-0"
+                        />
                         <input
-                          type="number"
-                          required
-                          value={sz.price}
-                          onChange={(e) => updateEditingProductSize(sIdx, 'price', Number(e.target.value))}
-                          className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1 text-xs font-bold text-[#0f3d44]"
+                          type="url"
+                          value={roomImages.office_room || ''}
+                          onChange={(e) => updateEditingProductRoomImage('office_room', e.target.value)}
+                          placeholder="অফিস রুম ছবির লিঙ্ক..."
+                          className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-[#0f3d44] font-mono focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                        />
+                      </div>
+                    </div>
+
+                    {/* 3. Prayer / Reading Room (Dynamic based on Category) */}
+                    <div className="p-3 bg-white rounded-xl border border-teal-200 space-y-2">
+                      <div className="flex items-center justify-between">
+                        <label className="font-bold text-teal-900 text-xs block">
+                          ৩. {room3Label}
+                        </label>
+                        <span className="text-[10px] text-teal-700 font-bold">
+                          {isIslamic ? '🕌 ইসলামিক ক্যাটাগরি' : '🌿 ন্যাচারাল ক্যাটাগরি'}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <img
+                          src={roomImages.prayer_or_reading_room || ''}
+                          alt={room3Label}
+                          className="w-12 h-12 rounded-xl object-cover border border-slate-200 shrink-0"
+                        />
+                        <input
+                          type="url"
+                          value={roomImages.prayer_or_reading_room || ''}
+                          onChange={(e) => updateEditingProductRoomImage('prayer_or_reading_room', e.target.value)}
+                          placeholder="নামাজের ঘর বা রিডিং রুম ছবির লিঙ্ক..."
+                          className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-[#0f3d44] font-mono focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                        />
+                      </div>
+                    </div>
+
+                    {/* 4. Bedroom */}
+                    <div className="p-3 bg-white rounded-xl border border-slate-200 space-y-2">
+                      <label className="font-bold text-slate-800 text-xs block">
+                        ৪. বেডরুম (Bedroom View)
+                      </label>
+                      <div className="flex items-center gap-2">
+                        <img
+                          src={roomImages.bedroom || ''}
+                          alt="Bedroom"
+                          className="w-12 h-12 rounded-xl object-cover border border-slate-200 shrink-0"
+                        />
+                        <input
+                          type="url"
+                          value={roomImages.bedroom || ''}
+                          onChange={(e) => updateEditingProductRoomImage('bedroom', e.target.value)}
+                          placeholder="বেডরুম ছবির লিঙ্ক..."
+                          className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-[#0f3d44] font-mono focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                        />
+                      </div>
+                    </div>
+
+                    {/* 5. Close View */}
+                    <div className="p-3 bg-white rounded-xl border border-slate-200 space-y-2">
+                      <label className="font-bold text-slate-800 text-xs block">
+                        ৫. ক্লোজ ভিউ (Close View - ৩ডি শ্যাডো ও টেক্সচার ফিনিশ)
+                      </label>
+                      <div className="flex items-center gap-2">
+                        <img
+                          src={roomImages.close_view || ''}
+                          alt="Close View"
+                          className="w-12 h-12 rounded-xl object-cover border border-slate-200 shrink-0"
+                        />
+                        <input
+                          type="url"
+                          value={roomImages.close_view || ''}
+                          onChange={(e) => updateEditingProductRoomImage('close_view', e.target.value)}
+                          placeholder="ক্লোজ ভিউ ছবির লিঙ্ক..."
+                          className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-[#0f3d44] font-mono focus:outline-none focus:ring-2 focus:ring-indigo-500"
                         />
                       </div>
                     </div>
                   </div>
-                ))}
+                );
+              })()}
+
+              {/* 3. SIZES (MEDIUM & LARGE - STRICT LENGTH × WIDTH), BOTH PRICES & WEIGHT */}
+              <div className="bg-slate-50/80 p-4 rounded-2xl border border-slate-200/80 space-y-3">
+                <h4 className="font-extrabold text-xs text-[#0f3d44] flex items-center gap-1.5">
+                  <span className="w-5 h-5 rounded-full bg-indigo-100 text-indigo-700 flex items-center justify-center text-[10px] font-black">৩</span>
+                  <span>সাইজ ও মূল্য নির্ধারণ (Sizes: Length × Width, Both Prices &amp; Weight)</span>
+                </h4>
+
+                {/* MEDIUM SIZE */}
+                {(() => {
+                  const medSize = editingProduct.sizes?.[0] || {
+                    id: 's1',
+                    name: 'Medium (75cm × 40cm)',
+                    size_dimensions: editingProduct.size_dimensions || '75cm × 40cm',
+                    price: editingProduct.price,
+                    old_price: editingProduct.old_price,
+                    weight_grams: editingProduct.weight_grams || 1400
+                  };
+
+                  return (
+                    <div className="p-3 bg-white rounded-xl border border-indigo-100 space-y-2">
+                      <span className="font-black text-indigo-900 text-xs block">
+                        মিডিয়াম সাইজ (Medium Size - ডিফল্ট)
+                      </span>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                        <div>
+                          <label className="text-[10px] font-bold text-slate-600 block">
+                            দৈর্ঘ্য ও প্রস্থ (Length × Width) *
+                          </label>
+                          <input
+                            type="text"
+                            required
+                            value={medSize.size_dimensions || ''}
+                            onChange={(e) => updateEditingProductSize(0, 'size_dimensions', e.target.value)}
+                            placeholder="যেমন: 75cm × 40cm"
+                            className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs font-bold text-[#0f3d44]"
+                          />
+                        </div>
+                        <div>
+                          <label className="text-[10px] font-bold text-slate-600 block">
+                            ওজন (Weight in grams) *
+                          </label>
+                          <input
+                            type="number"
+                            required
+                            value={medSize.weight_grams || 1400}
+                            onChange={(e) => updateEditingProductSize(0, 'weight_grams', Number(e.target.value))}
+                            className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs font-bold text-[#0f3d44]"
+                          />
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-2 gap-2">
+                        <div>
+                          <label className="text-[10px] font-bold text-emerald-700 block">
+                            বিক্রয় মূল্য (Price ৳) *
+                          </label>
+                          <input
+                            type="number"
+                            required
+                            value={medSize.price || 0}
+                            onChange={(e) => updateEditingProductSize(0, 'price', Number(e.target.value))}
+                            className="w-full bg-emerald-50/50 border border-emerald-200 rounded-lg px-2.5 py-1.5 text-xs font-black text-emerald-900"
+                          />
+                        </div>
+                        <div>
+                          <label className="text-[10px] font-bold text-slate-500 block">
+                            পূর্বের মূল্য / কাটা মূল্য (Old Price ৳)
+                          </label>
+                          <input
+                            type="number"
+                            value={medSize.old_price || ''}
+                            onChange={(e) => updateEditingProductSize(0, 'old_price', e.target.value ? Number(e.target.value) : undefined)}
+                            className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs text-slate-600"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })()}
+
+                {/* LARGE SIZE */}
+                {(() => {
+                  const lrgSize = editingProduct.sizes?.[1] || {
+                    id: 's2',
+                    name: 'Large (120cm × 60cm)',
+                    size_dimensions: '120cm × 60cm',
+                    price: Math.round(editingProduct.price * 1.36),
+                    old_price: editingProduct.old_price ? Math.round(editingProduct.old_price * 1.36) : undefined,
+                    weight_grams: Math.round((editingProduct.weight_grams || 1400) * 1.57)
+                  };
+
+                  return (
+                    <div className="p-3 bg-white rounded-xl border border-purple-100 space-y-2">
+                      <span className="font-black text-purple-900 text-xs block">
+                        লার্জ সাইজ (Large Size)
+                      </span>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                        <div>
+                          <label className="text-[10px] font-bold text-slate-600 block">
+                            দৈর্ঘ্য ও প্রস্থ (Length × Width) *
+                          </label>
+                          <input
+                            type="text"
+                            required
+                            value={lrgSize.size_dimensions || ''}
+                            onChange={(e) => updateEditingProductSize(1, 'size_dimensions', e.target.value)}
+                            placeholder="যেমন: 120cm × 60cm"
+                            className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs font-bold text-[#0f3d44]"
+                          />
+                        </div>
+                        <div>
+                          <label className="text-[10px] font-bold text-slate-600 block">
+                            ওজন (Weight in grams) *
+                          </label>
+                          <input
+                            type="number"
+                            required
+                            value={lrgSize.weight_grams || 2200}
+                            onChange={(e) => updateEditingProductSize(1, 'weight_grams', Number(e.target.value))}
+                            className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs font-bold text-[#0f3d44]"
+                          />
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-2 gap-2">
+                        <div>
+                          <label className="text-[10px] font-bold text-purple-700 block">
+                            বিক্রয় মূল্য (Price ৳) *
+                          </label>
+                          <input
+                            type="number"
+                            required
+                            value={lrgSize.price || 0}
+                            onChange={(e) => updateEditingProductSize(1, 'price', Number(e.target.value))}
+                            className="w-full bg-purple-50/50 border border-purple-200 rounded-lg px-2.5 py-1.5 text-xs font-black text-purple-900"
+                          />
+                        </div>
+                        <div>
+                          <label className="text-[10px] font-bold text-slate-500 block">
+                            পূর্বের মূল্য / কাটা মূল্য (Old Price ৳)
+                          </label>
+                          <input
+                            type="number"
+                            value={lrgSize.old_price || ''}
+                            onChange={(e) => updateEditingProductSize(1, 'old_price', e.target.value ? Number(e.target.value) : undefined)}
+                            className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs text-slate-600"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })()}
               </div>
 
+              {/* 4. DESCRIPTION & MATERIAL */}
+              <div className="bg-slate-50/80 p-4 rounded-2xl border border-slate-200/80 space-y-3">
+                <h4 className="font-extrabold text-xs text-[#0f3d44] flex items-center gap-1.5">
+                  <span className="w-5 h-5 rounded-full bg-indigo-100 text-indigo-700 flex items-center justify-center text-[10px] font-black">৪</span>
+                  <span>পণ্যের বিবরণ ও মেটেরিয়াল (Description &amp; Overview)</span>
+                </h4>
+
+                <div>
+                  <label className="font-bold text-slate-700 block mb-1">
+                    বাংলা সংক্ষিপ্ত বিবরণ (Bangla Short Overview)
+                  </label>
+                  <textarea
+                    rows={2}
+                    value={editingProduct.bangla_short_desc || ''}
+                    onChange={(e) => setEditingProduct({ ...editingProduct, bangla_short_desc: e.target.value })}
+                    placeholder="বাংলা বিবরণ..."
+                    className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs text-[#0f3d44] focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="font-bold text-slate-700 block mb-1">
+                    মেটেরিয়াল ও থিকনেস (Material)
+                  </label>
+                  <input
+                    type="text"
+                    value={editingProduct.material || 'Surgical Stainless Steel (2mm Thickness)'}
+                    onChange={(e) => setEditingProduct({ ...editingProduct, material: e.target.value })}
+                    className="w-full bg-white border border-slate-200 rounded-xl px-3.5 py-2 text-xs font-bold text-[#0f3d44]"
+                  />
+                </div>
+              </div>
+
+              {/* Save / Cancel Buttons */}
               <div className="flex gap-2 pt-2">
                 <button
                   type="button"
                   onClick={() => setEditingProduct(null)}
-                  className="w-1/2 py-2.5 rounded-xl border border-slate-200 text-xs font-bold text-slate-600 hover:bg-slate-100 cursor-pointer"
+                  className="w-1/2 py-3 rounded-xl border border-slate-200 text-xs font-bold text-slate-600 hover:bg-slate-100 cursor-pointer"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="w-1/2 py-2.5 rounded-xl text-xs font-bold text-white bg-gradient-to-r from-[#14b8a6] via-[#4f46e5] via-[#9333ea] to-[#ec4899] shadow-md cursor-pointer"
+                  className="w-1/2 py-3 rounded-xl text-xs font-black text-white bg-gradient-to-r from-[#14b8a6] via-[#4f46e5] via-[#9333ea] to-[#ec4899] shadow-md hover:opacity-95 cursor-pointer"
                 >
-                  Save Changes
+                  সংরক্ষণ করুন (Save Changes)
                 </button>
               </div>
             </form>

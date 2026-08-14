@@ -38,8 +38,8 @@ export const ProductPage: React.FC<ProductPageProps> = ({ slug, onNavigate, onOp
 
   // Size selection (2 sizes per product: Medium index 0 default, Large index 1)
   const productSizes: ProductSize[] = product.sizes && product.sizes.length >= 2 ? product.sizes : [
-    { id: 's1', name: 'Medium (2.5 Feet / 75x40cm)', price: product.price, old_price: product.old_price, weight_grams: product.weight_grams, size_dimensions: product.size_dimensions || '75cm × 40cm' },
-    { id: 's2', name: 'Large (4 Feet / 120x60cm)', price: Math.round(product.price * 1.4), old_price: product.old_price ? Math.round(product.old_price * 1.4) : undefined, weight_grams: Math.round(product.weight_grams * 1.4), size_dimensions: '120cm × 60cm' }
+    { id: 's1', name: 'Medium (75cm × 40cm)', price: product.price, old_price: product.old_price, weight_grams: product.weight_grams || 1400, size_dimensions: product.size_dimensions || '75cm × 40cm' },
+    { id: 's2', name: 'Large (120cm × 60cm)', price: Math.round(product.price * 1.36), old_price: product.old_price ? Math.round(product.old_price * 1.36) : undefined, weight_grams: Math.round((product.weight_grams || 1400) * 1.57), size_dimensions: '120cm × 60cm' }
   ];
   const [selectedSizeIdx, setSelectedSizeIdx] = useState<number>(0);
   const activeSize = productSizes[selectedSizeIdx] || productSizes[0];
@@ -77,24 +77,54 @@ export const ProductPage: React.FC<ProductPageProps> = ({ slug, onNavigate, onOp
     }
   }, [product?.id, currentPrice]);
 
-  const getRoomLabelBangla = (roomType?: string, defaultIdx: number = 1) => {
-    if (defaultIdx === 0) return 'মেইন ডিজাইন';
-    if (!roomType) return `ছবি ${defaultIdx}`;
-    const lower = (roomType || '').toLowerCase();
-    if (lower.includes('living')) return 'লিভিং রুম';
-    if (lower.includes('bed')) return 'বেডরুম';
-    if (lower.includes('hallway') || lower.includes('drawing')) return 'ড্রয়িং রুম';
-    if (lower.includes('office')) return 'অফিস';
-    if (lower.includes('formation')) return 'লেআউট প্যাক';
-    return roomType;
-  };
+  // Reset active image to 0 (ড্রয়িং রুম) whenever product changes
+  useEffect(() => {
+    setActiveImageIdx(0);
+    setSelectedSizeIdx(0);
+  }, [slug, product?.id]);
 
+  // Determine if product is Islamic or Natural to label 3rd room
+  const isIslamic =
+    product.category_id === 1 ||
+    product.category_id === 2 ||
+    product.category_id === 3 ||
+    (product.category_name || '').toLowerCase().includes('islamic') ||
+    (product.name || '').toLowerCase().includes('ayatul') ||
+    (product.name || '').toLowerCase().includes('surah') ||
+    (product.name || '').toLowerCase().includes('dua') ||
+    (product.name || '').toLowerCase().includes('allah');
+
+  const thirdRoomLabel = isIslamic ? 'নামাজের ঘর' : 'রিডিং রুম';
+
+  const roomImages = product.room_images || {};
+
+  // Exact 5 room types in ordered sequence
   const galleryItems = [
-    { url: product.image_url, label: 'মেইন ডিজাইন' },
-    ...(product.placements?.map((p, idx) => ({
-      url: p.image_url,
-      label: p.room_type ? getRoomLabelBangla(p.room_type, idx + 1) : `রুম ${idx + 1}`
-    })) || [])
+    {
+      id: 'drawing_room',
+      url: roomImages.drawing_room || product.image_url,
+      label: 'ড্রয়িং রুম'
+    },
+    {
+      id: 'office_room',
+      url: roomImages.office_room || product.placements?.find(p => p.room_type === 'Office')?.image_url || 'https://images.unsplash.com/photo-1513694203232-719a280e022f?auto=format&fit=crop&w=1200&q=80',
+      label: 'অফিস রুম'
+    },
+    {
+      id: 'prayer_or_reading_room',
+      url: roomImages.prayer_or_reading_room || product.placements?.find(p => p.room_type === 'Hallway' || p.room_type === 'Formations')?.image_url || 'https://images.unsplash.com/photo-1618221195710-dd6b41faaea6?auto=format&fit=crop&w=1200&q=80',
+      label: thirdRoomLabel
+    },
+    {
+      id: 'bedroom',
+      url: roomImages.bedroom || product.placements?.find(p => p.room_type === 'Bedroom')?.image_url || 'https://images.unsplash.com/photo-1616486338812-3dadae4b4ace?auto=format&fit=crop&w=1200&q=80',
+      label: 'বেডরুম'
+    },
+    {
+      id: 'close_view',
+      url: roomImages.close_view || product.image_url,
+      label: 'ক্লোজ ভিউ'
+    }
   ];
 
   const scrollRef = useRef<HTMLDivElement>(null);

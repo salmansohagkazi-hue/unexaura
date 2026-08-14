@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { MessageCircle, X, Send, ShieldCheck } from 'lucide-react';
+import { trackLead } from '../utils/analytics';
 
 interface WhatsAppButtonProps {
   phoneNumber?: string; // default "01623319639"
@@ -59,6 +60,7 @@ export const WhatsAppButton: React.FC<WhatsAppButtonProps> = ({
               href={whatsappUrl}
               target="_blank"
               rel="noopener noreferrer"
+              onClick={() => trackLead('whatsapp_inquiry')}
               className="w-full py-3 px-4 bg-[#25D366] hover:bg-[#20ba5a] text-white rounded-xl font-bold text-xs flex items-center justify-center gap-2 shadow-md shadow-emerald-500/20 transition-all hover:scale-[1.02] active:scale-[0.98]"
             >
               <Send className="w-4 h-4" />
@@ -74,6 +76,7 @@ export const WhatsAppButton: React.FC<WhatsAppButtonProps> = ({
           href={whatsappUrl}
           target="_blank"
           rel="noopener noreferrer"
+          onClick={() => trackLead('whatsapp_inquiry')}
           className="hidden sm:flex items-center gap-2 bg-slate-900/95 hover:bg-emerald-950 text-white px-3.5 py-2 rounded-full shadow-lg border border-slate-700 hover:border-emerald-500 text-xs font-bold backdrop-blur-xs transition-all duration-300 hover:scale-105"
         >
           <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span>
@@ -84,6 +87,7 @@ export const WhatsAppButton: React.FC<WhatsAppButtonProps> = ({
           href={whatsappUrl}
           target="_blank"
           rel="noopener noreferrer"
+          onClick={() => trackLead('whatsapp_inquiry')}
           aria-label="WhatsApp Support"
           className="relative group/btn w-14 h-14 rounded-full bg-[#25D366] hover:bg-[#20ba5a] text-white shadow-xl shadow-emerald-600/30 flex items-center justify-center transition-all duration-300 hover:scale-110 active:scale-95 border-2 border-white/50 cursor-pointer"
         >

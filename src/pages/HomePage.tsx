@@ -136,7 +136,7 @@ export const HomePage: React.FC<HomePageProps> = ({ onNavigate, onOpenWallModal 
 
   const featuredProducts = products.filter(p => p.featured).slice(0, 6);
   const newArrivals = products.slice().reverse().slice(0, 4);
-  const dealProduct = products[0];
+  const dealProduct = (settings.best_deal_product_id ? products.find(p => p.id === settings.best_deal_product_id) : null) || products[0];
 
   return (
     <div className="space-y-8 sm:space-y-12 pb-12">
@@ -269,6 +269,16 @@ export const HomePage: React.FC<HomePageProps> = ({ onNavigate, onOpenWallModal 
                     src={cat.image_url}
                     alt={cat.name}
                     referrerPolicy="no-referrer"
+                    onError={(e) => {
+                      (e.target as HTMLImageElement).style.display = 'none';
+                      const parent = (e.target as HTMLElement).parentElement;
+                      if (parent && !parent.querySelector('.fallback-icon')) {
+                        const span = document.createElement('span');
+                        span.className = 'fallback-icon text-3xl';
+                        span.textContent = cat.icon || '🕌';
+                        parent.appendChild(span);
+                      }
+                    }}
                     className="w-full h-full object-contain drop-shadow-sm rounded-lg"
                   />
                 ) : (

@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Product, ProductSize } from '../types';
 import { useApp } from '../context/AppContext';
+import { trackViewItem } from '../utils/analytics';
 import {
   X,
   Eye,
@@ -24,6 +25,19 @@ interface SeeOnWallModalProps {
 }
 
 export const SeeOnWallModal: React.FC<SeeOnWallModalProps> = ({ product, onClose, onNavigate }) => {
+  // Track view_item / ViewContent when modal opens
+  useEffect(() => {
+    if (product) {
+      trackViewItem({
+        id: product.id,
+        name: product.name,
+        price: product.price,
+        category_name: product.category_name,
+        slug: product.slug
+      });
+    }
+  }, [product?.id]);
+
   if (!product) return null;
 
   const { addToCart, formatPrice, toggleWishlist, isInWishlist } = useApp();

@@ -117,20 +117,10 @@ export const Footer: React.FC<FooterProps> = ({ onNavigate }) => {
         <div>
           &copy; {new Date().getFullYear()} UNEX AURA. All Rights Reserved.
         </div>
-        <div className="flex items-center gap-3">
-          <div className="flex items-center gap-1">
-            <span>Crafted with</span>
-            <Heart className="w-3.5 h-3.5 text-pink-500 fill-pink-500" />
-            <span>in Stainless Steel</span>
-          </div>
-          <span>•</span>
-          <button
-            onClick={() => onNavigate('admin')}
-            className="text-slate-600 hover:text-slate-400 transition-colors text-[11px]"
-            title="Owner Portal"
-          >
-            Staff Portal
-          </button>
+        <div className="flex items-center gap-1">
+          <span>Crafted with</span>
+          <Heart className="w-3.5 h-3.5 text-pink-500 fill-pink-500" />
+          <span>in Stainless Steel</span>
         </div>
       </div>
     </footer>

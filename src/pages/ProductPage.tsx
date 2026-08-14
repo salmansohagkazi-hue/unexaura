@@ -1,9 +1,10 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
 import { ProductCard } from '../components/ProductCard';
 import { Product, ProductSize } from '../types';
 import { calculateDeliveryFee } from '../utils/delivery';
 import { useSEO } from '../hooks/useSEO';
+import { trackViewItem } from '../utils/analytics';
 import {
   Eye,
   ShoppingBag,
@@ -62,6 +63,19 @@ export const ProductPage: React.FC<ProductPageProps> = ({ slug, onNavigate, onOp
       brand: 'UNEX AURA'
     } : undefined
   });
+
+  // Track view_item / ViewContent on product load
+  useEffect(() => {
+    if (product) {
+      trackViewItem({
+        id: product.id,
+        name: product.name,
+        price: currentPrice,
+        category_name: product.category_name,
+        slug: product.slug
+      });
+    }
+  }, [product?.id, currentPrice]);
 
   const getRoomLabelBangla = (roomType?: string, defaultIdx: number = 1) => {
     if (defaultIdx === 0) return 'মেইন ডিজাইন';

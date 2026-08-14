@@ -21,7 +21,11 @@ export const INITIAL_SETTINGS: StoreSettings = {
   per_100g_outside: 15,
   promo_video_url: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4',
   hero_banner_image: catIslamicWallDecorCombo,
-  admin_password: 'admin123'
+  best_deal_product_id: 1,
+  admin_password: 'admin123',
+  google_sheet_id: '1YyeLB14VCribl9J2qHnD5Ac8Za0tk0c_rG4CGJWzoxA',
+  google_sheet_url: 'https://docs.google.com/spreadsheets/d/1YyeLB14VCribl9J2qHnD5Ac8Za0tk0c_rG4CGJWzoxA/edit?usp=drivesdk',
+  google_sheet_autosync_enabled: true
 };
 
 export const INITIAL_COUPONS: Coupon[] = [

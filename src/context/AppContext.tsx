@@ -2,6 +2,9 @@ import React, { createContext, useContext, useState, useEffect } from 'react';
 import { Product, Category, CartItem, User, CurrencyConfig, StoreSettings, ProductSize, Coupon, Order } from '../types';
 import { CURRENCIES, INITIAL_SETTINGS, INITIAL_CATEGORIES, INITIAL_PRODUCTS, INITIAL_COUPONS } from '../data/mockData';
 import { calculateDeliveryFee, DeliveryFeeDetails } from '../utils/delivery';
+import { getAccessToken } from '../lib/firebase';
+import { appendOrdersToSheet } from '../lib/googleSheets';
+import { trackAddToCart, trackPurchase } from '../utils/analytics';
 
 interface AppContextType {
   products: Product[];
@@ -289,6 +292,21 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       localStorage.setItem('unex_placed_orders', JSON.stringify(updatedLocal));
     } catch {}
 
+    // Auto-sync to Google Sheets if connected
+    if (settings.google_sheet_id && settings.google_sheet_autosync_enabled !== false) {
+      const token = getAccessToken();
+      if (token) {
+        appendOrdersToSheet(token, settings.google_sheet_id, [createdOrder]).catch(e => {
+          console.warn('Background Google Sheets auto-sync error:', e);
+        });
+      }
+    }
+
+    // Trigger GA4 & Meta Pixel Purchase event
+    if (createdOrder) {
+      trackPurchase(createdOrder);
+    }
+
     return createdOrder;
   };
 
@@ -448,6 +466,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (addedSuccessfully) {
       const sizeStr = sizeToUse ? ` (${sizeToUse.name})` : '';
       showToast(`Added "${product.name}"${sizeStr} to cart!`);
+      trackAddToCart(
+        {
+          id: product.id,
+          name: product.name,
+          price: sizeToUse ? sizeToUse.price : product.price,
+          category_name: product.category_name,
+          slug: product.slug
+        },
+        quantity,
+        sizeToUse?.name
+      );
     }
   };
 

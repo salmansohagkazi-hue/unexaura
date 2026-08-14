@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { jsPDF } from 'jspdf';
 import html2canvas from 'html2canvas';
 import { useApp } from '../context/AppContext';
+import { trackPurchase } from '../utils/analytics';
 import {
   CheckCircle2,
   Download,
@@ -57,6 +58,13 @@ export const OrderSuccessPage: React.FC<OrderSuccessPageProps> = ({
 
   const order = initialOrder || fetchedOrder;
   const orderNumber = order?.order_number || propOrderNumber || 'UA-1001';
+
+  // Ensure purchase event is tracked (deduplicated automatically)
+  useEffect(() => {
+    if (order) {
+      trackPurchase(order);
+    }
+  }, [order]);
 
   const handleCopyOrderNumber = () => {
     navigator.clipboard.writeText(orderNumber);

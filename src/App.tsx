@@ -16,6 +16,7 @@ import { RegisterPage } from './pages/RegisterPage';
 import { AdminPage } from './pages/AdminPage';
 import { ExportPage } from './pages/ExportPage';
 import { Product } from './types';
+import { initAnalytics, trackPageView } from './utils/analytics';
 
 function MainAppContent() {
   const [activeTab, setActiveTab] = useState<string>('home');
@@ -29,19 +30,62 @@ function MainAppContent() {
 
   const { products } = useApp();
 
-  // Support direct URL deep-linking for Facebook Ads landing pages (e.g., ?product=ayatul-kursi-regal-3d)
+  // Initialize GA4 and Meta Pixel on mount
+  useEffect(() => {
+    initAnalytics();
+  }, []);
+
+  // Support direct URL deep-linking (Pathname, Hash, and Search Query)
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const directProd = params.get('product') || params.get('p') || params.get('slug');
     const directPage = params.get('page');
+    const pathname = window.location.pathname.toLowerCase().replace(/^\/+|\/+$/g, '');
+    const hash = window.location.hash.toLowerCase().replace(/^#+/, '');
 
-    if (directProd) {
+    if (pathname === 'admin' || pathname === 'staff' || hash === 'admin' || params.has('admin')) {
+      setActiveTab('admin');
+    } else if (directProd) {
       setProductSlug(directProd);
       setActiveTab('product');
     } else if (directPage) {
       setActiveTab(directPage);
+    } else if (pathname === 'shop' || pathname === 'cart' || pathname === 'checkout' || pathname === 'account') {
+      setActiveTab(pathname);
     }
   }, []);
+
+  // Track SPA page view on activeTab or productSlug changes
+  useEffect(() => {
+    let title = 'UNEX AURA - 3D Islamic Wall Decor';
+    let path = '/';
+
+    if (activeTab === 'home') {
+      title = 'UNEX AURA - 3D Islamic Wall Decor';
+      path = '/';
+    } else if (activeTab === 'product') {
+      const p = products.find(prod => prod.slug === productSlug || prod.id === Number(productSlug));
+      title = p ? `${p.name} - UNEX AURA` : 'Product Details - UNEX AURA';
+      path = productSlug ? `/?product=${productSlug}` : '/product';
+    } else if (activeTab === 'shop') {
+      title = 'Shop Catalog - UNEX AURA';
+      path = '/shop';
+    } else if (activeTab === 'cart') {
+      title = 'Shopping Cart - UNEX AURA';
+      path = '/cart';
+    } else if (activeTab === 'checkout') {
+      title = 'Checkout - UNEX AURA';
+      path = '/checkout';
+    } else if (activeTab === 'ordersuccess' || activeTab === 'order-success') {
+      title = 'Order Confirmed - UNEX AURA';
+      path = '/order-success';
+    } else {
+      title = `${activeTab.charAt(0).toUpperCase() + activeTab.slice(1)} - UNEX AURA`;
+      path = `/${activeTab}`;
+    }
+
+    trackPageView(title, path);
+  }, [activeTab, productSlug, products]);
 
   const handleNavigate = (page: string, params?: any) => {
     if (page === 'shop') {

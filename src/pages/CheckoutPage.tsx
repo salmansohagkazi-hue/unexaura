@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
 import { useSEO } from '../hooks/useSEO';
+import { trackBeginCheckout } from '../utils/analytics';
 import { ShieldCheck, Lock, Check } from 'lucide-react';
 
 interface CheckoutPageProps {
@@ -40,6 +41,13 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({ onNavigate }) => {
   const subtotal = getCartSubtotal();
   const totalWeight = getCartWeight();
   const grandTotal = subtotal + deliveryCharge;
+
+  // Track begin_checkout / InitiateCheckout on checkout mount
+  useEffect(() => {
+    if (cart && cart.length > 0) {
+      trackBeginCheckout(cart, grandTotal);
+    }
+  }, []);
 
   const handleSubmitOrder = async (e: React.FormEvent) => {
     e.preventDefault();

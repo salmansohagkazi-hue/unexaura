@@ -5,7 +5,7 @@ import { createServer as createViteServer } from 'vite';
 import { INITIAL_PRODUCTS, INITIAL_CATEGORIES, INITIAL_SETTINGS, CURRENCIES } from './src/data/mockData.js';
 
 const app = express();
-const PORT = 3000;
+const PORT = process.env.PORT || 3000;
 
 app.use(express.json());
 
@@ -704,12 +704,17 @@ async function startServer() {
     const distPath = path.join(process.cwd(), 'dist');
     app.use(express.static(distPath));
     app.get('*', (req, res) => {
-      res.sendFile(path.join(distPath, 'index.html'));
+      const htmlFile = path.join(distPath, 'index.html');
+      if (fs.existsSync(htmlFile)) {
+        res.sendFile(htmlFile);
+      } else {
+        res.status(404).send('Application built index.html not found at ' + htmlFile);
+      }
     });
   }
 
-  app.listen(PORT, '0.0.0.0', () => {
-    console.log(`UNEX AURA Server running on http://localhost:${PORT}`);
+  app.listen(Number(PORT), '0.0.0.0', () => {
+    console.log(`UNEX AURA Server running on http://0.0.0.0:${PORT}`);
   });
 }
 

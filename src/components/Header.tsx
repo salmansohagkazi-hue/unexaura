@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
-import { ShoppingBag, Search, Eye, User, Shield, Menu, X, Sparkles, ChevronDown, PackageCheck, Layers, Heart, ChevronRight, ArrowRight } from 'lucide-react';
+import { ShoppingBag, Search, Eye, User, Shield, Menu, X, Sparkles, ChevronDown, PackageCheck, Layers, Heart, ChevronRight, ArrowRight, FileJson, Download } from 'lucide-react';
 
 interface HeaderProps {
   activeTab: string;

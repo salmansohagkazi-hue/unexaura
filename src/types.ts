@@ -147,7 +147,11 @@ export interface StoreSettings {
   per_100g_outside: number;
   promo_video_url?: string;
   hero_banner_image?: string;
+  best_deal_product_id?: number;
   admin_password?: string;
+  google_sheet_id?: string;
+  google_sheet_url?: string;
+  google_sheet_autosync_enabled?: boolean;
 }
 
 export interface Review {

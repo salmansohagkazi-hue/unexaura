@@ -848,15 +848,9 @@ export const MyAccountPage: React.FC<MyAccountPageProps> = ({ onNavigate, initia
                           <span className="text-slate-400 font-medium">Shipping Address:</span>
                           <span className="font-bold text-slate-800 text-right max-w-[200px]">{currentTrackedOrder.shipping_address}</span>
                         </div>
-                        <div className="flex justify-between py-1 border-b border-slate-50">
+                        <div className="flex justify-between py-1">
                           <span className="text-slate-400 font-medium">City / Zone:</span>
                           <span className="font-bold text-slate-800">{currentTrackedOrder.city} ({currentTrackedOrder.delivery_zone === 'dhaka' ? 'Inside Dhaka' : 'Outside Dhaka'})</span>
-                        </div>
-                        <div className="flex justify-between py-1">
-                          <span className="text-slate-400 font-medium">Package Total Weight:</span>
-                          <span className="font-bold text-indigo-600">
-                            {currentTrackedOrder.total_weight_grams}g ({ (currentTrackedOrder.total_weight_grams / 1000).toFixed(1) } kg)
-                          </span>
                         </div>
                       </div>
                     </div>
@@ -918,7 +912,7 @@ export const MyAccountPage: React.FC<MyAccountPageProps> = ({ onNavigate, initia
                             <div>
                               <h4 className="font-extrabold text-slate-800 line-clamp-1">{item.product_name}</h4>
                               <p className="text-[11px] text-slate-400">
-                                Qty: {item.quantity} • Weight: {item.weight_grams}g per unit
+                                Qty: {item.quantity}
                               </p>
                             </div>
                           </div>

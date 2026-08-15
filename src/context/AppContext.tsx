@@ -75,7 +75,21 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const saved = localStorage.getItem('unex_products');
       if (saved) {
         const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          // Merge newly seeded INITIAL_PRODUCTS that are not in parsed localStorage list
+          const existingIds = new Set(parsed.map((p: Product) => p.id));
+          const missingInitial = INITIAL_PRODUCTS.filter(p => !existingIds.has(p.id));
+          const merged = [...parsed, ...missingInitial];
+          // If product 7 was already parsed, ensure its room_images and details are updated if needed
+          const updated = merged.map(p => {
+            const initP = INITIAL_PRODUCTS.find(i => i.id === p.id);
+            if (initP && (p.id === 7 || p.id === 8 || p.id === 9 || p.id === 10)) {
+              return { ...initP, ...p, image_url: initP.image_url, room_images: initP.room_images, sizes: initP.sizes };
+            }
+            return p;
+          });
+          return updated;
+        }
       }
     } catch {}
     return INITIAL_PRODUCTS;
@@ -86,7 +100,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const saved = localStorage.getItem('unex_categories');
       if (saved) {
         const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          return parsed.map((c: Category) => {
+            const initC = INITIAL_CATEGORIES.find(i => i.id === c.id || i.slug === c.slug);
+            return initC ? { ...c, image_url: initC.image_url, item_count: initC.item_count } : c;
+          });
+        }
       }
     } catch {}
     return INITIAL_CATEGORIES;
@@ -97,7 +116,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const saved = localStorage.getItem('unex_store_settings');
       if (saved) {
         const parsed = JSON.parse(saved);
-        return { ...INITIAL_SETTINGS, ...parsed };
+        return { ...INITIAL_SETTINGS, ...parsed, best_deal_product_id: parsed.best_deal_product_id || 7 };
       }
     } catch {}
     return INITIAL_SETTINGS;

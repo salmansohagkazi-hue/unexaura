@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Product, ProductSize } from '../types';
 import { useApp } from '../context/AppContext';
-import { Eye, ShoppingBag, Star, Scale, Heart, Check } from 'lucide-react';
+import { Eye, ShoppingBag, Star, Heart, Check } from 'lucide-react';
 
 interface ProductCardProps {
   product: Product;
@@ -121,10 +121,6 @@ export const ProductCard: React.FC<ProductCardProps> = ({
           <div className="flex items-center justify-between text-xs text-slate-500 mb-1">
             <span className="font-semibold text-teal-700 bg-teal-50 px-2 py-0.5 rounded-md border border-teal-100/80">
               {product.category_name || 'Wall Decor'}
-            </span>
-            <span className="text-[11px] text-slate-400 flex items-center gap-1">
-              <Scale className="w-3 h-3 text-slate-400" />
-              {activeSize.weight_grams}g
             </span>
           </div>
 

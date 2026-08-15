@@ -302,7 +302,7 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({ onNavigate }) => {
                     <div className="flex-1 min-w-0">
                       <h4 className="text-xs font-bold text-[#0f3d44] truncate">{product.name}</h4>
                       <div className="text-[11px] text-slate-500 font-medium truncate">
-                        Qty: {quantity} • {itemWeight}g
+                        Qty: {quantity}
                         {selectedSize?.name && <span className="text-indigo-700 font-bold ml-1">({selectedSize.name.split('(')[0].trim()})</span>}
                       </div>
                     </div>
@@ -318,10 +318,6 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({ onNavigate }) => {
               <div className="flex justify-between">
                 <span>Subtotal:</span>
                 <span className="font-bold text-[#0f3d44]">{formatPrice(subtotal)}</span>
-              </div>
-              <div className="flex justify-between">
-                <span>Total Weight:</span>
-                <span className="font-mono">{(totalWeight/1000).toFixed(2)} kg</span>
               </div>
               <div className="flex justify-between items-center">
                 <span>Delivery Charge ({deliveryZone === 'none' ? 'Zone Not Selected' : deliveryZone === 'dhaka' ? 'Dhaka' : 'Outside Dhaka'}):</span>

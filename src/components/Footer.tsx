@@ -26,7 +26,7 @@ export const Footer: React.FC<FooterProps> = ({ onNavigate }) => {
           </div>
           <div className="space-y-1">
             <h4 className="font-bold text-white text-sm">Fast All-Bangladesh Delivery</h4>
-            <p className="text-xs text-slate-400">Safe packaging in custom wooden framing with weight-calculated shipping rates.</p>
+            <p className="text-xs text-slate-400">Safe packaging in custom protective framing with nationwide express shipping.</p>
           </div>
         </div>
 

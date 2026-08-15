@@ -9,10 +9,10 @@ export interface ProductSize {
 
 export interface ProductRoomImages {
   drawing_room?: string; // 1. ড্রয়িং রুম (Drawing Room)
-  office_room?: string; // 2. অফিস রুম (Office Room)
-  prayer_or_reading_room?: string; // 3. নামাজের ঘর (Islamic) / রিডিং রুম (Natural)
-  bedroom?: string; // 4. বেডরুম (Bedroom)
-  close_view?: string; // 5. ক্লোজ ভিউ (Close View)
+  black_color?: string; // 2. ব্ল্যাক কালার (Black Colour)
+  office_room?: string; // 3. অফিস রুম (Office Room)
+  prayer_or_reading_room?: string; // 4. নামাজের ঘর (Islamic) / রিডিং রুম (Natural)
+  bedroom?: string; // 5. বেডরুম (Bedroom)
 }
 
 export interface Product {
@@ -33,9 +33,19 @@ export interface Product {
   weight_grams: number;
   size_dimensions: string; // e.g., "75cm × 40cm"
   sizes?: ProductSize[]; // 2 size options for each product (Medium & Large)
-  material: string; // e.g., "Surgical Stainless Steel (2mm Thickness)"
+  material: string; // e.g., "Surgical Stainless Steel (0.6/0.8 mm Thickness)"
+  thickness?: string; // e.g., "0.6/0.8 mm"
   bangla_short_desc?: string;
   qualities?: string[];
+  // Black color variant specific customization
+  black_price?: number;
+  black_old_price?: number;
+  black_thickness?: string;
+  black_material?: string;
+  black_bangla_desc?: string;
+  black_description?: string;
+  black_qualities?: string[];
+  black_sizes?: ProductSize[];
   created_at?: string;
   placements?: Placement[];
   rating?: number;

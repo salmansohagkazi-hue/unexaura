@@ -132,7 +132,7 @@ export const CartPage: React.FC<CartPageProps> = ({ onNavigate }) => {
                         {product.name}
                       </h3>
                       <p className="text-[11px] text-slate-500 font-medium">
-                        Weight: {itemWeight}g • Dimensions: {itemDimensions}
+                        Dimensions: {itemDimensions}
                       </p>
                       <div className="text-xs font-bold text-[#0f3d44] sm:hidden">
                         {formatPrice(itemPrice)} each

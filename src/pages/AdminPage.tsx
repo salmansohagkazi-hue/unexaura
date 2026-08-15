@@ -96,12 +96,11 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate }) => {
   const [newProdDesc, setNewProdDesc] = useState<string>('Precision laser-cut stainless steel wall art featuring 3D floating visual depth.');
   const [newProdBanglaDesc, setNewProdBanglaDesc] = useState<string>('');
   
-  // 5 Room View Images for New Product
+  // 4 Room View Images for New Product
   const [newProdDrawingRoomImg, setNewProdDrawingRoomImg] = useState<string>('https://images.unsplash.com/photo-1513519245088-0e12902e5a38?auto=format&fit=crop&w=1000&q=80');
   const [newProdOfficeRoomImg, setNewProdOfficeRoomImg] = useState<string>('https://images.unsplash.com/photo-1513694203232-719a280e022f?auto=format&fit=crop&w=1200&q=80');
   const [newProdPrayerOrReadingRoomImg, setNewProdPrayerOrReadingRoomImg] = useState<string>('https://images.unsplash.com/photo-1618221195710-dd6b41faaea6?auto=format&fit=crop&w=1200&q=80');
   const [newProdBedroomImg, setNewProdBedroomImg] = useState<string>('https://images.unsplash.com/photo-1616486338812-3dadae4b4ace?auto=format&fit=crop&w=1200&q=80');
-  const [newProdCloseViewImg, setNewProdCloseViewImg] = useState<string>('https://images.unsplash.com/photo-1513519245088-0e12902e5a38?auto=format&fit=crop&w=1000&q=80');
 
   // Sizes state for Add New Product (Medium & Large with Length × Width)
   const [newProdMediumDimensions, setNewProdMediumDimensions] = useState('75cm × 40cm');
@@ -185,8 +184,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate }) => {
       drawing_room: p.room_images?.drawing_room || p.image_url || '',
       office_room: p.room_images?.office_room || p.placements?.find(x => x.room_type === 'Office')?.image_url || 'https://images.unsplash.com/photo-1513694203232-719a280e022f?auto=format&fit=crop&w=1200&q=80',
       prayer_or_reading_room: p.room_images?.prayer_or_reading_room || p.placements?.find(x => x.room_type === 'Hallway' || x.room_type === 'Formations')?.image_url || 'https://images.unsplash.com/photo-1618221195710-dd6b41faaea6?auto=format&fit=crop&w=1200&q=80',
-      bedroom: p.room_images?.bedroom || p.placements?.find(x => x.room_type === 'Bedroom')?.image_url || 'https://images.unsplash.com/photo-1616486338812-3dadae4b4ace?auto=format&fit=crop&w=1200&q=80',
-      close_view: p.room_images?.close_view || p.image_url || ''
+      bedroom: p.room_images?.bedroom || p.placements?.find(x => x.room_type === 'Bedroom')?.image_url || 'https://images.unsplash.com/photo-1616486338812-3dadae4b4ace?auto=format&fit=crop&w=1200&q=80'
     };
 
     const defaultQualities = (p.qualities && p.qualities.length > 0) ? p.qualities : [
@@ -354,8 +352,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate }) => {
       drawing_room: primaryImg,
       office_room: newProdOfficeRoomImg.trim() || 'https://images.unsplash.com/photo-1513694203232-719a280e022f?auto=format&fit=crop&w=1200&q=80',
       prayer_or_reading_room: newProdPrayerOrReadingRoomImg.trim() || 'https://images.unsplash.com/photo-1618221195710-dd6b41faaea6?auto=format&fit=crop&w=1200&q=80',
-      bedroom: newProdBedroomImg.trim() || 'https://images.unsplash.com/photo-1616486338812-3dadae4b4ace?auto=format&fit=crop&w=1200&q=80',
-      close_view: newProdCloseViewImg.trim() || primaryImg
+      bedroom: newProdBedroomImg.trim() || 'https://images.unsplash.com/photo-1616486338812-3dadae4b4ace?auto=format&fit=crop&w=1200&q=80'
     };
 
     const payload = {
@@ -905,7 +902,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate }) => {
                             type="button"
                             onClick={() => openEditProduct(p)}
                             className="px-4 py-1.5 rounded-xl text-xs font-black text-white bg-gradient-to-r from-teal-500 via-indigo-600 to-pink-500 hover:opacity-90 shadow-sm transition-all flex items-center gap-1.5 cursor-pointer"
-                            title="Edit All 5 Room Images, Sizes & Descriptions"
+                            title="Edit All 4 Room Images, Sizes & Descriptions"
                           >
                             <Edit className="w-3.5 h-3.5" />
                             <span>সম্পূর্ণ এডিট করুন</span>
@@ -913,13 +910,13 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate }) => {
                         </div>
                       </div>
 
-                      {/* 5 ROOM VIEW THUMBNAILS ROW */}
+                      {/* 4 ROOM VIEW THUMBNAILS ROW */}
                       <div className="space-y-1.5">
                         <div className="flex items-center justify-between text-[11px] font-bold text-slate-500">
-                          <span>৫টি রুম ভিউ ফটো (5 Types of Room & View Images):</span>
+                          <span>৪টি রুম ভিউ ফটো (4 Types of Room Images):</span>
                           <span className="text-[10px] text-teal-700 font-semibold">ডিফল্ট সিলেক্টেড: ড্রয়িং রুম</span>
                         </div>
-                        <div className="grid grid-cols-2 sm:grid-cols-5 gap-2.5">
+                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
                           {/* 1. Drawing Room */}
                           <div className="bg-slate-50 p-2 rounded-2xl border border-slate-200 flex items-center gap-2">
                             <img src={rDrawing} alt="Drawing Room" className="w-10 h-10 rounded-xl object-cover border border-slate-300 shrink-0" />
@@ -953,15 +950,6 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate }) => {
                             <div className="min-w-0">
                               <span className="text-[9px] font-black text-slate-700 uppercase block">৪. বেডরুম</span>
                               <span className="text-[10px] font-medium text-slate-500 block truncate">বেডরুম স্পেস</span>
-                            </div>
-                          </div>
-
-                          {/* 5. Close View */}
-                          <div className="bg-slate-50 p-2 rounded-2xl border border-slate-200 flex items-center gap-2 col-span-2 sm:col-span-1">
-                            <img src={rCloseView} alt="Close View" className="w-10 h-10 rounded-xl object-cover border border-slate-300 shrink-0" />
-                            <div className="min-w-0">
-                              <span className="text-[9px] font-black text-slate-700 uppercase block">৫. ক্লোজ ভিউ</span>
-                              <span className="text-[10px] font-medium text-slate-500 block truncate">টেক্সচার ফিনিশ</span>
                             </div>
                           </div>
                         </div>
@@ -1732,7 +1720,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate }) => {
                     নতুন ওয়াল আর্ট প্রোডাক্ট যোগ করুন
                   </h3>
                   <p className="text-[11px] text-slate-500">
-                    ৫টি রুম ভিউ ইমেজ, ২ ধরণের সাইজ (মিডিয়াম ও লার্জ), মূল্য ও বিবরণ দিন
+                    ৪টি রুম ভিউ ইমেজ, ২ ধরণের সাইজ (মিডিয়াম ও লার্জ), মূল্য ও বিবরণ দিন
                   </p>
                 </div>
               </div>
@@ -1823,12 +1811,12 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate }) => {
                 </div>
               </div>
 
-              {/* SECTION 2: 5 ROOM VIEW IMAGES */}
+              {/* SECTION 2: 4 ROOM VIEW IMAGES */}
               <div className="bg-indigo-50/40 p-4 rounded-2xl border border-indigo-100 space-y-3">
                 <div className="flex items-center justify-between">
                   <h4 className="font-extrabold text-xs text-indigo-950 flex items-center gap-1.5">
                     <span className="w-5 h-5 rounded-full bg-indigo-200 text-indigo-800 flex items-center justify-center text-[10px] font-black">২</span>
-                    <span>৫টি রুম ভিউ ইমেজ লিঙ্ক (5 Types Room Images Upload/Links)</span>
+                    <span>৪টি রুম ভিউ ইমেজ লিঙ্ক (4 Types Room Images Upload/Links)</span>
                   </h4>
                   <span className="text-[10px] bg-emerald-100 text-emerald-800 font-bold px-2 py-0.5 rounded-full">
                     ১. ড্রয়িং রুম ডিফল্ট
@@ -1905,23 +1893,6 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate }) => {
                       value={newProdBedroomImg}
                       onChange={(e) => setNewProdBedroomImg(e.target.value)}
                       placeholder="বেডরুম ছবির লিঙ্ক..."
-                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-[#0f3d44] font-mono"
-                    />
-                  </div>
-                </div>
-
-                {/* 5. Close View */}
-                <div className="p-3 bg-white rounded-xl border border-slate-200 space-y-2">
-                  <label className="font-bold text-slate-800 text-xs block">
-                    ৫. ক্লোজ ভিউ (Close View - ৩ডি শ্যাডো ও টেক্সচার ফিনিশ)
-                  </label>
-                  <div className="flex items-center gap-2">
-                    <img src={newProdCloseViewImg} alt="" className="w-12 h-12 rounded-xl object-cover border border-slate-200 shrink-0" />
-                    <input
-                      type="url"
-                      value={newProdCloseViewImg}
-                      onChange={(e) => setNewProdCloseViewImg(e.target.value)}
-                      placeholder="ক্লোজ ভিউ ছবির লিঙ্ক..."
                       className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-[#0f3d44] font-mono"
                     />
                   </div>
@@ -2122,7 +2093,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate }) => {
                     প্রোডাক্ট সম্পূর্ণ এডিট করুন: {editingProduct.name}
                   </h3>
                   <p className="text-[11px] text-slate-500">
-                    ৫টি রুম ইমেজ লিঙ্ক, মিডিয়াম ও লার্জ সাইজ, উভয় প্রাইস, ওজন ও বিবরণ এডিট করুন
+                    ৪টি রুম ইমেজ লিঙ্ক, মিডিয়াম ও লার্জ সাইজ, উভয় প্রাইস, ওজন ও বিবরণ এডিট করুন
                   </p>
                 </div>
               </div>
@@ -2227,7 +2198,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate }) => {
                 </div>
               </div>
 
-              {/* 2. 5 ROOM VIEW IMAGES WITH DYNAMIC BANGLA LABELS */}
+              {/* 2. 4 ROOM VIEW IMAGES WITH DYNAMIC BANGLA LABELS */}
               {(() => {
                 const isIslamic =
                   editingProduct.category_id === 1 ||
@@ -2242,8 +2213,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate }) => {
                   drawing_room: editingProduct.image_url || '',
                   office_room: 'https://images.unsplash.com/photo-1513694203232-719a280e022f?auto=format&fit=crop&w=1200&q=80',
                   prayer_or_reading_room: 'https://images.unsplash.com/photo-1618221195710-dd6b41faaea6?auto=format&fit=crop&w=1200&q=80',
-                  bedroom: 'https://images.unsplash.com/photo-1616486338812-3dadae4b4ace?auto=format&fit=crop&w=1200&q=80',
-                  close_view: editingProduct.image_url || ''
+                  bedroom: 'https://images.unsplash.com/photo-1616486338812-3dadae4b4ace?auto=format&fit=crop&w=1200&q=80'
                 };
 
                 return (
@@ -2251,7 +2221,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate }) => {
                     <div className="flex items-center justify-between">
                       <h4 className="font-extrabold text-xs text-indigo-950 flex items-center gap-1.5">
                         <span className="w-5 h-5 rounded-full bg-indigo-200 text-indigo-800 flex items-center justify-center text-[10px] font-black">২</span>
-                        <span>৫টি রুম ভিউ ইমেজ লিঙ্ক (5 Types Room Images Upload/Links)</span>
+                        <span>৪টি রুম ভিউ ইমেজ লিঙ্ক (4 Types Room Images Upload/Links)</span>
                       </h4>
                       <span className="text-[10px] bg-emerald-100 text-emerald-800 font-bold px-2 py-0.5 rounded-full">
                         ১. ড্রয়িং রুম সর্বদা ডিফল্ট
@@ -2349,27 +2319,6 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate }) => {
                           value={roomImages.bedroom || ''}
                           onChange={(e) => updateEditingProductRoomImage('bedroom', e.target.value)}
                           placeholder="বেডরুম ছবির লিঙ্ক..."
-                          className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-[#0f3d44] font-mono focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                        />
-                      </div>
-                    </div>
-
-                    {/* 5. Close View */}
-                    <div className="p-3 bg-white rounded-xl border border-slate-200 space-y-2">
-                      <label className="font-bold text-slate-800 text-xs block">
-                        ৫. ক্লোজ ভিউ (Close View - ৩ডি শ্যাডো ও টেক্সচার ফিনিশ)
-                      </label>
-                      <div className="flex items-center gap-2">
-                        <img
-                          src={roomImages.close_view || ''}
-                          alt="Close View"
-                          className="w-12 h-12 rounded-xl object-cover border border-slate-200 shrink-0"
-                        />
-                        <input
-                          type="url"
-                          value={roomImages.close_view || ''}
-                          onChange={(e) => updateEditingProductRoomImage('close_view', e.target.value)}
-                          placeholder="ক্লোজ ভিউ ছবির লিঙ্ক..."
                           className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-[#0f3d44] font-mono focus:outline-none focus:ring-2 focus:ring-indigo-500"
                         />
                       </div>

@@ -293,7 +293,6 @@ export const SeeOnWallModal: React.FC<SeeOnWallModalProps> = ({ product, onClose
                           <div className="font-extrabold text-xs text-[#0f3d44] truncate">{sz.name}</div>
                           <div className="flex items-center justify-between text-[11px] mt-1.5 pt-1 border-t border-slate-100">
                             <span className="font-extrabold text-indigo-700">{formatPrice(sz.price)}</span>
-                            <span className="text-slate-500 font-medium">{sz.weight_grams}g</span>
                           </div>
                         </button>
                       ))}
@@ -479,7 +478,7 @@ export const SeeOnWallModal: React.FC<SeeOnWallModalProps> = ({ product, onClose
 
                   <div className="flex items-center gap-2 text-xs text-slate-300 shrink-0">
                     <span className="px-2 py-1 bg-white/10 rounded font-mono text-[11px]">
-                      {activeSize.weight_grams}g Stainless Steel
+                      Stainless Steel
                     </span>
                   </div>
                 </div>

@@ -8,9 +8,9 @@ declare global {
 }
 
 export const GA_MEASUREMENT_ID = 'G-L77SWL7ZH6';
-export const META_PIXEL_ID = '1788008482378644';
+export const META_PIXEL_ID = '1814759089902668';
 
-// Set to prevent duplicate Purchase events across re-renders
+// Set to prevent duplicate Purchase events across re-renders & page reloads
 const trackedPurchases = new Set<string>();
 let lastPageViewPath = '';
 
@@ -37,8 +37,8 @@ export const initAnalytics = (): void => {
     document.head.appendChild(script);
   }
 
-  // 2. Initialize Meta Pixel if not already present
-  if (!document.getElementById('meta-pixel-script')) {
+  // 2. Meta Pixel is loaded in <head> via index.html, but ensure fallback initialization if loaded dynamically
+  if (!window.fbq && !document.getElementById('meta-pixel-script')) {
     (function (f: any, b: any, e: any, v: any, n?: any, t?: any, s?: any) {
       if (f.fbq) return;
       n = f.fbq = function () {

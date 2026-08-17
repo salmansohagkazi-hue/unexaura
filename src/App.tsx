@@ -27,6 +27,7 @@ function MainAppContent() {
   const [seeOnWallProduct, setSeeOnWallProduct] = useState<Product | null>(null);
   const [accountTab, setAccountTab] = useState<'dashboard' | 'orders' | 'tracking' | 'wishlist' | 'profile' | 'password'>('dashboard');
   const [shopCategoryId, setShopCategoryId] = useState<number | 'all'>('all');
+  const [adminTab, setAdminTab] = useState<'products' | 'orders' | 'categories' | 'coupons' | 'media' | 'shipping' | 'security' | 'sheets'>('orders');
 
   const { products } = useApp();
 
@@ -113,6 +114,15 @@ function MainAppContent() {
       } else {
         setAccountTab('dashboard');
       }
+    } else if (page === 'admin' || page === 'staff') {
+      if (params?.tab) {
+        setAdminTab(params.tab);
+      } else {
+        setAdminTab('orders');
+      }
+      setActiveTab('admin');
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+      return;
     } else if (page === 'home') {
       window.history.pushState({}, '', window.location.pathname);
     }
@@ -199,7 +209,7 @@ function MainAppContent() {
         )}
 
         {activeTab === 'admin' && (
-          <AdminPage onNavigate={handleNavigate} />
+          <AdminPage onNavigate={handleNavigate} initialTab={adminTab} />
         )}
 
         {activeTab === 'export' && (

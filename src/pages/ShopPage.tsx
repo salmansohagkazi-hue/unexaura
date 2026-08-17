@@ -175,26 +175,26 @@ export const ShopPage: React.FC<ShopPageProps> = ({
             </div>
           </div>
 
-          {/* PRICE SLIDER */}
-          <div className="space-y-2 pt-4 border-t border-slate-100">
-            <div className="flex items-center justify-between text-xs">
-              <label className="font-bold text-slate-700">Max Price</label>
-              <span className="font-extrabold text-[#0f3d44]">{formatPrice(maxPrice)}</span>
+            {/* PRICE SLIDER */}
+            <div className="space-y-2 pt-4 border-t border-slate-100">
+              <div className="flex items-center justify-between text-xs">
+                <label className="font-bold text-slate-700">Max Price</label>
+                <span className="font-extrabold text-[#0f3d44]">{formatPrice(maxPrice)}</span>
+              </div>
+              <input
+                type="range"
+                min="500"
+                max="10000"
+                step="100"
+                value={maxPrice}
+                onChange={(e) => setMaxPrice(Number(e.target.value))}
+                className="w-full accent-indigo-600 cursor-pointer"
+              />
+              <div className="flex justify-between text-[10px] text-slate-400 font-mono">
+                <span>৳500</span>
+                <span>৳10,000</span>
+              </div>
             </div>
-            <input
-              type="range"
-              min="2000"
-              max="10000"
-              step="500"
-              value={maxPrice}
-              onChange={(e) => setMaxPrice(Number(e.target.value))}
-              className="w-full accent-indigo-600 cursor-pointer"
-            />
-            <div className="flex justify-between text-[10px] text-slate-400 font-mono">
-              <span>৳2,000</span>
-              <span>৳10,000</span>
-            </div>
-          </div>
 
           {/* BADGE FILTER */}
           <div className="space-y-2 pt-4 border-t border-slate-100">
@@ -264,15 +264,15 @@ export const ShopPage: React.FC<ShopPageProps> = ({
               <div className="w-16 h-16 rounded-full bg-indigo-50 text-indigo-600 flex items-center justify-center mx-auto text-2xl">
                 🔍
               </div>
-              <h3 className="font-extrabold text-lg text-[#0f3d44]">No Wall Designs Found</h3>
+              <h3 className="font-extrabold text-lg text-[#0f3d44]">কোনো ডিজাইন পাওয়া যায়নি</h3>
               <p className="text-xs text-slate-500">
-                Try loosening your filters or searching for terms like &ldquo;Ayatul Kursi&rdquo;, &ldquo;Tree of Life&rdquo;, or &ldquo;Surah&rdquo;.
+                এই ক্যাটাগরিতে খুব শীঘ্রই নতুন প্রিমিয়াম ডিজাইন যুক্ত করা হবে। সকল ওয়াল আর্ট ডিজাইন দেখতে নিচের বাটনে ক্লিক করুন।
               </p>
               <button
                 onClick={resetFilters}
-                className="px-6 py-2.5 rounded-xl text-xs font-bold text-white bg-gradient-to-r from-[#14b8a6] via-[#4f46e5] via-[#9333ea] to-[#ec4899] hover:opacity-95 shadow-md cursor-pointer"
+                className="px-6 py-2.5 rounded-xl text-xs font-bold text-white bg-gradient-to-r from-teal-600 to-indigo-600 hover:opacity-95 shadow-md cursor-pointer"
               >
-                Clear All Filters
+                সব ডিজাইন দেখুন (View All)
               </button>
             </div>
           )}

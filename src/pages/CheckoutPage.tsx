@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
 import { useSEO } from '../hooks/useSEO';
 import { trackBeginCheckout } from '../utils/analytics';
-import { ShieldCheck, Lock, Check } from 'lucide-react';
+import { ShieldCheck, Lock, Check, MapPin, User, Phone, FileText, Truck, Banknote } from 'lucide-react';
 
 interface CheckoutPageProps {
   onNavigate: (page: string, params?: any) => void;
@@ -30,10 +30,9 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({ onNavigate }) => {
   const [fullName, setFullName] = useState(
     user ? `${user.first_name || ''} ${user.last_name || ''}`.trim() : ''
   );
-  const [email, setEmail] = useState(user ? user.email : '');
   const [phone, setPhone] = useState(user ? user.phone : '');
   const [address, setAddress] = useState(user ? user.address : '');
-  const [city, setCity] = useState(user ? user.city : 'Dhaka');
+  const [district, setDistrict] = useState(user ? user.city || 'ঢাকা' : 'ঢাকা');
   const [paymentMethod, setPaymentMethod] = useState<'cod' | 'stripe'>('cod');
   const [orderNotes, setOrderNotes] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -52,13 +51,13 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({ onNavigate }) => {
   const handleSubmitOrder = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!fullName.trim() || !phone.trim() || !address.trim()) {
-      alert('Please fill in all required fields marked with * (সকল প্রয়োজনীয় তথ্য প্রদান করুন)');
+    if (!fullName.trim() || !phone.trim() || !address.trim() || !district.trim()) {
+      alert('দয়া করে * চিহ্নিত সকল প্রয়োজনীয় তথ্য (নাম, মোবাইল নম্বর, সম্পূর্ণ ঠিকানা ও জেলা) পূরণ করুন।');
       return;
     }
 
     if (deliveryZone === 'none') {
-      alert('দয়া করে ডেলিভারি জোন নির্বাচন করুন (ঢাকার ভেতরে অথবা ঢাকার বাইরে)। / Please select a delivery zone (Inside Dhaka or Outside Dhaka) before confirming your order.');
+      alert('দয়া করে ডেলিভারি জোন নির্বাচন করুন (ঢাকার ভেতরে অথবা ঢাকার বাইরে)।');
       return;
     }
 
@@ -68,10 +67,10 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({ onNavigate }) => {
       const createdOrder = await addOrder({
         user_id: user ? user.id : null,
         user_name: fullName.trim(),
-        user_email: email,
-        user_phone: phone,
-        shipping_address: address,
-        city,
+        user_email: user?.email || '',
+        user_phone: phone.trim(),
+        shipping_address: address.trim(),
+        city: district.trim(),
         delivery_zone: deliveryZone,
         total_weight_grams: totalWeight,
         delivery_charge: deliveryCharge,
@@ -79,7 +78,7 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({ onNavigate }) => {
         total_amount: grandTotal,
         payment_method: paymentMethod,
         payment_status: paymentMethod === 'stripe' ? 'paid' : 'unpaid',
-        order_notes: orderNotes,
+        order_notes: orderNotes.trim(),
         items: cart.map(item => ({
           product_id: item.product.id,
           product_name: item.product.name,
@@ -104,173 +103,182 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({ onNavigate }) => {
   };
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6">
       <div className="flex items-center gap-2 text-xs text-slate-500 font-medium">
-        <button onClick={() => onNavigate('home')} className="hover:text-[#4f46e5]">Home</button>
+        <button onClick={() => onNavigate('home')} className="hover:text-[#4f46e5] cursor-pointer">Home</button>
         <span>/</span>
-        <button onClick={() => onNavigate('cart')} className="hover:text-[#4f46e5]">Cart</button>
+        <button onClick={() => onNavigate('cart')} className="hover:text-[#4f46e5] cursor-pointer">Cart</button>
         <span>/</span>
         <span className="text-[#0f3d44] font-bold">Checkout</span>
       </div>
 
       <form onSubmit={handleSubmitOrder} className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
-        <div className="lg:col-span-7 space-y-8">
-          {/* STEP 1: CONTACT INFO */}
-          <div className="bg-white p-6 rounded-2xl border border-slate-200/80 shadow-xs space-y-4">
-            <div className="flex items-center gap-3">
-              <span className="w-7 h-7 rounded-full bg-gradient-to-r from-[#14b8a6] via-[#4f46e5] to-[#ec4899] text-white font-bold text-xs flex items-center justify-center">
-                1
-              </span>
-              <h2 className="font-extrabold text-base text-[#0f3d44]">Contact Information</h2>
+        {/* SINGLE UNIFIED FORM SECTION */}
+        <div className="lg:col-span-7">
+          <div className="bg-white p-6 sm:p-7 rounded-3xl border border-slate-200/90 shadow-sm space-y-6">
+            {/* FORM HEADER */}
+            <div className="border-b border-slate-100 pb-4">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-xl bg-gradient-to-r from-teal-500 via-indigo-600 to-pink-500 text-white flex items-center justify-center shadow-xs">
+                  <User className="w-4 h-4" />
+                </div>
+                <div>
+                  <h2 className="font-black text-lg text-[#0f3d44]">
+                    অর্ডার ও ডেলিভারি তথ্য (Order & Delivery Details)
+                  </h2>
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    অর্ডারটি কনফার্ম করতে নিচের ফর্মটি সঠিকভাবে পূরণ করুন
+                  </p>
+                </div>
+              </div>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
-              <div className="sm:col-span-2">
-                <label className="font-semibold text-slate-700 block mb-1">Full Name *</label>
+            {/* FORM INPUTS */}
+            <div className="space-y-4">
+              {/* FULL NAME */}
+              <div>
+                <label className="text-xs font-bold text-slate-700 block mb-1.5 flex items-center gap-1.5">
+                  <User className="w-3.5 h-3.5 text-indigo-600" />
+                  <span>আপনার পুরো নাম (Full Name) <span className="text-red-500">*</span></span>
+                </label>
                 <input
                   type="text"
                   required
                   value={fullName}
                   onChange={(e) => setFullName(e.target.value)}
-                  placeholder="e.g. Tanvir Hossain / আপনার পূর্ণ নাম"
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs text-[#0f3d44] focus:outline-none focus:border-indigo-500"
+                  placeholder="যেমন: তানভীর হোসেন / আপনার পূর্ণ নাম লিখুন"
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-xs sm:text-sm text-[#0f3d44] focus:outline-none focus:bg-white focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 transition-all font-medium"
                 />
               </div>
 
+              {/* MOBILE NUMBER */}
               <div>
-                <label className="font-semibold text-slate-700 block mb-1">Phone Number *</label>
+                <label className="text-xs font-bold text-slate-700 block mb-1.5 flex items-center gap-1.5">
+                  <Phone className="w-3.5 h-3.5 text-teal-600" />
+                  <span>মোবাইল নম্বর (Mobile Number) <span className="text-red-500">*</span></span>
+                </label>
                 <input
                   type="tel"
                   required
                   value={phone}
                   onChange={(e) => setPhone(e.target.value)}
-                  placeholder="01623319639 / আপনার মোবাইল নম্বর"
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs text-[#0f3d44] focus:outline-none focus:border-indigo-500"
+                  placeholder="01XXXXXXXXX (১১ ডিজিটের সচল মোবাইল নম্বর)"
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-xs sm:text-sm text-[#0f3d44] focus:outline-none focus:bg-white focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 transition-all font-medium"
                 />
               </div>
 
+              {/* FULL ADDRESS */}
               <div>
-                <label className="font-semibold text-slate-700 block mb-1">Email Address (Optional)</label>
-                <input
-                  type="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  placeholder="tanvir@example.com (optional)"
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs text-[#0f3d44] focus:outline-none focus:border-indigo-500"
-                />
-              </div>
-            </div>
-          </div>
-
-          {/* STEP 2: SHIPPING ADDRESS */}
-          <div className="bg-white p-6 rounded-2xl border border-slate-200/80 shadow-xs space-y-4">
-            <div className="flex items-center gap-3">
-              <span className="w-7 h-7 rounded-full bg-gradient-to-r from-[#14b8a6] via-[#4f46e5] to-[#ec4899] text-white font-bold text-xs flex items-center justify-center">
-                2
-              </span>
-              <h2 className="font-extrabold text-base text-[#0f3d44]">Shipping Address</h2>
-            </div>
-
-            <div className="space-y-4 text-xs">
-              <div>
-                <label className="font-semibold text-slate-700 block mb-1">Full Address *</label>
+                <label className="text-xs font-bold text-slate-700 block mb-1.5 flex items-center gap-1.5">
+                  <MapPin className="w-3.5 h-3.5 text-pink-600" />
+                  <span>সম্পূর্ণ ঠিকানা (Full Address) <span className="text-red-500">*</span></span>
+                </label>
                 <input
                   type="text"
                   required
                   value={address}
                   onChange={(e) => setAddress(e.target.value)}
-                  placeholder="House/Flat #, Road #, Area, Thana, District / বাসা/ফ্ল্যাট নং, রোড, এলাকা, থানা, জেলা"
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs text-[#0f3d44] focus:outline-none focus:border-indigo-500"
+                  placeholder="বাসা/ফ্ল্যাট নং, রোড নং, এলাকা, থানা/উপজেলা"
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-xs sm:text-sm text-[#0f3d44] focus:outline-none focus:bg-white focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 transition-all font-medium"
                 />
               </div>
 
+              {/* DISTRICT & DELIVERY ZONE (2-column layout) */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {/* DISTRICT */}
                 <div>
-                  <label className="font-semibold text-slate-700 block mb-1">City *</label>
+                  <label className="text-xs font-bold text-slate-700 block mb-1.5 flex items-center gap-1.5">
+                    <MapPin className="w-3.5 h-3.5 text-amber-600" />
+                    <span>জেলা (District) <span className="text-red-500">*</span></span>
+                  </label>
                   <input
                     type="text"
                     required
-                    value={city}
-                    onChange={(e) => setCity(e.target.value)}
-                    placeholder="e.g. Dhaka, Chittagong"
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs text-[#0f3d44] focus:outline-none"
+                    value={district}
+                    onChange={(e) => setDistrict(e.target.value)}
+                    placeholder="যেমন: ঢাকা, চট্টগ্রাম, রাজশাহী, বগুড়া..."
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-xs sm:text-sm text-[#0f3d44] focus:outline-none focus:bg-white focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 transition-all font-medium"
                   />
                 </div>
 
+                {/* DELIVERY ZONE */}
                 <div>
-                  <label className="font-semibold text-slate-700 block mb-1">Delivery Zone *</label>
+                  <label className="text-xs font-bold text-slate-700 block mb-1.5 flex items-center gap-1.5">
+                    <Truck className="w-3.5 h-3.5 text-indigo-600" />
+                    <span>ডেলিভারি এলাকা (Delivery Zone) <span className="text-red-500">*</span></span>
+                  </label>
                   <select
                     value={deliveryZone}
                     onChange={(e) => setDeliveryZone(e.target.value as any)}
-                    className={`w-full border rounded-xl px-3.5 py-2.5 text-xs font-bold focus:outline-none cursor-pointer ${
+                    className={`w-full border rounded-xl px-3.5 py-3 text-xs sm:text-sm font-bold focus:outline-none cursor-pointer transition-all ${
                       deliveryZone === 'none'
                         ? 'bg-amber-50 border-amber-400 text-amber-900 ring-2 ring-amber-300/40'
-                        : 'bg-slate-50 border-slate-200 text-[#0f3d44]'
+                        : 'bg-slate-50 border-slate-200 text-[#0f3d44] focus:bg-white focus:border-indigo-500'
                     }`}
                   >
-                    <option value="none">-- Select Delivery Zone (সিলেক্ট করুন) --</option>
-                    <option value="dhaka">Inside Dhaka / ঢাকার ভেতরে (Base ৳60-৳90)</option>
-                    <option value="outside_dhaka">Outside Dhaka / ঢাকার বাইরে (Base ৳110-৳170)</option>
+                    <option value="none">-- এলাকা নির্বাচন করুন --</option>
+                    <option value="dhaka">ঢাকার ভেতরে / Inside Dhaka (Base ৳60)</option>
+                    <option value="outside_dhaka">ঢাকার বাইরে / Outside Dhaka (Base ৳110)</option>
                   </select>
                   {deliveryZone === 'none' && (
                     <p className="text-[11px] text-amber-700 font-bold mt-1.5 flex items-center gap-1">
-                      ⚠️ অর্ডার কনফার্ম করতে ঢাকার ভেতরে অথবা ঢাকার বাইরে সিলেক্ট করুন।
+                      ⚠️ অর্ডার করতে ঢাকার ভেতরে অথবা বাইরে সিলেক্ট করুন।
                     </p>
                   )}
                 </div>
               </div>
 
+              {/* ORDER NOTE */}
               <div>
-                <label className="font-semibold text-slate-700 block mb-1">Order Notes (Optional)</label>
+                <label className="text-xs font-bold text-slate-700 block mb-1.5 flex items-center gap-1.5">
+                  <FileText className="w-3.5 h-3.5 text-slate-500" />
+                  <span>অর্ডার নোট / বিশেষ নির্দেশনা (Order Note - Optional)</span>
+                </label>
                 <textarea
                   rows={2}
                   value={orderNotes}
                   onChange={(e) => setOrderNotes(e.target.value)}
-                  placeholder="Special instructions for courier..."
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2 text-xs text-[#0f3d44] focus:outline-none"
+                  placeholder="ডেলিভারি সম্পর্কিত বিশেষ কোনো নির্দেশনা থাকলে এখানে লিখুন (ঐচ্ছিক)..."
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-xs sm:text-sm text-[#0f3d44] focus:outline-none focus:bg-white focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 transition-all font-medium resize-none"
                 />
               </div>
-            </div>
-          </div>
 
-          {/* STEP 3: PAYMENT METHOD */}
-          <div className="bg-white p-6 rounded-2xl border border-slate-200/80 shadow-xs space-y-4">
-            <div className="flex items-center gap-3">
-              <span className="w-7 h-7 rounded-full bg-gradient-to-r from-[#14b8a6] via-[#4f46e5] to-[#ec4899] text-white font-bold text-xs flex items-center justify-center">
-                3
-              </span>
-              <h2 className="font-extrabold text-base text-[#0f3d44]">Payment Method (পেমেন্ট পদ্ধতি)</h2>
-            </div>
-
-            <div className="space-y-3">
-              {/* COD OPTION */}
-              <div
-                onClick={() => setPaymentMethod('cod')}
-                className={`p-4 rounded-2xl border-2 transition-all cursor-pointer flex items-start gap-3 ${
-                  paymentMethod === 'cod'
-                    ? 'border-teal-500 bg-teal-50/40 shadow-xs'
-                    : 'border-slate-200 bg-slate-50/50 hover:bg-slate-100/60'
-                }`}
-              >
+              {/* PAYMENT METHOD (COD) */}
+              <div className="pt-2">
+                <label className="text-xs font-bold text-slate-700 block mb-2 flex items-center gap-1.5">
+                  <Banknote className="w-3.5 h-3.5 text-teal-600" />
+                  <span>পেমেন্ট পদ্ধতি (Payment Method)</span>
+                </label>
                 <div
-                  className={`w-5 h-5 rounded-full flex items-center justify-center shrink-0 mt-0.5 border ${
+                  onClick={() => setPaymentMethod('cod')}
+                  className={`p-4 rounded-2xl border-2 transition-all cursor-pointer flex items-start gap-3.5 ${
                     paymentMethod === 'cod'
-                      ? 'bg-teal-600 border-teal-600 text-white'
-                      : 'border-slate-300 bg-white'
+                      ? 'border-teal-500 bg-teal-50/40 shadow-xs'
+                      : 'border-slate-200 bg-slate-50/50 hover:bg-slate-100/60'
                   }`}
                 >
-                  {paymentMethod === 'cod' && <Check className="w-3.5 h-3.5" />}
-                </div>
-                <div className="space-y-1">
-                  <div className="flex items-center gap-2">
-                    <span className="font-extrabold text-[#0f3d44] text-sm">ক্যাশ অন ডেলিভারি (Cash on Delivery) 💵</span>
-                    <span className="text-[10px] font-bold bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded-full border border-emerald-200">
-                      জনপ্রিয়
-                    </span>
+                  <div
+                    className={`w-5 h-5 rounded-full flex items-center justify-center shrink-0 mt-0.5 border ${
+                      paymentMethod === 'cod'
+                        ? 'bg-teal-600 border-teal-600 text-white'
+                        : 'border-slate-300 bg-white'
+                    }`}
+                  >
+                    {paymentMethod === 'cod' && <Check className="w-3.5 h-3.5" />}
                   </div>
-                  <p className="text-xs text-slate-600 leading-relaxed">
-                    পণ্য হাতে পাওয়ার পর রাইডারকে সম্পূর্ণ ক্যাশ মূল্য পরিশোধ করুন। কোনো অগ্রিম ফি নেই।
-                  </p>
+                  <div className="space-y-1">
+                    <div className="flex items-center gap-2">
+                      <span className="font-extrabold text-[#0f3d44] text-xs sm:text-sm">
+                        ক্যাশ অন ডেলিভারি (Cash on Delivery) 💵
+                      </span>
+                      <span className="text-[10px] font-bold bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded-full border border-emerald-200">
+                        কোনো অগ্রিম ফি নেই
+                      </span>
+                    </div>
+                    <p className="text-xs text-slate-600 leading-relaxed">
+                      পণ্য হাতে পাওয়ার পর রাইডারকে সম্পূর্ণ মূল্য পরিশোধ করুন।
+                    </p>
+                  </div>
                 </div>
               </div>
             </div>
@@ -279,7 +287,7 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({ onNavigate }) => {
 
         {/* RIGHT ORDER REVIEW SIDEBAR */}
         <div className="lg:col-span-5 space-y-6 lg:sticky lg:top-24">
-          <div className="bg-white p-6 rounded-2xl border border-slate-200/80 shadow-md space-y-5">
+          <div className="bg-white p-6 rounded-3xl border border-slate-200/90 shadow-md space-y-5">
             <h3 className="font-extrabold text-base text-[#0f3d44] pb-3 border-b border-slate-100 flex items-center justify-between">
               <span>Order Review</span>
               <span className="text-xs text-slate-400 font-mono">({cart.length} items)</span>
@@ -288,7 +296,6 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({ onNavigate }) => {
             <div className="space-y-3 max-h-60 overflow-y-auto pr-1 divide-y divide-slate-100">
               {cart.map(({ product, quantity, selectedSize }) => {
                 const itemPrice = selectedSize ? selectedSize.price : product.price;
-                const itemWeight = selectedSize ? selectedSize.weight_grams : product.weight_grams;
                 const itemKey = `${product.id}-${selectedSize?.id || 'default'}`;
 
                 return (
@@ -343,7 +350,7 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({ onNavigate }) => {
             <button
               type="submit"
               disabled={isSubmitting}
-              className={`w-full py-4 rounded-xl text-sm font-bold text-white shadow-lg transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 select-none ${
+              className={`w-full py-4 rounded-2xl text-sm font-black text-white shadow-lg transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 select-none ${
                 deliveryZone === 'none'
                   ? 'bg-gradient-to-r from-amber-600 to-amber-700 hover:from-amber-700 hover:to-amber-800'
                   : 'bg-gradient-to-r from-[#14b8a6] via-[#4f46e5] via-[#9333ea] to-[#ec4899] hover:opacity-95 shadow-indigo-500/20'

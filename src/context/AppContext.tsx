@@ -76,19 +76,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       if (saved) {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed) && parsed.length > 0) {
-          // Merge newly seeded INITIAL_PRODUCTS that are not in parsed localStorage list
-          const existingIds = new Set(parsed.map((p: Product) => p.id));
-          const missingInitial = INITIAL_PRODUCTS.filter(p => !existingIds.has(p.id));
-          const merged = [...parsed, ...missingInitial];
-          // If product 7 was already parsed, ensure its room_images and details are updated if needed
-          const updated = merged.map(p => {
-            const initP = INITIAL_PRODUCTS.find(i => i.id === p.id);
-            if (initP && (p.id === 7 || p.id === 8 || p.id === 9 || p.id === 10)) {
-              return { ...initP, ...p, image_url: initP.image_url, room_images: initP.room_images, sizes: initP.sizes };
-            }
-            return p;
+          // Filter out deleted old mock products (id 1 to 6)
+          const validInitialIds = new Set(INITIAL_PRODUCTS.map(p => p.id));
+          const updated = INITIAL_PRODUCTS.map(initP => {
+            const savedP = parsed.find((p: Product) => p.id === initP.id);
+            return savedP ? { ...initP, ...savedP, category_id: initP.category_id, category_name: initP.category_name, image_url: initP.image_url, room_images: initP.room_images, sizes: initP.sizes } : initP;
           });
-          return updated;
+          const customAdminProducts = parsed.filter((p: Product) => !validInitialIds.has(p.id) && p.id > 10);
+          return [...updated, ...customAdminProducts];
         }
       }
     } catch {}
@@ -101,9 +96,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       if (saved) {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed) && parsed.length > 0) {
-          return parsed.map((c: Category) => {
-            const initC = INITIAL_CATEGORIES.find(i => i.id === c.id || i.slug === c.slug);
-            return initC ? { ...c, image_url: initC.image_url, item_count: initC.item_count } : c;
+          return INITIAL_CATEGORIES.map(initC => {
+            const savedC = parsed.find((c: Category) => c.id === initC.id || c.slug === initC.slug);
+            return savedC ? { ...savedC, image_url: initC.image_url, name: initC.name, item_count: initC.item_count } : initC;
           });
         }
       }

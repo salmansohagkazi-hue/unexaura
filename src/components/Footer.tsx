@@ -112,10 +112,19 @@ export const Footer: React.FC<FooterProps> = ({ onNavigate }) => {
         </div>
       </div>
 
-      {/* COPYRIGHT */}
+      {/* COPYRIGHT & STAFF PORTAL */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6 border-t border-slate-800 flex flex-col sm:flex-row items-center justify-between text-xs text-slate-500 gap-3">
-        <div>
-          &copy; {new Date().getFullYear()} UNEX AURA. All Rights Reserved.
+        <div className="flex items-center gap-3">
+          <span>&copy; {new Date().getFullYear()} UNEX AURA. All Rights Reserved.</span>
+          <span className="text-slate-700">|</span>
+          <button
+            onClick={() => onNavigate('admin', { tab: 'orders' })}
+            className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-slate-900 border border-slate-800 text-slate-400 hover:text-teal-400 hover:border-teal-500/40 text-[11px] font-medium transition-colors cursor-pointer group"
+            title="Staff Login & Order Management Portal"
+          >
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 group-hover:animate-ping"></span>
+            <span>🔒 Staff Portal (অর্ডার কন্ট্রোল)</span>
+          </button>
         </div>
         <div className="flex items-center gap-1">
           <span>Crafted with</span>

@@ -289,7 +289,7 @@ export const HomePage: React.FC<HomePageProps> = ({ onNavigate, onOpenWallModal 
                 {cat.name}
               </h3>
               <span className="text-[11px] text-slate-400 font-medium">
-                {products.filter(p => p.category_id === cat.id).length || cat.item_count || 1} Designs
+                {products.filter(p => p.category_id === cat.id).length} Designs
               </span>
             </div>
           ))}
@@ -388,7 +388,7 @@ export const HomePage: React.FC<HomePageProps> = ({ onNavigate, onOpenWallModal 
                   </div>
                   <div className="flex items-center gap-1.5">
                     <CheckCircle2 className="w-4 h-4 text-teal-400 shrink-0" />
-                    <span>ঢাকায় ফ্রী ডেলিভারি সুবিধা</span>
+                    <span>ক্যাশ অন ডেলিভারি সুবিধা</span>
                   </div>
                 </div>
 
@@ -403,9 +403,6 @@ export const HomePage: React.FC<HomePageProps> = ({ onNavigate, onOpenWallModal 
                         {formatPrice(dealProduct.old_price)}
                       </span>
                     )}
-                    <span className="text-xs font-extrabold text-emerald-400 bg-emerald-950/80 px-2.5 py-1 rounded-full border border-emerald-800/80">
-                      Free Dhaka Delivery
-                    </span>
                   </div>
 
                   <div className="flex items-center gap-3">

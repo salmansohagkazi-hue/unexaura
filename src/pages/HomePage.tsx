@@ -24,7 +24,9 @@ import {
   VolumeX,
   Video,
   Edit3,
-  ShoppingBag
+  ShoppingBag,
+  Copy,
+  Check
 } from 'lucide-react';
 
 interface HomePageProps {
@@ -34,6 +36,26 @@ interface HomePageProps {
 
 export const HomePage: React.FC<HomePageProps> = ({ onNavigate, onOpenWallModal }) => {
   const { products, categories, formatPrice, addToCart, settings } = useApp();
+  const [copyFeedback, setCopyFeedback] = useState<string | null>(null);
+
+  const handleCopyCategoryLink = (catId: number, catName: string, e?: React.MouseEvent) => {
+    if (e) {
+      e.stopPropagation();
+    }
+    const origin = typeof window !== 'undefined' ? window.location.origin : 'https://unexaura.xyz';
+    const link = `${origin}/?page=shop&cat=${catId}`;
+
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(link).then(() => {
+        setCopyFeedback(catName);
+        setTimeout(() => setCopyFeedback(null), 3000);
+      }).catch(() => {
+        prompt('Copy category link:', link);
+      });
+    } else {
+      prompt('Copy category link:', link);
+    }
+  };
 
   useSEO({
     title: 'UNEX AURA | Luxury 3D Islamic Wall Decor & Calligraphy',
@@ -261,8 +283,18 @@ export const HomePage: React.FC<HomePageProps> = ({ onNavigate, onOpenWallModal 
             <div
               key={cat.id}
               onClick={() => onNavigate('shop', { cat: cat.id })}
-              className="group bg-white p-3.5 sm:p-4 rounded-2xl border border-slate-200/80 hover:border-indigo-400 hover:shadow-lg hover:shadow-indigo-500/10 transition-all cursor-pointer flex flex-col items-center text-center space-y-2.5"
+              className="group bg-white p-3.5 sm:p-4 rounded-2xl border border-slate-200/80 hover:border-indigo-400 hover:shadow-lg hover:shadow-indigo-500/10 transition-all cursor-pointer flex flex-col items-center text-center space-y-2.5 relative"
             >
+              {/* Quick Copy Link Button on Hover */}
+              <button
+                type="button"
+                onClick={(e) => handleCopyCategoryLink(cat.id, cat.name, e)}
+                title={`"${cat.name}" ক্যাটাগরির লিংক কপি করুন`}
+                className="absolute top-2 right-2 p-1.5 rounded-full bg-white/90 shadow-sm border border-slate-200 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 opacity-0 group-hover:opacity-100 transition-all cursor-pointer z-10"
+              >
+                <Copy className="w-3.5 h-3.5" />
+              </button>
+
               <div className="w-full aspect-square rounded-xl bg-slate-50 border border-slate-100 p-2 overflow-hidden flex items-center justify-center group-hover:scale-[1.03] transition-transform">
                 {cat.image_url ? (
                   <img
@@ -302,6 +334,19 @@ export const HomePage: React.FC<HomePageProps> = ({ onNavigate, onOpenWallModal 
             <span className="text-[10px] text-slate-400">Admin auto-synced</span>
           </div>
         </div>
+
+        {/* TOAST FEEDBACK NOTIFICATION */}
+        {copyFeedback && (
+          <div className="fixed bottom-6 right-6 z-50 bg-slate-900 text-white px-4 py-3 rounded-2xl shadow-2xl border border-teal-500/40 flex items-center gap-2.5 animate-bounce">
+            <div className="w-6 h-6 rounded-full bg-teal-500 text-slate-950 flex items-center justify-center font-bold text-xs">
+              <Check className="w-3.5 h-3.5" />
+            </div>
+            <div className="text-xs">
+              <p className="font-bold text-teal-300">লিংক কপি সফল হয়েছে!</p>
+              <p className="text-slate-300 text-[11px]">"{copyFeedback}" ক্যাটাগরির ডিরেক্ট লিংক কপি করা হয়েছে।</p>
+            </div>
+          </div>
+        )}
       </section>
 
       {/* 4. DEAL OF THE DAY (FULL PROPORTIONAL SPOTLIGHT SHOWCASE) */}

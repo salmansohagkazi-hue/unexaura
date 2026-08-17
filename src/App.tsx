@@ -29,7 +29,22 @@ function MainAppContent() {
   const [shopCategoryId, setShopCategoryId] = useState<number | 'all'>('all');
   const [adminTab, setAdminTab] = useState<'products' | 'orders' | 'categories' | 'coupons' | 'media' | 'shipping' | 'security' | 'sheets'>('orders');
 
-  const { products } = useApp();
+  const { products, categories } = useApp();
+
+  // Helper to resolve category ID from URL parameter (ID or slug or name)
+  const resolveCatParam = (val: string | null): number | 'all' => {
+    if (!val || val === 'all') return 'all';
+    const num = Number(val);
+    if (!isNaN(num) && num > 0) return num;
+    const clean = val.toLowerCase().trim();
+    const match = categories.find(
+      (c) =>
+        c.slug?.toLowerCase() === clean ||
+        c.name.toLowerCase().replace(/[^a-z0-9]/g, '-').includes(clean) ||
+        clean.includes(c.slug?.toLowerCase() || '')
+    );
+    return match ? match.id : 'all';
+  };
 
   // Initialize GA4 and Meta Pixel on mount
   useEffect(() => {
@@ -37,10 +52,11 @@ function MainAppContent() {
   }, []);
 
   // Support direct URL deep-linking (Pathname, Hash, and Search Query)
-  useEffect(() => {
+  const syncRouteFromUrl = () => {
     const params = new URLSearchParams(window.location.search);
     const directProd = params.get('product') || params.get('p') || params.get('slug');
     const directPage = params.get('page');
+    const directCat = params.get('cat') || params.get('category') || params.get('catId') || params.get('c');
     const pathname = window.location.pathname.toLowerCase().replace(/^\/+|\/+$/g, '');
     const hash = window.location.hash.toLowerCase().replace(/^#+/, '');
 
@@ -49,14 +65,31 @@ function MainAppContent() {
     } else if (directProd) {
       setProductSlug(directProd);
       setActiveTab('product');
+    } else if (directCat) {
+      const resolvedCat = resolveCatParam(directCat);
+      setShopCategoryId(resolvedCat);
+      setActiveTab('shop');
     } else if (directPage) {
       setActiveTab(directPage);
     } else if (pathname === 'shop' || pathname === 'cart' || pathname === 'checkout' || pathname === 'account') {
       setActiveTab(pathname);
     }
-  }, []);
+  };
 
-  // Track SPA page view on activeTab or productSlug changes
+  useEffect(() => {
+    syncRouteFromUrl();
+  }, [categories]);
+
+  // Handle browser back/forward buttons
+  useEffect(() => {
+    const handlePopState = () => {
+      syncRouteFromUrl();
+    };
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, [categories]);
+
+  // Track SPA page view on activeTab, category, or productSlug changes
   useEffect(() => {
     let title = 'UNEX AURA - 3D Islamic Wall Decor';
     let path = '/';
@@ -65,12 +98,13 @@ function MainAppContent() {
       title = 'UNEX AURA - 3D Islamic Wall Decor';
       path = '/';
     } else if (activeTab === 'product') {
-      const p = products.find(prod => prod.slug === productSlug || prod.id === Number(productSlug));
+      const p = products.find((prod) => prod.slug === productSlug || prod.id === Number(productSlug));
       title = p ? `${p.name} - UNEX AURA` : 'Product Details - UNEX AURA';
       path = productSlug ? `/?product=${productSlug}` : '/product';
     } else if (activeTab === 'shop') {
-      title = 'Shop Catalog - UNEX AURA';
-      path = '/shop';
+      const activeCat = categories.find((c) => c.id === shopCategoryId);
+      title = activeCat ? `${activeCat.name} - UNEX AURA` : 'Shop Catalog - UNEX AURA';
+      path = shopCategoryId !== 'all' ? `/?page=shop&cat=${shopCategoryId}` : '/shop';
     } else if (activeTab === 'cart') {
       title = 'Shopping Cart - UNEX AURA';
       path = '/cart';
@@ -86,34 +120,45 @@ function MainAppContent() {
     }
 
     trackPageView(title, path);
-  }, [activeTab, productSlug, products]);
+  }, [activeTab, productSlug, shopCategoryId, products, categories]);
 
   const handleNavigate = (page: string, params?: any) => {
     if (page === 'shop') {
+      let targetCat: number | 'all' = 'all';
       if (params?.cat !== undefined) {
-        setShopCategoryId(params.cat);
+        targetCat = params.cat;
       } else if (params?.catId !== undefined) {
-        setShopCategoryId(params.catId);
+        targetCat = params.catId;
+      }
+      setShopCategoryId(targetCat);
+      if (targetCat !== 'all') {
+        window.history.pushState({}, '', `?page=shop&cat=${targetCat}`);
       } else {
-        setShopCategoryId('all');
+        window.history.pushState({}, '', '?page=shop');
       }
     } else if (page === 'product' && params?.slug) {
       setProductSlug(params.slug);
       // Update URL search query without reloading page so links can be shared
       window.history.pushState({}, '', `?product=${params.slug}`);
-    } else if ((page === 'ordersuccess' || page === 'order-success')) {
+    } else if (page === 'ordersuccess' || page === 'order-success') {
       if (params?.order) {
         setLastOrder(params.order);
         setLastOrderNumber(params.order.order_number);
       } else if (params?.orderNumber) {
         setLastOrderNumber(params.orderNumber);
       }
+      window.history.pushState({}, '', '?page=order-success');
+    } else if (page === 'cart') {
+      window.history.pushState({}, '', '?page=cart');
+    } else if (page === 'checkout') {
+      window.history.pushState({}, '', '?page=checkout');
     } else if (page === 'account') {
       if (params?.tab) {
         setAccountTab(params.tab);
       } else {
         setAccountTab('dashboard');
       }
+      window.history.pushState({}, '', '?page=account');
     } else if (page === 'admin' || page === 'staff') {
       if (params?.tab) {
         setAdminTab(params.tab);
@@ -121,10 +166,11 @@ function MainAppContent() {
         setAdminTab('orders');
       }
       setActiveTab('admin');
+      window.history.pushState({}, '', '?page=admin');
       window.scrollTo({ top: 0, behavior: 'smooth' });
       return;
     } else if (page === 'home') {
-      window.history.pushState({}, '', window.location.pathname);
+      window.history.pushState({}, '', '/');
     }
     setActiveTab(page);
     window.scrollTo({ top: 0, behavior: 'smooth' });

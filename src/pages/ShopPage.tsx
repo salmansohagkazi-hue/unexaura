@@ -3,7 +3,7 @@ import { useApp } from '../context/AppContext';
 import { ProductCard } from '../components/ProductCard';
 import { Product } from '../types';
 import { useSEO } from '../hooks/useSEO';
-import { Search, Filter, SlidersHorizontal, RotateCcw, Eye, Sparkles } from 'lucide-react';
+import { Search, Filter, SlidersHorizontal, RotateCcw, Eye, Sparkles, Copy, Check, Share2, Link as LinkIcon } from 'lucide-react';
 
 interface ShopPageProps {
   onNavigate: (page: string, params?: any) => void;
@@ -11,6 +11,7 @@ interface ShopPageProps {
   initialCatId?: number | 'all';
   initialBadge?: string;
   searchQuery?: string;
+  initialSearch?: string;
 }
 
 export const ShopPage: React.FC<ShopPageProps> = ({
@@ -19,6 +20,7 @@ export const ShopPage: React.FC<ShopPageProps> = ({
   initialCatId,
   initialBadge,
   searchQuery = '',
+  initialSearch,
 }) => {
   const { products, categories, formatPrice } = useApp();
 
@@ -26,7 +28,8 @@ export const ShopPage: React.FC<ShopPageProps> = ({
   const [selectedBadge, setSelectedBadge] = useState<string>(initialBadge || 'all');
   const [maxPrice, setMaxPrice] = useState<number>(10000);
   const [sortBy, setSortBy] = useState<string>('newest');
-  const [localSearch, setLocalSearch] = useState<string>(searchQuery);
+  const [localSearch, setLocalSearch] = useState<string>(searchQuery || initialSearch || '');
+  const [copyFeedback, setCopyFeedback] = useState<string | null>(null);
 
   useEffect(() => {
     if (initialCatId !== undefined) {
@@ -34,7 +37,13 @@ export const ShopPage: React.FC<ShopPageProps> = ({
     }
   }, [initialCatId]);
 
-  const activeCategory = categories.find(c => c.id === selectedCatId);
+  useEffect(() => {
+    if (initialSearch !== undefined) {
+      setLocalSearch(initialSearch);
+    }
+  }, [initialSearch]);
+
+  const activeCategory = categories.find((c) => c.id === selectedCatId);
 
   // Dynamic SEO update for Shop / Category view
   useSEO({
@@ -49,25 +58,53 @@ export const ShopPage: React.FC<ShopPageProps> = ({
       : 'Islamic Wall Art, 3D Calligraphy, Home Decor Bangladesh, Ayatul Kursi'
   });
 
+  const handleSelectCategory = (catId: number | 'all') => {
+    setSelectedCatId(catId);
+    if (catId !== 'all') {
+      window.history.pushState({}, '', `?page=shop&cat=${catId}`);
+    } else {
+      window.history.pushState({}, '', '?page=shop');
+    }
+  };
+
+  const handleCopyCategoryLink = (catId: number | 'all', catName: string, e?: React.MouseEvent) => {
+    if (e) {
+      e.stopPropagation();
+    }
+    const origin = typeof window !== 'undefined' ? window.location.origin : 'https://unexaura.xyz';
+    const link = catId === 'all' ? `${origin}/?page=shop` : `${origin}/?page=shop&cat=${catId}`;
+
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(link).then(() => {
+        setCopyFeedback(catName);
+        setTimeout(() => setCopyFeedback(null), 3000);
+      }).catch(() => {
+        prompt('Copy category link:', link);
+      });
+    } else {
+      prompt('Copy category link:', link);
+    }
+  };
+
   // Filter products dynamically
   const filteredProducts = useMemo(() => {
     let result = [...products];
 
     if (selectedCatId !== 'all') {
-      result = result.filter(p => p.category_id === selectedCatId);
+      result = result.filter((p) => p.category_id === selectedCatId);
     }
 
     if (selectedBadge !== 'all') {
-      result = result.filter(p => p.badge === selectedBadge);
+      result = result.filter((p) => p.badge === selectedBadge);
     }
 
     if (maxPrice < 10000) {
-      result = result.filter(p => p.price <= maxPrice);
+      result = result.filter((p) => p.price <= maxPrice);
     }
 
     if (localSearch.trim()) {
       const q = (localSearch || '').toLowerCase();
-      result = result.filter(p =>
+      result = result.filter((p) =>
         (p.name || '').toLowerCase().includes(q) ||
         (p.description || '').toLowerCase().includes(q) ||
         (p.material || '').toLowerCase().includes(q) ||
@@ -97,17 +134,31 @@ export const ShopPage: React.FC<ShopPageProps> = ({
     setMaxPrice(10000);
     setLocalSearch('');
     setSortBy('newest');
+    window.history.pushState({}, '', '?page=shop');
   };
 
-  const activeCategoryObj = categories.find(c => c.id === selectedCatId);
+  const activeCategoryObj = categories.find((c) => c.id === selectedCatId);
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6">
+      {/* TOAST FEEDBACK NOTIFICATION */}
+      {copyFeedback && (
+        <div className="fixed bottom-6 right-6 z-50 bg-slate-900 text-white px-4 py-3 rounded-2xl shadow-2xl border border-teal-500/40 flex items-center gap-2.5 animate-bounce">
+          <div className="w-6 h-6 rounded-full bg-teal-500 text-slate-950 flex items-center justify-center font-bold text-xs">
+            <Check className="w-3.5 h-3.5" />
+          </div>
+          <div className="text-xs">
+            <p className="font-bold text-teal-300">লিংক কপি সফল হয়েছে!</p>
+            <p className="text-slate-300 text-[11px]">"{copyFeedback}" ক্যাটাগরির ডিরেক্ট লিংক কপি করা হয়েছে।</p>
+          </div>
+        </div>
+      )}
+
       {/* BREADCRUMB */}
       <div className="flex items-center gap-2 text-xs text-slate-500 font-medium">
-        <button onClick={() => onNavigate('home')} className="hover:text-[#4f46e5]">Home</button>
+        <button onClick={() => onNavigate('home')} className="hover:text-[#4f46e5] cursor-pointer">Home</button>
         <span>/</span>
-        <span className="text-[#0f3d44] font-bold">Shop Designs</span>
+        <button onClick={() => handleSelectCategory('all')} className="hover:text-[#4f46e5] cursor-pointer">Shop Designs</button>
         {activeCategoryObj && (
           <>
             <span>/</span>
@@ -138,63 +189,80 @@ export const ShopPage: React.FC<ShopPageProps> = ({
 
           {/* CATEGORIES RADIO LIST */}
           <div className="space-y-2">
-            <label className="text-xs font-bold text-slate-700 block">Category</label>
+            <div className="flex items-center justify-between">
+              <label className="text-xs font-bold text-slate-700 block">Product Categories (5)</label>
+              <span className="text-[10px] text-slate-400 font-medium">Direct Linkable</span>
+            </div>
             <div className="space-y-1">
-              <button
-                onClick={() => setSelectedCatId('all')}
-                className={`w-full text-left px-3 py-2 rounded-xl text-xs font-semibold flex items-center justify-between transition-all cursor-pointer ${
-                  selectedCatId === 'all'
-                    ? 'bg-gradient-to-r from-teal-50 to-indigo-50 text-[#4f46e5] font-bold border border-teal-200'
-                    : 'text-slate-600 hover:bg-slate-50'
-                }`}
-              >
-                <span>All Categories</span>
-                <span className="text-[10px] text-slate-400 font-normal">({products.length})</span>
-              </button>
+              <div className="relative group/all">
+                <button
+                  onClick={() => handleSelectCategory('all')}
+                  className={`w-full text-left px-3 py-2 rounded-xl text-xs font-semibold flex items-center justify-between transition-all cursor-pointer ${
+                    selectedCatId === 'all'
+                      ? 'bg-gradient-to-r from-teal-50 to-indigo-50 text-[#4f46e5] font-bold border border-teal-200'
+                      : 'text-slate-600 hover:bg-slate-50'
+                  }`}
+                >
+                  <span>All Categories</span>
+                  <span className="text-[10px] text-slate-400 font-normal">({products.length})</span>
+                </button>
+              </div>
 
               {categories.map((cat) => {
-                const count = products.filter(p => p.category_id === cat.id).length;
+                const count = products.filter((p) => p.category_id === cat.id).length;
+                const isSelected = selectedCatId === cat.id;
                 return (
-                  <button
-                    key={cat.id}
-                    onClick={() => setSelectedCatId(cat.id)}
-                    className={`w-full text-left px-3 py-2 rounded-xl text-xs font-semibold flex items-center justify-between transition-all cursor-pointer ${
-                      selectedCatId === cat.id
-                        ? 'bg-gradient-to-r from-teal-50 to-indigo-50 text-[#4f46e5] font-bold border border-teal-200'
-                        : 'text-slate-600 hover:bg-slate-50'
-                    }`}
-                  >
-                    <span className="truncate flex items-center gap-1.5">
-                      <span>{cat.icon}</span>
-                      <span>{cat.name}</span>
-                    </span>
-                    <span className="text-[10px] text-slate-400 font-normal shrink-0">({count})</span>
-                  </button>
+                  <div key={cat.id} className="relative group/cat flex items-center">
+                    <button
+                      onClick={() => handleSelectCategory(cat.id)}
+                      className={`flex-1 text-left px-3 py-2 rounded-xl text-xs font-semibold flex items-center justify-between transition-all cursor-pointer pr-8 ${
+                        isSelected
+                          ? 'bg-gradient-to-r from-teal-50 to-indigo-50 text-[#4f46e5] font-bold border border-teal-200'
+                          : 'text-slate-600 hover:bg-slate-50'
+                      }`}
+                    >
+                      <span className="truncate flex items-center gap-1.5">
+                        <span>{cat.icon}</span>
+                        <span>{cat.name}</span>
+                      </span>
+                      <span className="text-[10px] text-slate-400 font-normal shrink-0">({count})</span>
+                    </button>
+
+                    {/* Quick copy link icon */}
+                    <button
+                      type="button"
+                      onClick={(e) => handleCopyCategoryLink(cat.id, cat.name, e)}
+                      title={`"${cat.name}" ক্যাটাগরি লিংক কপি করুন`}
+                      className="absolute right-1.5 p-1 rounded-lg text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 transition-colors opacity-70 group-hover/cat:opacity-100 cursor-pointer"
+                    >
+                      <Copy className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
                 );
               })}
             </div>
           </div>
 
-            {/* PRICE SLIDER */}
-            <div className="space-y-2 pt-4 border-t border-slate-100">
-              <div className="flex items-center justify-between text-xs">
-                <label className="font-bold text-slate-700">Max Price</label>
-                <span className="font-extrabold text-[#0f3d44]">{formatPrice(maxPrice)}</span>
-              </div>
-              <input
-                type="range"
-                min="500"
-                max="10000"
-                step="100"
-                value={maxPrice}
-                onChange={(e) => setMaxPrice(Number(e.target.value))}
-                className="w-full accent-indigo-600 cursor-pointer"
-              />
-              <div className="flex justify-between text-[10px] text-slate-400 font-mono">
-                <span>৳500</span>
-                <span>৳10,000</span>
-              </div>
+          {/* PRICE SLIDER */}
+          <div className="space-y-2 pt-4 border-t border-slate-100">
+            <div className="flex items-center justify-between text-xs">
+              <label className="font-bold text-slate-700">Max Price</label>
+              <span className="font-extrabold text-[#0f3d44]">{formatPrice(maxPrice)}</span>
             </div>
+            <input
+              type="range"
+              min="500"
+              max="10000"
+              step="100"
+              value={maxPrice}
+              onChange={(e) => setMaxPrice(Number(e.target.value))}
+              className="w-full accent-indigo-600 cursor-pointer"
+            />
+            <div className="flex justify-between text-[10px] text-slate-400 font-mono">
+              <span>৳500</span>
+              <span>৳10,000</span>
+            </div>
+          </div>
 
           {/* BADGE FILTER */}
           <div className="space-y-2 pt-4 border-t border-slate-100">
@@ -219,18 +287,33 @@ export const ShopPage: React.FC<ShopPageProps> = ({
 
         {/* MAIN CONTENT AREA */}
         <div className="lg:col-span-9 space-y-6">
-          {/* CATALOG HEADER & SORTING */}
-          <div className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-xs flex flex-col sm:flex-row items-center justify-between gap-4">
-            <div>
-              <h1 className="font-extrabold text-lg sm:text-xl text-[#0f3d44]">
-                {activeCategoryObj ? activeCategoryObj.name : 'All Wall Decor Designs'}
-              </h1>
+          {/* CATALOG HEADER & SORTING & SHARE LINK */}
+          <div className="bg-white p-4 sm:p-5 rounded-2xl border border-slate-200/80 shadow-xs flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+            <div className="space-y-1">
+              <div className="flex flex-wrap items-center gap-2.5">
+                <h1 className="font-extrabold text-lg sm:text-xl text-[#0f3d44]">
+                  {activeCategoryObj ? `${activeCategoryObj.icon || '🕌'} ${activeCategoryObj.name}` : 'All Wall Decor Designs'}
+                </h1>
+
+                {/* 1-CLICK CATEGORY LINK COPY BUTTON */}
+                {activeCategoryObj && (
+                  <button
+                    onClick={(e) => handleCopyCategoryLink(activeCategoryObj.id, activeCategoryObj.name, e)}
+                    className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200/80 transition-all cursor-pointer shadow-2xs active:scale-95"
+                    title="এই ক্যাটাগরির ডিরেক্ট লিংক কপি করুন"
+                  >
+                    <Copy className="w-3.5 h-3.5" />
+                    <span>Copy Category Link</span>
+                  </button>
+                )}
+              </div>
               <p className="text-xs text-slate-500">
                 Showing {filteredProducts.length} of {products.length} stainless steel designs
+                {activeCategoryObj && ` in "${activeCategoryObj.name}"`}
               </p>
             </div>
 
-            <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
+            <div className="flex items-center gap-2 w-full sm:w-auto justify-between sm:justify-end">
               <span className="text-xs text-slate-500 font-medium shrink-0">Sort By:</span>
               <select
                 value={sortBy}

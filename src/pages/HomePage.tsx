@@ -69,11 +69,32 @@ export const HomePage: React.FC<HomePageProps> = ({ onNavigate, onOpenWallModal 
   const videoRef = useRef<HTMLVideoElement>(null);
   const videoContainerRef = useRef<HTMLDivElement>(null);
   const [isPlaying, setIsPlaying] = useState(true);
-  const [isMuted, setIsMuted] = useState(true);
+  const [isMuted, setIsMuted] = useState(false);
   const [videoError, setVideoError] = useState(false);
 
-  const rawVideoSrc = settings.promo_video_url || 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4';
-  const isEmbed = rawVideoSrc.includes('youtube.com') || rawVideoSrc.includes('youtu.be') || rawVideoSrc.includes('vimeo.com') || rawVideoSrc.includes('/embed/');
+  const rawVideoSrc = settings.promo_video_url || 'https://player.cloudinary.com/embed/?cloud_name=glq1jvyu&public_id=lv_0_20260818164632';
+
+  // Helper to extract direct mp4 streaming URL if available (faster & instant autoplay)
+  const getDirectMediaSrc = (url: string) => {
+    if (!url) return '';
+    if (url.includes('/video/upload/') || url.endsWith('.mp4') || url.endsWith('.webm')) {
+      return url;
+    }
+    if (url.includes('player.cloudinary.com')) {
+      try {
+        const u = new URL(url);
+        const cloudName = u.searchParams.get('cloud_name') || 'glq1jvyu';
+        const publicId = u.searchParams.get('public_id');
+        if (publicId) {
+          return `https://res.cloudinary.com/${cloudName}/video/upload/${publicId}.mp4`;
+        }
+      } catch {}
+    }
+    return '';
+  };
+
+  const directVideoSrc = getDirectMediaSrc(rawVideoSrc);
+  const isEmbed = !directVideoSrc && (rawVideoSrc.includes('youtube.com') || rawVideoSrc.includes('youtu.be') || rawVideoSrc.includes('vimeo.com') || rawVideoSrc.includes('/embed/'));
 
   const handleVideoError = () => {
     console.warn('Primary video failed to load, switching to fallback media.');
@@ -93,12 +114,71 @@ export const HomePage: React.FC<HomePageProps> = ({ onNavigate, onOpenWallModal 
 
   const toggleMute = () => {
     if (videoRef.current) {
-      videoRef.current.muted = !isMuted;
-      setIsMuted(!isMuted);
+      const nextMuted = !isMuted;
+      videoRef.current.muted = nextMuted;
+      setIsMuted(nextMuted);
     }
   };
 
-  // Auto-play when video is visible in screen viewport, pause when scrolled down or navigating away
+  const unmuteAudio = () => {
+    if (videoRef.current) {
+      videoRef.current.muted = false;
+      setIsMuted(false);
+      videoRef.current.play().catch(() => {});
+    }
+  };
+
+  // Attempt unmuted auto-play on landing + auto-unmute on first user touch/click/scroll anywhere
+  useEffect(() => {
+    if (isEmbed || videoError) return;
+
+    const video = videoRef.current;
+    if (!video) return;
+
+    // Try unmuted playback first
+    video.muted = false;
+    video.play()
+      .then(() => {
+        setIsPlaying(true);
+        setIsMuted(false);
+      })
+      .catch(() => {
+        // Browser autoplay policy restricted unmuted audio; start muted immediately
+        video.muted = true;
+        setIsMuted(true);
+        video.play()
+          .then(() => setIsPlaying(true))
+          .catch(() => setIsPlaying(false));
+      });
+
+    // Auto-unmute on very first user interaction anywhere on the website
+    const handleFirstUserInteraction = () => {
+      if (videoRef.current) {
+        videoRef.current.muted = false;
+        setIsMuted(false);
+        videoRef.current.play().catch(() => {});
+      }
+      cleanupListeners();
+    };
+
+    const cleanupListeners = () => {
+      window.removeEventListener('click', handleFirstUserInteraction);
+      window.removeEventListener('touchstart', handleFirstUserInteraction);
+      window.removeEventListener('scroll', handleFirstUserInteraction);
+      window.removeEventListener('keydown', handleFirstUserInteraction);
+    };
+
+    window.addEventListener('click', handleFirstUserInteraction, { once: true, passive: true });
+    window.addEventListener('touchstart', handleFirstUserInteraction, { once: true, passive: true });
+    window.addEventListener('scroll', handleFirstUserInteraction, { once: true, passive: true });
+    window.addEventListener('keydown', handleFirstUserInteraction, { once: true, passive: true });
+
+    return () => {
+      cleanupListeners();
+    };
+  }, [directVideoSrc, isEmbed, videoError]);
+
+  // Viewport intersection observer for pause/play on scroll
   useEffect(() => {
     if (isEmbed || videoError) return;
 
@@ -112,9 +192,7 @@ export const HomePage: React.FC<HomePageProps> = ({ onNavigate, onOpenWallModal 
           if (entry.isIntersecting) {
             video.play().then(() => {
               setIsPlaying(true);
-            }).catch(() => {
-              setIsPlaying(false);
-            });
+            }).catch(() => {});
           } else {
             video.pause();
             setIsPlaying(false);
@@ -128,13 +206,8 @@ export const HomePage: React.FC<HomePageProps> = ({ onNavigate, onOpenWallModal 
 
     return () => {
       observer.disconnect();
-      if (video) {
-        try {
-          video.pause();
-        } catch {}
-      }
     };
-  }, [rawVideoSrc, isEmbed, videoError]);
+  }, [directVideoSrc, isEmbed, videoError]);
 
   // Midnight countdown timer (12:01 AM start, 12:00 AM Midnight end)
   useEffect(() => {
@@ -212,24 +285,40 @@ export const HomePage: React.FC<HomePageProps> = ({ onNavigate, onOpenWallModal 
                     loop
                     muted={isMuted}
                     playsInline
-                    poster="/images/cat_islamic_combo_v2.jpg"
+                    preload="auto"
+                    poster="https://res.cloudinary.com/glq1jvyu/image/upload/v1786771553/tajbih_drawingrm.jpg.jpg"
                     onError={handleVideoError}
-                    className="w-full h-full object-cover"
+                    onClick={isMuted ? unmuteAudio : togglePlay}
+                    className="w-full h-full object-cover cursor-pointer"
                   >
-                    <source src={rawVideoSrc} type="video/mp4" />
-                    <source src="https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4" type="video/mp4" />
+                    {directVideoSrc && <source src={directVideoSrc} type="video/mp4" />}
+                    <source src="https://res.cloudinary.com/glq1jvyu/video/upload/lv_0_20260818164632.mp4" type="video/mp4" />
+                    {rawVideoSrc.endsWith('.mp4') && <source src={rawVideoSrc} type="video/mp4" />}
                   </video>
 
                   {/* EYE-CATCHING TOP BADGE */}
-                  <div className="absolute top-3 left-3 sm:top-4 sm:left-4 flex items-center gap-2 bg-slate-950/75 backdrop-blur-md px-2.5 py-1 sm:px-3 sm:py-1.5 rounded-full border border-white/20 shadow-md">
+                  <div className="absolute top-3 left-3 sm:top-4 sm:left-4 flex items-center gap-2 bg-slate-950/75 backdrop-blur-md px-2.5 py-1 sm:px-3 sm:py-1.5 rounded-full border border-white/20 shadow-md pointer-events-none">
                     <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
                     <span className="text-[10px] sm:text-xs font-bold text-white tracking-wider uppercase">
                       3D Laser Showcase
                     </span>
                   </div>
 
+                  {/* PROMPT TO UNMUTE IF SOUND IS RESTRICTED BY BROWSER */}
+                  {isMuted && (
+                    <button
+                      type="button"
+                      onClick={unmuteAudio}
+                      className="absolute bottom-3 left-3 sm:bottom-4 sm:left-4 flex items-center gap-2 bg-gradient-to-r from-teal-600 to-indigo-600 hover:from-teal-500 hover:to-indigo-500 text-white text-[11px] sm:text-xs font-bold px-3 py-1.5 rounded-full shadow-lg border border-white/30 backdrop-blur-md animate-pulse cursor-pointer transition-all active:scale-95 z-20"
+                      title="সাউন্ড সহ শুনতে ক্লিক করুন"
+                    >
+                      <Volume2 className="w-3.5 h-3.5" />
+                      <span>সাউন্ড চালু করুন 🔊</span>
+                    </button>
+                  )}
+
                   {/* MINIMAL CONTROLS (PLAY/PAUSE & MUTE) */}
-                  <div className="absolute bottom-3 right-3 sm:bottom-4 sm:right-4 flex items-center gap-1.5 sm:gap-2 bg-slate-900/80 backdrop-blur-md px-2.5 py-1.5 sm:px-3 sm:py-1.5 rounded-full border border-white/20 shadow-lg">
+                  <div className="absolute bottom-3 right-3 sm:bottom-4 sm:right-4 flex items-center gap-1.5 sm:gap-2 bg-slate-900/80 backdrop-blur-md px-2.5 py-1.5 sm:px-3 sm:py-1.5 rounded-full border border-white/20 shadow-lg z-20">
                     <button
                       type="button"
                       onClick={togglePlay}

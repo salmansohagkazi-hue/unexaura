@@ -21,7 +21,7 @@ export const INITIAL_SETTINGS: StoreSettings = {
   per_100g_dhaka: 10,
   base_charge_outside: 130,
   per_100g_outside: 15,
-  promo_video_url: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4',
+  promo_video_url: 'https://player.cloudinary.com/embed/?cloud_name=glq1jvyu&public_id=lv_0_20260818164632',
   hero_banner_image: 'https://res.cloudinary.com/glq1jvyu/image/upload/v1786771553/tajbih_drawingrm.jpg.jpg',
   best_deal_product_id: 7,
   admin_password: 'admin123',

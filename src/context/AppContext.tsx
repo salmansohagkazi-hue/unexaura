@@ -111,7 +111,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const saved = localStorage.getItem('unex_store_settings');
       if (saved) {
         const parsed = JSON.parse(saved);
-        return { ...INITIAL_SETTINGS, ...parsed, best_deal_product_id: parsed.best_deal_product_id || 7 };
+        // If the saved video was the old demo video, replace it with the new Cloudinary video
+        const promoVideo = (!parsed.promo_video_url || parsed.promo_video_url.includes('commondatastorage.googleapis.com') || parsed.promo_video_url.includes('lv_7612302823652445456_20260818160449'))
+          ? INITIAL_SETTINGS.promo_video_url
+          : parsed.promo_video_url;
+        return {
+          ...INITIAL_SETTINGS,
+          ...parsed,
+          promo_video_url: promoVideo,
+          best_deal_product_id: parsed.best_deal_product_id || 7
+        };
       }
     } catch {}
     return INITIAL_SETTINGS;

@@ -243,45 +243,22 @@ export const OrderSuccessPage: React.FC<OrderSuccessPageProps> = ({
             </div>
           </div>
 
-          {/* WHATSAPP INSTANT NOTIFICATION CARD */}
-          {(() => {
-            const adminPhone = settings?.whatsapp_number || '01623319639';
-            const waUrl = propWhatsappUrl || (order ? getWhatsAppOrderUrl(order, adminPhone) : `https://wa.me/8801623319639`);
-            return (
-              <div className="max-w-xl mx-auto bg-gradient-to-r from-emerald-50 via-teal-50 to-emerald-50 rounded-2xl p-4 sm:p-5 border-2 border-emerald-300/80 shadow-md text-left space-y-3">
-                <div className="flex items-start gap-3">
-                  <div className="w-10 h-10 rounded-2xl bg-[#25D366] text-white flex items-center justify-center shrink-0 shadow-md">
-                    <MessageCircle className="w-6 h-6 fill-white" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs font-black text-emerald-950 uppercase tracking-wide">
-                        অ্যাডমিন হোয়াটসঅ্যাপ নোটিফিকেশন (WhatsApp Order Notice)
-                      </span>
-                      <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-200 text-emerald-900 animate-pulse">
-                        Auto Active
-                      </span>
-                    </div>
-                    <p className="text-xs text-emerald-800 font-medium mt-1 leading-relaxed">
-                      আপনার অর্ডারের সম্পূর্ণ তথ্য সরাসরি অ্যাডমিনের হোয়াটসঅ্যাপ নাম্বারে (<strong className="font-mono text-emerald-950">{adminPhone}</strong>) মেসেজ আকারে পাঠানো হয়েছে। প্রয়োজনে নিচের বাটনে ক্লিক করে হোয়াটসঅ্যাপে মেসেজটি পুনরায় পাঠাতে বা দেখতে পারেন।
-                    </p>
-                  </div>
-                </div>
-
-                <div className="pt-1 flex flex-col sm:flex-row gap-2">
-                  <a
-                    href={waUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="w-full py-3 px-4 rounded-xl text-xs font-black text-white bg-[#25D366] hover:bg-[#20bd5a] shadow-md flex items-center justify-center gap-2 transition-all cursor-pointer"
-                  >
-                    <MessageCircle className="w-4 h-4" />
-                    <span>হোয়াটসঅ্যাপে অর্ডারের তথ্য দেখুন / পাঠান (Open in WhatsApp)</span>
-                  </a>
-                </div>
+          {/* ORDER ASSURANCE & HELP CARD */}
+          <div className="max-w-xl mx-auto bg-gradient-to-r from-emerald-50 via-teal-50 to-emerald-50 rounded-2xl p-4 sm:p-5 border border-emerald-200 shadow-xs text-left space-y-2">
+            <div className="flex items-center gap-3">
+              <div className="w-9 h-9 rounded-xl bg-emerald-600 text-white flex items-center justify-center shrink-0 shadow-xs">
+                <ShieldCheck className="w-5 h-5 text-white" />
               </div>
-            );
-          })()}
+              <div className="flex-1 min-w-0">
+                <span className="text-xs font-black text-emerald-950 uppercase tracking-wide">
+                  অর্ডারটি নিশ্চিত করা হয়েছে (Order Verified)
+                </span>
+                <p className="text-xs text-emerald-800 font-medium mt-0.5 leading-relaxed">
+                  আপনার অর্ডারের তথ্য স্বয়ংক্রিয়ভাবে আমাদের সিস্টেমে সংরক্ষিত হয়েছে। আমাদের প্রতিনিধি দ্রুত আপনার সাথে ফোনে যোগাযোগ করে পার্সেলটি পাঠিয়ে দেবেন।
+                </p>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
 

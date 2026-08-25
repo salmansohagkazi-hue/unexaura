@@ -26,6 +26,9 @@ export const INITIAL_SETTINGS: StoreSettings = {
   best_deal_product_id: 7,
   admin_password: 'admin123',
   whatsapp_number: '01623319639',
+  whatsapp_auto_notify_enabled: true,
+  whatsapp_api_key: '',
+  whatsapp_webhook_url: '',
   google_sheet_id: '1YyeLB14VCribl9J2qHnD5Ac8Za0tk0c_rG4CGJWzoxA',
   google_sheet_url: 'https://docs.google.com/spreadsheets/d/1YyeLB14VCribl9J2qHnD5Ac8Za0tk0c_rG4CGJWzoxA/edit?usp=drivesdk',
   google_sheet_autosync_enabled: true

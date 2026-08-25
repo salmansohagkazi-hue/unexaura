@@ -2,8 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
 import { useSEO } from '../hooks/useSEO';
 import { trackBeginCheckout } from '../utils/analytics';
-import { dispatchOrderToWhatsApp, getWhatsAppOrderUrl } from '../utils/whatsappOrder';
-import { ShieldCheck, Lock, Check, MapPin, User, Phone, FileText, Truck, Banknote, MessageCircle } from 'lucide-react';
+import { ShieldCheck, Lock, Check, MapPin, User, Phone, FileText, Truck, Banknote } from 'lucide-react';
 
 interface CheckoutPageProps {
   onNavigate: (page: string, params?: any) => void;
@@ -96,14 +95,9 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({ onNavigate }) => {
       clearCart();
       showToast('অর্ডারটি সফলভাবে গ্রহণ করা হয়েছে!');
 
-      // Automatically dispatch order details to Admin WhatsApp
-      const adminWhatsApp = settings?.whatsapp_number || '01623319639';
-      const whatsappUrl = dispatchOrderToWhatsApp(createdOrder, adminWhatsApp);
-
       onNavigate('ordersuccess', { 
         order: createdOrder, 
-        orderNumber: createdOrder?.order_number,
-        whatsappUrl 
+        orderNumber: createdOrder?.order_number
       });
     } catch (err) {
       console.error('Failed to submit order:', err);

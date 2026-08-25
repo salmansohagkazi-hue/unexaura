@@ -423,6 +423,107 @@ app.post('/api/settings', (req, res) => {
   res.json({ success: true, message: 'Settings saved successfully', settings });
 });
 
+// Helper to format order into complete, professional WhatsApp text
+function formatWhatsAppOrderMessage(order: any, storeName = 'UNEX AURA'): string {
+  const isDhaka = order.delivery_zone === 'dhaka' || String(order.city || '').toLowerCase().includes('dhaka');
+  const zoneText = isDhaka ? 'ঢাকার ভেতরে (Inside Dhaka)' : 'ঢাকার বাইরে (Outside Dhaka)';
+
+  let paymentText = 'ক্যাশ অন ডেলিভারি (Cash on Delivery)';
+  if (order.payment_method === 'bkash') paymentText = 'বিকাশ (bKash)';
+  else if (order.payment_method === 'nagad') paymentText = 'নগদ (Nagad)';
+  else if (order.payment_method === 'stripe') paymentText = 'অনলাইন কার্ড (Card/Stripe)';
+
+  const itemsList = (order.items || []).map((item: any, idx: number) => {
+    const sizeInfo = item.selected_size_name ? ` (সাইজ: ${item.selected_size_name})` : '';
+    const itemTotal = ((item.price || 0) * (item.quantity || 1)).toLocaleString('en-BD');
+    return `${idx + 1}. *${item.product_name}*${sizeInfo}\n   ▫️ পরিমাণ: ${item.quantity} টি | মোট: ৳${itemTotal}`;
+  }).join('\n');
+
+  const formattedDate = order.created_at || new Date().toLocaleString('en-GB');
+
+  return `🛍️ *নতুন অর্ডার রিসিভ হয়েছে - ${storeName}*
+━━━━━━━━━━━━━━━━━━━━━━━━
+📋 *অর্ডার নম্বর:* #${order.order_number}
+📅 *তারিখ ও সময়:* ${formattedDate}
+
+👤 *গ্রাহকের তথ্য (Customer Details):*
+▫️ *নাম:* ${order.user_name || 'Customer'}
+▫️ *মোবাইল নম্বর:* ${order.user_phone || 'N/A'}
+▫️ *ঠিকানা:* ${order.shipping_address || ''}
+▫️ *জেলা/শহর:* ${order.city || 'ঢাকা'}
+▫️ *ডেলিভারি এরিয়া:* ${zoneText}
+
+📦 *অর্ডারকৃত পণ্যসমূহ (Ordered Items):*
+${itemsList || '১. প্রোডাক্ট'}
+
+💰 *বিল ও মূল্য বিবরণ (Financial Summary):*
+▫️ প্রোডাক্ট সাব-টোটাল: ৳${(order.subtotal_amount || 0).toLocaleString('en-BD')}
+▫️ ডেলিভারি চার্জ: ${order.delivery_charge === 0 ? 'ফ্রি ডেলিভারি (FREE)' : '৳' + (order.delivery_charge || 0).toLocaleString('en-BD')}
+${order.discount_amount ? `▫️ কুপন ডিসকাউন্ট: -৳${(order.discount_amount || 0).toLocaleString('en-BD')}\n` : ''}▫️ *সর্বমোট প্রদেয় বিল (Total Bill): ৳${(order.total_amount || 0).toLocaleString('en-BD')}*
+▫️ পেমেন্ট মেথড: ${paymentText}
+${order.order_notes ? `\n📝 *গ্রাহকের বিশেষ নোট:*\n"${order.order_notes}"\n` : ''}
+━━━━━━━━━━━━━━━━━━━━━━━━
+⚠️ *অর্ডারটি প্রস্তুত ও কনফার্ম করার জন্য দ্রুত ব্যবস্থা নিন।*`;
+}
+
+// Backend Automated WhatsApp Dispatcher (Zero customer redirect, purely in background)
+async function sendWhatsAppOrderNotification(order: any, currentSettings: any) {
+  const rawPhone = currentSettings.whatsapp_number || process.env.WHATSAPP_PHONE || '01623319639';
+  let cleanPhone = rawPhone.replace(/[^0-9]/g, '');
+  if (cleanPhone.startsWith('0')) cleanPhone = '880' + cleanPhone.substring(1);
+  else if (!cleanPhone.startsWith('880')) cleanPhone = '880' + cleanPhone;
+
+  const messageText = formatWhatsAppOrderMessage(order);
+  console.log(`\n========================================`);
+  console.log(`[BACKEND WHATSAPP NOTIFICATION DISPATCHED]`);
+  console.log(`Target Phone: +${cleanPhone}`);
+  console.log(`Order Number: #${order.order_number}`);
+  console.log(`Time: ${new Date().toISOString()}`);
+  console.log(`========================================\n`);
+
+  const results: any = { dispatched: true, phone: cleanPhone, methods: [] };
+
+  // 1. CallMeBot WhatsApp Gateway API (Free, Instant Direct WhatsApp Bot Message)
+  const callMeBotApiKey = currentSettings.whatsapp_api_key || process.env.CALLMEBOT_API_KEY || process.env.WHATSAPP_API_KEY;
+  if (callMeBotApiKey) {
+    try {
+      const callmebotUrl = `https://api.callmebot.com/whatsapp.php?phone=${cleanPhone}&text=${encodeURIComponent(messageText)}&apikey=${encodeURIComponent(callMeBotApiKey)}`;
+      const res = await fetch(callmebotUrl);
+      const text = await res.text();
+      console.log(`[CallMeBot Gateway Response]:`, text);
+      results.methods.push({ service: 'CallMeBot', status: 'success', response: text });
+    } catch (e: any) {
+      console.error(`[CallMeBot Gateway Error]:`, e.message);
+      results.methods.push({ service: 'CallMeBot', status: 'error', error: e.message });
+    }
+  }
+
+  // 2. Custom WhatsApp Webhook / UltraMsg / Green API / WhatsApp Cloud API / Zapier Webhook
+  const webhookUrl = currentSettings.whatsapp_webhook_url || process.env.WHATSAPP_WEBHOOK_URL;
+  if (webhookUrl) {
+    try {
+      const res = await fetch(webhookUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          phone: cleanPhone,
+          to: cleanPhone,
+          message: messageText,
+          order: order
+        })
+      });
+      const data = await res.text();
+      console.log(`[WhatsApp Webhook Response]:`, data);
+      results.methods.push({ service: 'Webhook', status: 'success', response: data });
+    } catch (e: any) {
+      console.error(`[WhatsApp Webhook Error]:`, e.message);
+      results.methods.push({ service: 'Webhook', status: 'error', error: e.message });
+    }
+  }
+
+  return results;
+}
+
 // POST Create Order
 app.post('/api/orders', (req, res) => {
   const { user_name, user_email, user_phone, shipping_address, city, delivery_zone, payment_method, order_notes, items } = req.body;
@@ -528,6 +629,11 @@ app.post('/api/orders', (req, res) => {
   orders.unshift(newOrder);
   saveOrders(orders);
 
+  // Trigger backend automated WhatsApp message in background (Zero client redirect)
+  sendWhatsAppOrderNotification(newOrder, settings).catch(err => {
+    console.error('[Background WhatsApp Notification Error]:', err);
+  });
+
   // Automatically decrease product stock for each ordered item
   orderItems.forEach((item: any) => {
     const prodIndex = products.findIndex(p => p.id === Number(item.product_id));
@@ -542,6 +648,34 @@ app.post('/api/orders', (req, res) => {
     message: 'Order placed successfully!',
     order: newOrder
   });
+});
+
+// POST Test WhatsApp Backend Notification
+app.post('/api/whatsapp/test', async (req, res) => {
+  const testOrder = {
+    order_number: 'UA-TEST-' + Math.floor(100 + Math.random() * 900),
+    user_name: req.body.user_name || 'Test Customer (টেস্ট কাস্টমার)',
+    user_phone: req.body.phone || settings.whatsapp_number || '01623319639',
+    shipping_address: 'House 12, Road 4, Sector 3, Uttara',
+    city: 'Dhaka',
+    delivery_zone: 'dhaka',
+    items: [
+      { product_name: 'Ayatul Kursi Regal 3D Stainless Steel Wall Art', selected_size_name: 'Large (36" x 24")', quantity: 1, price: 7500 }
+    ],
+    subtotal_amount: 7500,
+    delivery_charge: 0,
+    total_amount: 7500,
+    payment_method: 'cod',
+    order_notes: 'অ্যাডমিন সেটিংস থেকে টেস্ট WhatsApp নোটিফিকেশন চেক।',
+    created_at: new Date().toISOString().replace('T', ' ').substring(0, 19)
+  };
+
+  try {
+    const result = await sendWhatsAppOrderNotification(testOrder, { ...settings, ...req.body });
+    res.json({ success: true, message: 'WhatsApp message triggered successfully in backend!', result, testOrder });
+  } catch (err: any) {
+    res.status(500).json({ success: false, message: err.message });
+  }
 });
 
 // POST Bulk Sync Client-side Local Orders to Database

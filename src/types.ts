@@ -169,6 +169,9 @@ export interface StoreSettings {
   best_deal_product_id?: number;
   admin_password?: string;
   whatsapp_number?: string;
+  whatsapp_api_key?: string;
+  whatsapp_webhook_url?: string;
+  whatsapp_auto_notify_enabled?: boolean;
   google_sheet_id?: string;
   google_sheet_url?: string;
   google_sheet_autosync_enabled?: boolean;

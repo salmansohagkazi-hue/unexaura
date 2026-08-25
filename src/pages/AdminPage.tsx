@@ -36,7 +36,8 @@ import {
   Filter,
   FileText,
   X,
-  Calendar
+  Calendar,
+  Save
 } from 'lucide-react';
 import { GoogleSheetsSync } from '../components/GoogleSheetsSync';
 
@@ -109,6 +110,9 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate, initialTab = '
   const [newAdminPass, setNewAdminPass] = useState('');
   const [confirmAdminPass, setConfirmAdminPass] = useState('');
   const [adminWhatsApp, setAdminWhatsApp] = useState(settings.whatsapp_number || '01623319639');
+  const [adminWhatsAppApiKey, setAdminWhatsAppApiKey] = useState(settings.whatsapp_api_key || '');
+  const [adminWhatsAppWebhook, setAdminWhatsAppWebhook] = useState(settings.whatsapp_webhook_url || '');
+  const [isTestingWhatsApp, setIsTestingWhatsApp] = useState(false);
 
   // Product filter state
   const [selectedCatFilter, setSelectedCatFilter] = useState<number | 'all'>('all');
@@ -163,6 +167,8 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate, initialTab = '
     if (settings.promo_video_url) setPromoVideoUrl(settings.promo_video_url);
     if (settings.hero_banner_image) setHeroBannerImg(settings.hero_banner_image);
     if (settings.whatsapp_number) setAdminWhatsApp(settings.whatsapp_number);
+    if (settings.whatsapp_api_key) setAdminWhatsAppApiKey(settings.whatsapp_api_key);
+    if (settings.whatsapp_webhook_url) setAdminWhatsAppWebhook(settings.whatsapp_webhook_url);
   }, [settings]);
 
   const handleVerifyPin = (e: React.FormEvent) => {
@@ -357,9 +363,38 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate, initialTab = '
     }
     await updateSettings({
       ...settings,
-      whatsapp_number: adminWhatsApp.trim()
+      whatsapp_number: adminWhatsApp.trim(),
+      whatsapp_api_key: adminWhatsAppApiKey.trim(),
+      whatsapp_webhook_url: adminWhatsAppWebhook.trim(),
+      whatsapp_auto_notify_enabled: true
     });
-    showToast('Admin WhatsApp notification receiver updated successfully!');
+    showToast('Admin WhatsApp notification settings updated successfully!');
+  };
+
+  const handleTestWhatsAppMessage = async () => {
+    setIsTestingWhatsApp(true);
+    try {
+      const res = await fetch('/api/whatsapp/test', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          phone: adminWhatsApp.trim(),
+          whatsapp_api_key: adminWhatsAppApiKey.trim(),
+          whatsapp_webhook_url: adminWhatsAppWebhook.trim()
+        })
+      });
+      const data = await res.json();
+      if (data.success) {
+        showToast('Test WhatsApp Notification triggered in backend successfully!');
+        alert('✅ টেস্ট WhatsApp নোটিফিকেশন ব্যাকএন্ডে সফলভাবে ট্রিগার হয়েছে! সার্ভার কনসোল ও WhatsApp চেক করুন।');
+      } else {
+        alert('❌ নোটিফিকেশন পাঠাতে সমস্যা হয়েছে: ' + (data.message || 'Unknown error'));
+      }
+    } catch (e: any) {
+      alert('Error triggering test: ' + e.message);
+    } finally {
+      setIsTestingWhatsApp(false);
+    }
   };
 
   const fetchAdminOrders = () => {
@@ -2111,22 +2146,31 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate, initialTab = '
             </button>
           </form>
 
-          {/* ADMIN WHATSAPP NOTIFICATION RECEIVER */}
-          <div className="pt-6 border-t border-slate-200/80 space-y-3">
+          {/* ADMIN BACKEND WHATSAPP AUTOMATION SETTINGS */}
+          <div className="pt-6 border-t border-slate-200/80 space-y-4">
             <div className="space-y-1">
-              <h3 className="font-extrabold text-sm text-[#0f3d44] flex items-center gap-2">
-                <MessageCircle className="w-4 h-4 text-emerald-600" />
-                <span>Admin WhatsApp Order Notification Number</span>
-              </h3>
-              <p className="text-[11px] text-slate-500">
-                যে হোয়াটসঅ্যাপ নম্বরে কাস্টমারের অর্ডারের সম্পূর্ণ বিবরণী ও নোটিফিকেশন মেসেজ চলে যাবে।
+              <div className="flex items-center gap-2">
+                <span className="w-8 h-8 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center font-bold">
+                  <MessageCircle className="w-4 h-4" />
+                </span>
+                <div>
+                  <h3 className="font-extrabold text-sm text-[#0f3d44]">
+                    স্বয়ংক্রিয় WhatsApp অর্ডার নোটিফিকেশন (Backend Auto Messaging)
+                  </h3>
+                  <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
+                    Background Mode • Zero Customer Redirection
+                  </span>
+                </div>
+              </div>
+              <p className="text-[11px] text-slate-500 leading-relaxed pt-1">
+                কোনো কাস্টমার অর্ডার প্লেস করলে তার ব্রাউজারে কোনো উইন্ডো ওপেন বা WhatsApp রিডাইরেক্ট হবে না—সে সরাসরি Thank You পেজে থাকবে। সার্ভারের ব্যাকএন্ডে স্বয়ংক্রিয়ভাবে নিচে দেওয়া WhatsApp নম্বরে পুরো অর্ডারের বিবরণ পাঠিয়ে দেওয়া হবে।
               </p>
             </div>
 
-            <form onSubmit={handleSaveWhatsAppNumber} className="space-y-3 text-xs">
+            <form onSubmit={handleSaveWhatsAppNumber} className="space-y-3.5 text-xs">
               <div>
                 <label className="font-bold text-slate-700 block mb-1">
-                  WhatsApp Number (যেমন: 01623319639) *
+                  অ্যাডমিন WhatsApp মোবাইল নম্বর (Receiver Phone) *
                 </label>
                 <div className="flex items-center gap-2">
                   <span className="px-3 py-2.5 bg-slate-100 border border-slate-200 rounded-xl font-mono font-bold text-slate-600">
@@ -2138,18 +2182,69 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate, initialTab = '
                     value={adminWhatsApp}
                     onChange={(e) => setAdminWhatsApp(e.target.value)}
                     placeholder="01623319639"
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs text-[#0f3d44] font-mono font-bold"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs text-[#0f3d44] font-mono font-bold focus:bg-white focus:border-emerald-500 focus:outline-none"
                   />
                 </div>
               </div>
 
-              <button
-                type="submit"
-                className="w-full py-3 rounded-xl text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 shadow-md cursor-pointer transition-all flex items-center justify-center gap-2"
-              >
-                <MessageCircle className="w-4 h-4" />
-                <span>সংরক্ষণ করুন (Save WhatsApp Number)</span>
-              </button>
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="font-bold text-slate-700 block">
+                    CallMeBot WhatsApp API Key (ঐচ্ছিক - ফ্রি অটো WhatsApp বট)
+                  </label>
+                  <a 
+                    href="https://www.callmebot.com/blog/free-api-whatsapp-messages/" 
+                    target="_blank" 
+                    rel="noreferrer"
+                    className="text-[10px] text-indigo-600 hover:underline font-semibold"
+                  >
+                    API Key কীভাবে পাবেন?
+                  </a>
+                </div>
+                <input
+                  type="text"
+                  value={adminWhatsAppApiKey}
+                  onChange={(e) => setAdminWhatsAppApiKey(e.target.value)}
+                  placeholder="যেমন: 123456 (CallMeBot থেকে পাওয়া ফ্রি কী)"
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs text-[#0f3d44] font-mono focus:bg-white focus:border-emerald-500 focus:outline-none"
+                />
+                <p className="text-[10px] text-slate-400 mt-1">
+                  WhatsApp থেকে <code className="bg-slate-100 px-1 py-0.5 rounded text-slate-700 font-mono">+34 911 06 14 62</code> নম্বরে "I allow callmebot to send me messages" পাঠালে ১ সেকেন্ডে ফ্রি API Key পাবেন।
+                </p>
+              </div>
+
+              <div>
+                <label className="font-bold text-slate-700 block mb-1">
+                  Custom WhatsApp Webhook / Gateway URL (ঐচ্ছিক)
+                </label>
+                <input
+                  type="url"
+                  value={adminWhatsAppWebhook}
+                  onChange={(e) => setAdminWhatsAppWebhook(e.target.value)}
+                  placeholder="https://your-webhook-or-ultramsg-endpoint.com/..."
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs text-[#0f3d44] font-mono focus:bg-white focus:border-emerald-500 focus:outline-none"
+                />
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-2">
+                <button
+                  type="submit"
+                  className="w-full py-3 rounded-xl text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 shadow-md cursor-pointer transition-all flex items-center justify-center gap-2"
+                >
+                  <Save className="w-4 h-4" />
+                  <span>সেটিংস সেভ করুন (Save Settings)</span>
+                </button>
+
+                <button
+                  type="button"
+                  disabled={isTestingWhatsApp}
+                  onClick={handleTestWhatsAppMessage}
+                  className="w-full py-3 rounded-xl text-xs font-bold text-slate-700 bg-slate-100 hover:bg-slate-200 border border-slate-200 shadow-xs cursor-pointer transition-all flex items-center justify-center gap-2 disabled:opacity-60"
+                >
+                  <MessageCircle className="w-4 h-4 text-emerald-600" />
+                  <span>{isTestingWhatsApp ? 'টেস্ট পাঠানো হচ্ছে...' : 'টেস্ট মেসেজ পাঠান (Test WhatsApp)'}</span>
+                </button>
+              </div>
             </form>
           </div>
         </div>

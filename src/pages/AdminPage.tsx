@@ -105,9 +105,10 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate, initialTab = '
   const [promoVideoUrl, setPromoVideoUrl] = useState(settings.promo_video_url || 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4');
   const [heroBannerImg, setHeroBannerImg] = useState(settings.hero_banner_image || '');
 
-  // Staff Password Change form state
+  // Staff Password & WhatsApp Change form state
   const [newAdminPass, setNewAdminPass] = useState('');
   const [confirmAdminPass, setConfirmAdminPass] = useState('');
+  const [adminWhatsApp, setAdminWhatsApp] = useState(settings.whatsapp_number || '01623319639');
 
   // Product filter state
   const [selectedCatFilter, setSelectedCatFilter] = useState<number | 'all'>('all');
@@ -161,6 +162,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate, initialTab = '
   useEffect(() => {
     if (settings.promo_video_url) setPromoVideoUrl(settings.promo_video_url);
     if (settings.hero_banner_image) setHeroBannerImg(settings.hero_banner_image);
+    if (settings.whatsapp_number) setAdminWhatsApp(settings.whatsapp_number);
   }, [settings]);
 
   const handleVerifyPin = (e: React.FormEvent) => {
@@ -345,6 +347,19 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate, initialTab = '
     setNewAdminPass('');
     setConfirmAdminPass('');
     showToast('Staff Portal Password changed successfully!');
+  };
+
+  const handleSaveWhatsAppNumber = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!adminWhatsApp.trim()) {
+      alert('দয়া করে হোয়াটসঅ্যাপ মোবাইল নম্বর প্রদান করুন');
+      return;
+    }
+    await updateSettings({
+      ...settings,
+      whatsapp_number: adminWhatsApp.trim()
+    });
+    showToast('Admin WhatsApp notification receiver updated successfully!');
   };
 
   const fetchAdminOrders = () => {
@@ -2095,6 +2110,48 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate, initialTab = '
               Update Password
             </button>
           </form>
+
+          {/* ADMIN WHATSAPP NOTIFICATION RECEIVER */}
+          <div className="pt-6 border-t border-slate-200/80 space-y-3">
+            <div className="space-y-1">
+              <h3 className="font-extrabold text-sm text-[#0f3d44] flex items-center gap-2">
+                <MessageCircle className="w-4 h-4 text-emerald-600" />
+                <span>Admin WhatsApp Order Notification Number</span>
+              </h3>
+              <p className="text-[11px] text-slate-500">
+                যে হোয়াটসঅ্যাপ নম্বরে কাস্টমারের অর্ডারের সম্পূর্ণ বিবরণী ও নোটিফিকেশন মেসেজ চলে যাবে।
+              </p>
+            </div>
+
+            <form onSubmit={handleSaveWhatsAppNumber} className="space-y-3 text-xs">
+              <div>
+                <label className="font-bold text-slate-700 block mb-1">
+                  WhatsApp Number (যেমন: 01623319639) *
+                </label>
+                <div className="flex items-center gap-2">
+                  <span className="px-3 py-2.5 bg-slate-100 border border-slate-200 rounded-xl font-mono font-bold text-slate-600">
+                    +88
+                  </span>
+                  <input
+                    type="text"
+                    required
+                    value={adminWhatsApp}
+                    onChange={(e) => setAdminWhatsApp(e.target.value)}
+                    placeholder="01623319639"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs text-[#0f3d44] font-mono font-bold"
+                  />
+                </div>
+              </div>
+
+              <button
+                type="submit"
+                className="w-full py-3 rounded-xl text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 shadow-md cursor-pointer transition-all flex items-center justify-center gap-2"
+              >
+                <MessageCircle className="w-4 h-4" />
+                <span>সংরক্ষণ করুন (Save WhatsApp Number)</span>
+              </button>
+            </form>
+          </div>
         </div>
       )}
 

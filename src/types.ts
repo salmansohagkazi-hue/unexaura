@@ -168,6 +168,7 @@ export interface StoreSettings {
   hero_banner_image?: string;
   best_deal_product_id?: number;
   admin_password?: string;
+  whatsapp_number?: string;
   google_sheet_id?: string;
   google_sheet_url?: string;
   google_sheet_autosync_enabled?: boolean;

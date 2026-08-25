@@ -25,6 +25,7 @@ export const INITIAL_SETTINGS: StoreSettings = {
   hero_banner_image: 'https://res.cloudinary.com/glq1jvyu/image/upload/v1786771553/tajbih_drawingrm.jpg.jpg',
   best_deal_product_id: 7,
   admin_password: 'admin123',
+  whatsapp_number: '01623319639',
   google_sheet_id: '1YyeLB14VCribl9J2qHnD5Ac8Za0tk0c_rG4CGJWzoxA',
   google_sheet_url: 'https://docs.google.com/spreadsheets/d/1YyeLB14VCribl9J2qHnD5Ac8Za0tk0c_rG4CGJWzoxA/edit?usp=drivesdk',
   google_sheet_autosync_enabled: true

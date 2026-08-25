@@ -2,7 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
 import { useSEO } from '../hooks/useSEO';
 import { trackBeginCheckout } from '../utils/analytics';
-import { ShieldCheck, Lock, Check, MapPin, User, Phone, FileText, Truck, Banknote } from 'lucide-react';
+import { dispatchOrderToWhatsApp, getWhatsAppOrderUrl } from '../utils/whatsappOrder';
+import { ShieldCheck, Lock, Check, MapPin, User, Phone, FileText, Truck, Banknote, MessageCircle } from 'lucide-react';
 
 interface CheckoutPageProps {
   onNavigate: (page: string, params?: any) => void;
@@ -24,7 +25,8 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({ onNavigate }) => {
     formatPrice,
     clearCart,
     showToast,
-    addOrder
+    addOrder,
+    settings
   } = useApp();
 
   const [fullName, setFullName] = useState(
@@ -93,7 +95,16 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({ onNavigate }) => {
 
       clearCart();
       showToast('অর্ডারটি সফলভাবে গ্রহণ করা হয়েছে!');
-      onNavigate('ordersuccess', { order: createdOrder, orderNumber: createdOrder?.order_number });
+
+      // Automatically dispatch order details to Admin WhatsApp
+      const adminWhatsApp = settings?.whatsapp_number || '01623319639';
+      const whatsappUrl = dispatchOrderToWhatsApp(createdOrder, adminWhatsApp);
+
+      onNavigate('ordersuccess', { 
+        order: createdOrder, 
+        orderNumber: createdOrder?.order_number,
+        whatsappUrl 
+      });
     } catch (err) {
       console.error('Failed to submit order:', err);
       alert('অর্ডার সাবমিট করার সময় একটি সমস্যা দেখা দিয়েছে, অনুগ্রহ করে আবার চেষ্টা করুন।');

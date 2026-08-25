@@ -24,6 +24,7 @@ function MainAppContent() {
   const [productSlug, setProductSlug] = useState<string | null>(null);
   const [lastOrderNumber, setLastOrderNumber] = useState<string>('');
   const [lastOrder, setLastOrder] = useState<any>(null);
+  const [lastOrderWhatsappUrl, setLastOrderWhatsappUrl] = useState<string>('');
   const [seeOnWallProduct, setSeeOnWallProduct] = useState<Product | null>(null);
   const [accountTab, setAccountTab] = useState<'dashboard' | 'orders' | 'tracking' | 'wishlist' | 'profile' | 'password'>('dashboard');
   const [shopCategoryId, setShopCategoryId] = useState<number | 'all'>('all');
@@ -147,6 +148,9 @@ function MainAppContent() {
       } else if (params?.orderNumber) {
         setLastOrderNumber(params.orderNumber);
       }
+      if (params?.whatsappUrl) {
+        setLastOrderWhatsappUrl(params.whatsappUrl);
+      }
       window.history.pushState({}, '', '?page=order-success');
     } else if (page === 'cart') {
       window.history.pushState({}, '', '?page=cart');
@@ -234,6 +238,7 @@ function MainAppContent() {
           <OrderSuccessPage
             order={lastOrder}
             orderNumber={lastOrderNumber || 'UA-1001'}
+            whatsappUrl={lastOrderWhatsappUrl}
             onNavigate={handleNavigate}
           />
         )}

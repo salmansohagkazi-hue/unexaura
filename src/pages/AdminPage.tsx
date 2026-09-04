@@ -64,6 +64,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate, initialTab = '
     refreshCategories,
     orders,
     refreshOrders,
+    restoreOrders,
     updateOrderStatus,
     addProduct,
     updateProduct,
@@ -110,6 +111,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate, initialTab = '
   const [newAdminPass, setNewAdminPass] = useState('');
   const [confirmAdminPass, setConfirmAdminPass] = useState('');
   const [adminWhatsApp, setAdminWhatsApp] = useState(settings.whatsapp_number || '01623319639');
+  const [adminWhatsAppAutoNotify, setAdminWhatsAppAutoNotify] = useState<boolean>(settings.whatsapp_auto_notify_enabled ?? false);
   const [adminWhatsAppApiKey, setAdminWhatsAppApiKey] = useState(settings.whatsapp_api_key || '');
   const [adminWhatsAppWebhook, setAdminWhatsAppWebhook] = useState(settings.whatsapp_webhook_url || '');
   const [isTestingWhatsApp, setIsTestingWhatsApp] = useState(false);
@@ -167,6 +169,9 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate, initialTab = '
     if (settings.promo_video_url) setPromoVideoUrl(settings.promo_video_url);
     if (settings.hero_banner_image) setHeroBannerImg(settings.hero_banner_image);
     if (settings.whatsapp_number) setAdminWhatsApp(settings.whatsapp_number);
+    if (typeof settings.whatsapp_auto_notify_enabled !== 'undefined') {
+      setAdminWhatsAppAutoNotify(Boolean(settings.whatsapp_auto_notify_enabled));
+    }
     if (settings.whatsapp_api_key) setAdminWhatsAppApiKey(settings.whatsapp_api_key);
     if (settings.whatsapp_webhook_url) setAdminWhatsAppWebhook(settings.whatsapp_webhook_url);
   }, [settings]);
@@ -366,9 +371,9 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate, initialTab = '
       whatsapp_number: adminWhatsApp.trim(),
       whatsapp_api_key: adminWhatsAppApiKey.trim(),
       whatsapp_webhook_url: adminWhatsAppWebhook.trim(),
-      whatsapp_auto_notify_enabled: true
+      whatsapp_auto_notify_enabled: adminWhatsAppAutoNotify
     });
-    showToast('Admin WhatsApp notification settings updated successfully!');
+    showToast(`WhatsApp settings updated! Auto notification: ${adminWhatsAppAutoNotify ? 'Enabled' : 'Disabled (বন্ধ)'}`);
   };
 
   const handleTestWhatsAppMessage = async () => {
@@ -397,18 +402,53 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate, initialTab = '
     }
   };
 
+  const orderImportInputRef = React.useRef<HTMLInputElement>(null);
+
   const fetchAdminOrders = () => {
     setLoadingOrders(true);
-    refreshOrders().finally(() => setLoadingOrders(false));
+    refreshOrders().finally(() => {
+      setLoadingOrders(false);
+      showToast('অর্ডার লিস্ট রিফ্রেশ ও সিঙ্ক সম্পন্ন হয়েছে!');
+    });
   };
 
   useEffect(() => {
-    fetchAdminOrders();
+    // Initial fetch with loading state
+    setLoadingOrders(true);
+    refreshOrders().finally(() => setLoadingOrders(false));
+
+    // Silent background sync every 6 seconds without flickering the UI
     const interval = setInterval(() => {
-      fetchAdminOrders();
-    }, 4000);
+      refreshOrders().catch(() => {});
+    }, 6000);
     return () => clearInterval(interval);
   }, []);
+
+  const handleImportOrdersFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = async (event) => {
+      try {
+        const text = event.target?.result as string;
+        const parsed = JSON.parse(text);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          const success = await restoreOrders(parsed);
+          if (success) {
+            showToast(`সফলভাবে ${parsed.length}টি অর্ডার রিস্টোর ও ডাটাবেজে যুক্ত করা হয়েছে!`);
+          } else {
+            showToast('অর্ডার রিস্টোর সম্পন্ন হয়েছে।');
+          }
+        } else {
+          alert('ফাইলটিতে সঠিক অর্ডার ডাটা পাওয়া যায়নি। অনুগ্রহ করে বৈধ JSON ব্যাকআপ ফাইল দিন।');
+        }
+      } catch (err) {
+        alert('অর্ডার ফাইলটি পড়া সম্ভব হয়নি। সঠিক JSON ফাইল নির্বাচন করুন।');
+      }
+    };
+    reader.readAsText(file);
+    e.target.value = '';
+  };
 
   const handleCreateProduct = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -1662,7 +1702,28 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate, initialTab = '
               </div>
             </div>
 
-            {/* 2. SEARCH, STATUS TABS & BACKUP BUTTONS */}
+            {/* 2. ORDER PERMANENCE & REAL-TIME RETENTION BANNER */}
+            <div className="bg-emerald-50/70 border border-emerald-200/90 rounded-2xl p-3.5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs">
+              <div className="flex items-center gap-2.5 text-emerald-900 font-medium">
+                <div className="w-8 h-8 rounded-xl bg-emerald-100 flex items-center justify-center shrink-0 text-emerald-700">
+                  <CheckCircle2 className="w-4 h-4" />
+                </div>
+                <div>
+                  <div className="font-bold text-emerald-950 flex items-center gap-2">
+                    <span>অর্ডার ডাটা সংরক্ষণ ও লাইভ সিঙ্ক সক্রিয়</span>
+                    <span className="bg-emerald-200 text-emerald-900 text-[10px] px-2 py-0.5 rounded-full font-bold">Auto-Synced</span>
+                  </div>
+                  <div className="text-[11px] text-emerald-700">
+                    প্রতিটি নতুন অর্ডার সার্ভার ডাটাবেজ, আপনার ব্রাউজার এবং WhatsApp-এ স্বয়ংক্রিয়ভাবে ব্যাকআপ রাখা হচ্ছে।
+                  </div>
+                </div>
+              </div>
+              <div className="text-[11px] text-emerald-800 shrink-0 font-medium bg-white/80 px-3 py-1.5 rounded-xl border border-emerald-200">
+                💾 ডাটাবেজ ব্যাকআপ অথবা রিস্টোর সুবিধা
+              </div>
+            </div>
+
+            {/* 3. SEARCH, STATUS TABS & BACKUP BUTTONS */}
             <div className="bg-white p-4 sm:p-5 rounded-2xl border border-slate-200/80 shadow-xs space-y-4">
               <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3">
                 {/* Search Bar */}
@@ -1713,6 +1774,24 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate, initialTab = '
                   >
                     <Download className="w-3.5 h-3.5" />
                     <span>ডাটাবেজ ব্যাকআপ</span>
+                  </button>
+
+                  {/* Restore / Import Orders */}
+                  <input
+                    ref={orderImportInputRef}
+                    type="file"
+                    accept=".json"
+                    onChange={handleImportOrdersFile}
+                    className="hidden"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => orderImportInputRef.current?.click()}
+                    className="px-3 py-2 rounded-xl border border-indigo-200 bg-indigo-50 text-indigo-800 text-xs font-bold hover:bg-indigo-100 flex items-center gap-1.5 cursor-pointer transition-all"
+                    title="পূর্বে সেভ করা JSON ফাইল থেকে অর্ডার রিস্টোর করুন"
+                  >
+                    <Save className="w-3.5 h-3.5 text-indigo-600" />
+                    <span>রিস্টোর / ইমপোর্ট</span>
                   </button>
                 </div>
               </div>
@@ -2163,11 +2242,42 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate, initialTab = '
                 </div>
               </div>
               <p className="text-[11px] text-slate-500 leading-relaxed pt-1">
-                কোনো কাস্টমার অর্ডার প্লেস করলে তার ব্রাউজারে কোনো উইন্ডো ওপেন বা WhatsApp রিডাইরেক্ট হবে না—সে সরাসরি Thank You পেজে থাকবে। সার্ভারের ব্যাকএন্ডে স্বয়ংক্রিয়ভাবে নিচে দেওয়া WhatsApp নম্বরে পুরো অর্ডারের বিবরণ পাঠিয়ে দেওয়া হবে।
+                অর্ডার আসলে হোয়াটসঅ্যাপে স্বয়ংক্রিয় মেসেজ পাঠানো আপনি ইচ্ছেমতো চালু বা বন্ধ রাখতে পারেন। নিচে সুইচ দিয়ে এটি কন্ট্রোল করুন:
               </p>
             </div>
 
-            <form onSubmit={handleSaveWhatsAppNumber} className="space-y-3.5 text-xs">
+            <form onSubmit={handleSaveWhatsAppNumber} className="space-y-4 text-xs">
+              {/* Auto WhatsApp Notification ON/OFF Toggle */}
+              <div className="p-3.5 rounded-2xl border transition-all flex items-center justify-between gap-3 bg-slate-50 border-slate-200">
+                <div className="space-y-0.5">
+                  <div className="flex items-center gap-2">
+                    <span className="font-extrabold text-slate-800 text-xs">অটো WhatsApp মেসেজ পাঠানোর সুবিধা:</span>
+                    <span className={`text-[10px] font-black px-2 py-0.5 rounded-full ${
+                      adminWhatsAppAutoNotify 
+                        ? 'bg-emerald-100 text-emerald-800 border border-emerald-300' 
+                        : 'bg-rose-100 text-rose-800 border border-rose-300'
+                    }`}>
+                      {adminWhatsAppAutoNotify ? '🟢 চালু (Enabled)' : '🔴 বন্ধ আছে (Disabled / OFF)'}
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-slate-500">
+                    {adminWhatsAppAutoNotify
+                      ? 'অর্ডার প্লেস হলে সার্ভার থেকে স্বয়ংক্রিয়ভাবে হোয়াটসঅ্যাপে নোটিফিকেশন মেসেজ যাবে।'
+                      : 'নতুন অর্ডার আসলে হোয়াটসঅ্যাপে কোনো অটো মেসেজ পাঠানো হবে না। আপনি শুধু অ্যাডমিন প্যানেল থেকেই অর্ডার দেখবেন।'}
+                  </p>
+                </div>
+
+                <label className="relative inline-flex items-center cursor-pointer shrink-0">
+                  <input
+                    type="checkbox"
+                    checked={adminWhatsAppAutoNotify}
+                    onChange={(e) => setAdminWhatsAppAutoNotify(e.target.checked)}
+                    className="sr-only peer"
+                  />
+                  <div className="w-11 h-6 bg-slate-300 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-600"></div>
+                </label>
+              </div>
+
               <div>
                 <label className="font-bold text-slate-700 block mb-1">
                   অ্যাডমিন WhatsApp মোবাইল নম্বর (Receiver Phone) *

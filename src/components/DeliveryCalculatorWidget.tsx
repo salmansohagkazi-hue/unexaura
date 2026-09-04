@@ -38,9 +38,29 @@ export const DeliveryCalculatorWidget: React.FC = () => {
 
         <span className="text-xs bg-white/10 px-2.5 py-1 rounded-full text-teal-300 font-mono flex items-center gap-1">
           <Scale className="w-3 h-3" />
-          {totalWeight >= 1000 ? `${(totalWeight / 1000).toFixed(2)} kg` : `${totalWeight} g`}
+          {deliveryDetails.isAyatulKursiFreeOffer && deliveryDetails.hasOtherProducts ? (
+            <span>
+              চার্জযোগ্য: {(deliveryDetails.billableWeightGrams || 0) >= 1000 ? `${((deliveryDetails.billableWeightGrams || 0) / 1000).toFixed(2)} kg` : `${deliveryDetails.billableWeightGrams || 0} g`}
+            </span>
+          ) : (
+            <span>
+              {totalWeight >= 1000 ? `${(totalWeight / 1000).toFixed(2)} kg` : `${totalWeight} g`}
+            </span>
+          )}
         </span>
       </div>
+
+      {/* AYATUL KURSI SPECIAL OFFER BANNER */}
+      {deliveryDetails.isAyatulKursiFreeOffer && (
+        <div className="mt-3 p-2.5 bg-emerald-950/80 border border-emerald-500/50 rounded-xl text-emerald-300 text-xs font-bold flex items-center gap-2">
+          <Sparkles className="w-4 h-4 text-emerald-400 shrink-0" />
+          <span>
+            {deliveryDetails.hasOtherProducts
+              ? 'আয়াতুল কুরসিতে পাচ্ছেন ফ্রি ডেলিভারি! শুধুমাত্র বাকি প্রোডাক্টের জন্য ওজন অনুযায়ী ডেলিভারি চার্জ হিসাব হচ্ছে।'
+              : 'আয়াতুল কুরসি স্পেশাল অফার: সারা দেশে ডেলিভারি সম্পূর্ণ ফ্রি (৳০)!'}
+          </span>
+        </div>
+      )}
 
       {/* ZONE TOGGLE */}
       <div className="mt-4 space-y-2">

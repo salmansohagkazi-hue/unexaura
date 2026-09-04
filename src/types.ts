@@ -1,10 +1,12 @@
 export interface ProductSize {
-  id: string; // 'standard' | 'large'
-  name: string; // e.g. "মিডিয়াম (Standard: 24" x 16")"
-  size_dimensions: string; // e.g. "60cm x 40cm"
-  price: number; // e.g. 2950
-  old_price?: number; // e.g. 3950
-  weight_grams: number; // e.g. 900
+  id: string; // 'small' | 'standard' | 'large'
+  name: string; // e.g. "স্মল (17 × 23 inch)"
+  size_dimensions: string; // e.g. "17 × 23 inch"
+  price: number; // e.g. 1199
+  old_price?: number; // e.g. 1399
+  weight_grams: number; // e.g. 800
+  stock?: number; // Stock count for this specific size
+  is_stock_out?: boolean; // Whether this size is marked as out of stock
 }
 
 export interface ProductRoomImages {
@@ -175,6 +177,7 @@ export interface StoreSettings {
   google_sheet_id?: string;
   google_sheet_url?: string;
   google_sheet_autosync_enabled?: boolean;
+  google_sheet_webhook_url?: string;
 }
 
 export interface Review {

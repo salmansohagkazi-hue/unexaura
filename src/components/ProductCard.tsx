@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Product, ProductSize } from '../types';
 import { useApp } from '../context/AppContext';
 import { Eye, ShoppingBag, Star, Heart, Check } from 'lucide-react';
+import { isAyatulKursiProduct } from '../utils/delivery';
 
 interface ProductCardProps {
   product: Product;
@@ -52,17 +53,24 @@ export const ProductCard: React.FC<ProductCardProps> = ({
             OUT OF STOCK (স্টক শেষ)
           </span>
         </div>
-      ) : product.badge ? (
-        <div className="absolute top-3 left-3 z-10">
-          <span className={`text-[10px] font-black tracking-wider uppercase px-2.5 py-1 rounded-full shadow-xs text-white ${
-            product.badge === 'HOT' ? 'bg-gradient-to-r from-red-500 to-pink-600' :
-            product.badge === 'NEW' ? 'bg-gradient-to-r from-emerald-500 to-teal-600' :
-            'bg-gradient-to-r from-amber-500 to-orange-600'
-          }`}>
-            {product.badge}
-          </span>
+      ) : (
+        <div className="absolute top-3 left-3 z-10 flex flex-col gap-1 items-start">
+          {product.badge && (
+            <span className={`text-[10px] font-black tracking-wider uppercase px-2.5 py-1 rounded-full shadow-xs text-white ${
+              product.badge === 'HOT' ? 'bg-gradient-to-r from-red-500 to-pink-600' :
+              product.badge === 'NEW' ? 'bg-gradient-to-r from-emerald-500 to-teal-600' :
+              'bg-gradient-to-r from-amber-500 to-orange-600'
+            }`}>
+              {product.badge}
+            </span>
+          )}
+          {isAyatulKursiProduct(product) && (
+            <span className="text-[10px] font-extrabold tracking-tight px-2 py-0.5 rounded-full shadow-xs text-emerald-950 bg-emerald-100 border border-emerald-300">
+              🚚 ফ্রি ডেলিভারি
+            </span>
+          )}
         </div>
-      ) : null}
+      )}
 
       {/* QUICK ACTION OVERLAY BUTTONS (WISHLIST & SEE ON WALL) */}
       <div className="absolute top-3 right-3 z-10 flex items-center gap-1.5">
@@ -212,6 +220,18 @@ export const ProductCard: React.FC<ProductCardProps> = ({
             >
               <span className="w-2 h-2 rounded-full bg-red-500 shrink-0"></span>
               <span>স্টক শেষ (Out of Stock)</span>
+            </button>
+          ) : activeSize.is_stock_out || (activeSize.stock !== undefined && activeSize.stock <= 0) ? (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                onSelectProduct(product);
+              }}
+              className="w-full py-2.5 px-3 rounded-xl text-xs font-bold text-amber-900 bg-amber-100 hover:bg-amber-200 border border-amber-300 transition-all flex items-center justify-center gap-1.5 cursor-pointer select-none"
+            >
+              <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse"></span>
+              <span>বড় সাইজ স্টক আউট • WhatsApp-এ মেসেজ দিন</span>
             </button>
           ) : (
             <div className="grid grid-cols-2 gap-2">

@@ -19,6 +19,7 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({ onNavigate }) => {
     deliveryZone,
     setDeliveryZone,
     deliveryCharge,
+    deliveryDetails,
     getCartSubtotal,
     getCartWeight,
     formatPrice,
@@ -33,7 +34,6 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({ onNavigate }) => {
   );
   const [phone, setPhone] = useState(user ? user.phone : '');
   const [address, setAddress] = useState(user ? user.address : '');
-  const [district, setDistrict] = useState(user ? user.city || 'ঢাকা' : 'ঢাকা');
   const [paymentMethod, setPaymentMethod] = useState<'cod' | 'stripe'>('cod');
   const [orderNotes, setOrderNotes] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -52,8 +52,8 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({ onNavigate }) => {
   const handleSubmitOrder = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!fullName.trim() || !phone.trim() || !address.trim() || !district.trim()) {
-      alert('দয়া করে * চিহ্নিত সকল প্রয়োজনীয় তথ্য (নাম, মোবাইল নম্বর, সম্পূর্ণ ঠিকানা ও জেলা) পূরণ করুন।');
+    if (!fullName.trim() || !phone.trim() || !address.trim()) {
+      alert('দয়া করে * চিহ্নিত সকল প্রয়োজনীয় তথ্য (নাম, মোবাইল নম্বর ও সম্পূর্ণ ঠিকানা) পূরণ করুন।');
       return;
     }
 
@@ -71,7 +71,7 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({ onNavigate }) => {
         user_email: user?.email || '',
         user_phone: phone.trim(),
         shipping_address: address.trim(),
-        city: district.trim(),
+        city: deliveryZone === 'dhaka' ? 'Dhaka' : 'Outside Dhaka',
         delivery_zone: deliveryZone,
         total_weight_grams: totalWeight,
         delivery_charge: deliveryCharge,
@@ -176,61 +176,68 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({ onNavigate }) => {
               <div>
                 <label className="text-xs font-bold text-slate-700 block mb-1.5 flex items-center gap-1.5">
                   <MapPin className="w-3.5 h-3.5 text-pink-600" />
-                  <span>সম্পূর্ণ ঠিকানা (Full Address) <span className="text-red-500">*</span></span>
+                  <span>সম্পূর্ণ ঠিকানা (Full Address - বাসা, রোড, এলাকা, থানা ও জেলা) <span className="text-red-500">*</span></span>
                 </label>
                 <input
                   type="text"
                   required
                   value={address}
                   onChange={(e) => setAddress(e.target.value)}
-                  placeholder="বাসা/ফ্ল্যাট নং, রোড নং, এলাকা, থানা/উপজেলা"
+                  placeholder="বাসা/ফ্ল্যাট নং, রোড নং, এলাকা, থানা/উপজেলা ও জেলা"
                   className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-xs sm:text-sm text-[#0f3d44] focus:outline-none focus:bg-white focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 transition-all font-medium"
                 />
               </div>
 
-              {/* DISTRICT & DELIVERY ZONE (2-column layout) */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                {/* DISTRICT */}
-                <div>
-                  <label className="text-xs font-bold text-slate-700 block mb-1.5 flex items-center gap-1.5">
-                    <MapPin className="w-3.5 h-3.5 text-amber-600" />
-                    <span>জেলা (District) <span className="text-red-500">*</span></span>
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    value={district}
-                    onChange={(e) => setDistrict(e.target.value)}
-                    placeholder="যেমন: ঢাকা, চট্টগ্রাম, রাজশাহী, বগুড়া..."
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-xs sm:text-sm text-[#0f3d44] focus:outline-none focus:bg-white focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 transition-all font-medium"
-                  />
-                </div>
-
-                {/* DELIVERY ZONE */}
-                <div>
-                  <label className="text-xs font-bold text-slate-700 block mb-1.5 flex items-center gap-1.5">
-                    <Truck className="w-3.5 h-3.5 text-indigo-600" />
-                    <span>ডেলিভারি এলাকা (Delivery Zone) <span className="text-red-500">*</span></span>
-                  </label>
-                  <select
-                    value={deliveryZone}
-                    onChange={(e) => setDeliveryZone(e.target.value as any)}
-                    className={`w-full border rounded-xl px-3.5 py-3 text-xs sm:text-sm font-bold focus:outline-none cursor-pointer transition-all ${
-                      deliveryZone === 'none'
-                        ? 'bg-amber-50 border-amber-400 text-amber-900 ring-2 ring-amber-300/40'
-                        : 'bg-slate-50 border-slate-200 text-[#0f3d44] focus:bg-white focus:border-indigo-500'
-                    }`}
-                  >
-                    <option value="none">-- এলাকা নির্বাচন করুন --</option>
-                    <option value="dhaka">ঢাকার ভেতরে / Inside Dhaka (Base ৳60)</option>
-                    <option value="outside_dhaka">ঢাকার বাইরে / Outside Dhaka (Base ৳110)</option>
-                  </select>
-                  {deliveryZone === 'none' && (
-                    <p className="text-[11px] text-amber-700 font-bold mt-1.5 flex items-center gap-1">
-                      ⚠️ অর্ডার করতে ঢাকার ভেতরে অথবা বাইরে সিলেক্ট করুন।
-                    </p>
+              {/* DELIVERY ZONE */}
+              <div>
+                <label className="text-xs font-bold text-slate-700 block mb-1.5 flex items-center gap-1.5">
+                  <Truck className="w-3.5 h-3.5 text-indigo-600" />
+                  <span>ডেলিভারি এলাকা (Delivery Zone) <span className="text-red-500">*</span></span>
+                </label>
+                <select
+                  value={deliveryZone}
+                  onChange={(e) => setDeliveryZone(e.target.value as any)}
+                  className={`w-full border rounded-xl px-3.5 py-3 text-xs sm:text-sm font-bold focus:outline-none cursor-pointer transition-all ${
+                    deliveryZone === 'none'
+                      ? 'bg-amber-50 border-amber-400 text-amber-900 ring-2 ring-amber-300/40'
+                      : 'bg-slate-50 border-slate-200 text-[#0f3d44] focus:bg-white focus:border-indigo-500'
+                  }`}
+                >
+                  <option value="none">-- এলাকা নির্বাচন করুন --</option>
+                  {deliveryDetails.isAyatulKursiFreeOffer && !deliveryDetails.hasOtherProducts ? (
+                    <>
+                      <option value="dhaka">ঢাকার ভেতরে / Inside Dhaka (আয়াতুল কুরসি ফ্রি ডেলিভারি - ৳০)</option>
+                      <option value="outside_dhaka">ঢাকার বাইরে / Outside Dhaka (আয়াতুল কুরসি ফ্রি ডেলিভারি - ৳০)</option>
+                    </>
+                  ) : deliveryDetails.isAyatulKursiFreeOffer && deliveryDetails.hasOtherProducts ? (
+                    <>
+                      <option value="dhaka">ঢাকার ভেতরে / Inside Dhaka (আয়াতুল কুরসি ফ্রি + বাকি পণ্যে চার্জ)</option>
+                      <option value="outside_dhaka">ঢাকার বাইরে / Outside Dhaka (আয়াতুল কুরসি ফ্রি + বাকি পণ্যে চার্জ)</option>
+                    </>
+                  ) : (
+                    <>
+                      <option value="dhaka">ঢাকার ভেতরে / Inside Dhaka (ওজন অনুযায়ী কুরিয়ার চার্জ)</option>
+                      <option value="outside_dhaka">ঢাকার বাইরে / Outside Dhaka (ওজন অনুযায়ী কুরিয়ার চার্জ)</option>
+                    </>
                   )}
-                </div>
+                </select>
+                {deliveryZone === 'none' ? (
+                  <p className="text-[11px] text-amber-700 font-bold mt-1.5 flex items-center gap-1">
+                    ⚠️ অর্ডার সম্পন্ন করতে ঢাকার ভেতরে অথবা বাইরে সিলেক্ট করুন।
+                  </p>
+                ) : deliveryDetails.isAyatulKursiFreeOffer && !deliveryDetails.hasOtherProducts ? (
+                  <p className="text-[11px] text-emerald-700 font-bold mt-1.5 flex items-center gap-1">
+                    ✅ আপনার অর্ডারে আয়াতুল কুরসি থাকায় সারা দেশে ডেলিভারি চার্জ সম্পূর্ণ ফ্রি (৳০)।
+                  </p>
+                ) : deliveryDetails.isAyatulKursiFreeOffer && deliveryDetails.hasOtherProducts ? (
+                  <p className="text-[11px] text-emerald-700 font-bold mt-1.5 flex items-center gap-1">
+                    🎉 আয়াতুল কুরসিতে ফ্রি ডেলিভারি! বাকি পণ্যের ({(deliveryDetails.billableWeightGrams || 0) >= 1000 ? `${((deliveryDetails.billableWeightGrams || 0) / 1000).toFixed(1)} কেজি` : `${deliveryDetails.billableWeightGrams || 0} গ্রাম`}) জন্য কুরিয়ার চার্জ প্রযোজ্য হয়েছে।
+                  </p>
+                ) : (
+                  <p className="text-[11px] text-indigo-700 font-bold mt-1.5 flex items-center gap-1">
+                    📦 কুরিয়ারের নিয়ম অনুযায়ী ওজন অনুপাতে ডেলিভারি চার্জ ({deliveryDetails.baseCharge}৳) প্রযোজ্য হয়েছে।
+                  </p>
+                )}
               </div>
 
               {/* ORDER NOTE */}
@@ -331,13 +338,27 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({ onNavigate }) => {
                 <span>Subtotal:</span>
                 <span className="font-bold text-[#0f3d44]">{formatPrice(subtotal)}</span>
               </div>
-              <div className="flex justify-between items-center">
-                <span>Delivery Charge ({deliveryZone === 'none' ? 'Zone Not Selected' : deliveryZone === 'dhaka' ? 'Dhaka' : 'Outside Dhaka'}):</span>
+              <div className="flex justify-between items-start">
+                <div className="flex flex-col">
+                  <span>Delivery Charge ({deliveryZone === 'none' ? 'জোন নির্বাচন করুন' : deliveryZone === 'dhaka' ? 'ঢাকার ভেতরে' : 'ঢাকার বাইরে'}):</span>
+                  {deliveryDetails.isAyatulKursiFreeOffer && (
+                    <span className="text-[10px] text-emerald-600 font-bold">
+                      {deliveryDetails.hasOtherProducts
+                        ? '✨ আয়াতুল কুরসি ডেলিভারি চার্জ ফ্রি'
+                        : '✨ আয়াতুল কুরসি স্পেশাল ফ্রি ডেলিভারি'}
+                    </span>
+                  )}
+                  {deliveryZone !== 'none' && deliveryDetails.slabDescription && (
+                    <span className="text-[10px] text-slate-500 font-medium">
+                      {deliveryDetails.slabDescription}
+                    </span>
+                  )}
+                </div>
                 <span className="font-bold text-[#0f3d44]">
                   {deliveryZone === 'none' ? (
                     <span className="text-amber-700 font-bold text-[11px] bg-amber-50 px-2 py-0.5 rounded border border-amber-200">সিলেক্ট করুন</span>
                   ) : deliveryCharge === 0 ? (
-                    <span className="text-emerald-600">FREE</span>
+                    <span className="text-emerald-600 font-black">FREE / ফ্রি</span>
                   ) : (
                     formatPrice(deliveryCharge)
                   )}

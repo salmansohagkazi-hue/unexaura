@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
 import { ProductCard } from '../components/ProductCard';
 import { Product, ProductSize } from '../types';
-import { calculateDeliveryFee } from '../utils/delivery';
+import { calculateDeliveryFee, isAyatulKursiProduct } from '../utils/delivery';
 import { useSEO } from '../hooks/useSEO';
 import { trackViewItem } from '../utils/analytics';
 import {
@@ -21,7 +21,8 @@ import {
   Sparkles,
   Compass,
   Palette,
-  Layers
+  Layers,
+  MessageCircle
 } from 'lucide-react';
 
 interface ProductPageProps {
@@ -166,12 +167,21 @@ export const ProductPage: React.FC<ProductPageProps> = ({ slug, onNavigate, onOp
     }
   };
 
+  const isAyatul = isAyatulKursiProduct(product);
+
   // Delivery fee estimation recalculated based on size weight & price
   const calcDelivery = calculateDeliveryFee(
-    currentWeight * quantity,
+    isAyatul ? 0 : (currentWeight * quantity),
     deliveryZone,
     currentPrice * quantity,
-    settings.free_shipping_threshold_dhaka
+    settings.free_shipping_threshold_dhaka,
+    {
+      isAyatulKursiOnly: isAyatul,
+      hasAyatulKursi: isAyatul,
+      hasOtherProducts: false,
+      totalWeight: currentWeight * quantity,
+      ayatulKursiWeight: isAyatul ? currentWeight * quantity : 0
+    }
   );
   const estDeliveryFee = calcDelivery.baseCharge;
 
@@ -281,14 +291,14 @@ export const ProductPage: React.FC<ProductPageProps> = ({ slug, onNavigate, onOp
                 <span className="ml-1.5 font-bold text-slate-800">{product.rating || 4.9}</span>
               </div>
               <span>•</span>
-              {product.stock > 0 ? (
-                <span className="text-emerald-600 font-bold bg-emerald-50 px-2.5 py-1 rounded-md border border-emerald-100">
-                  In Stock ({product.stock} available)
-                </span>
-              ) : (
+              {activeSize.is_stock_out || (activeSize.stock !== undefined && activeSize.stock <= 0) || product.stock <= 0 ? (
                 <span className="text-red-600 font-extrabold bg-red-50 px-2.5 py-1 rounded-md border border-red-200 flex items-center gap-1">
                   <span className="w-2 h-2 rounded-full bg-red-600 animate-ping"></span>
-                  <span>Out of Stock (স্টক শেষ)</span>
+                  <span>এই সাইজটি স্টক আউট (Out of Stock)</span>
+                </span>
+              ) : (
+                <span className="text-emerald-600 font-bold bg-emerald-50 px-2.5 py-1 rounded-md border border-emerald-100">
+                  In Stock ({activeSize.stock !== undefined ? activeSize.stock : product.stock} টি স্টক এভেলেবল)
                 </span>
               )}
             </div>
@@ -312,6 +322,13 @@ export const ProductPage: React.FC<ProductPageProps> = ({ slug, onNavigate, onOp
                 Save {formatPrice(activeSize.old_price - currentPrice)}
               </span>
             )}
+
+            {isAyatul && (
+              <span className="text-xs text-emerald-800 font-extrabold bg-emerald-100 px-3 py-1 rounded-full border border-emerald-300 flex items-center gap-1 shadow-xs">
+                <Truck className="w-3.5 h-3.5 text-emerald-600" />
+                <span>ফ্রি হোম ডেলিভারি</span>
+              </span>
+            )}
           </div>
 
           {/* SIZE SELECTION OPTIONS (MEDIUM & LARGE) */}
@@ -321,37 +338,63 @@ export const ProductPage: React.FC<ProductPageProps> = ({ slug, onNavigate, onOp
               <span className="text-indigo-600 font-bold text-[11px]">{activeSize.name}</span>
             </label>
             <div className="grid grid-cols-2 gap-2.5">
-              {standardSizes.map((sz, idx) => (
-                <button
-                  key={sz.id || idx}
-                  type="button"
-                  onClick={() => setSelectedSizeIdx(idx)}
-                  className={`p-3 rounded-xl border text-left transition-all cursor-pointer ${
-                    selectedSizeIdx === idx
-                      ? 'bg-white border-[#4f46e5] ring-2 ring-indigo-200 shadow-sm'
-                      : 'bg-white/60 border-slate-200 hover:bg-white text-slate-700'
-                  }`}
-                >
-                  <div className="font-extrabold text-xs text-[#0f3d44]">{sz.name}</div>
-                  <div className="flex items-center justify-between text-[11px] mt-1">
-                    <span className="font-bold text-indigo-600">{formatPrice(sz.price)}</span>
-                  </div>
-                </button>
-              ))}
+              {standardSizes.map((sz, idx) => {
+                const isSzOutOfStock = sz.is_stock_out || (sz.stock !== undefined && sz.stock <= 0);
+                return (
+                  <button
+                    key={sz.id || idx}
+                    type="button"
+                    onClick={() => setSelectedSizeIdx(idx)}
+                    className={`p-3 rounded-xl border text-left transition-all cursor-pointer relative ${
+                      selectedSizeIdx === idx
+                        ? 'bg-white border-[#4f46e5] ring-2 ring-indigo-200 shadow-sm'
+                        : 'bg-white/60 border-slate-200 hover:bg-white text-slate-700'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between gap-1">
+                      <div className="font-extrabold text-xs text-[#0f3d44] truncate">{sz.name}</div>
+                      {isSzOutOfStock && (
+                        <span className="text-[9px] font-black uppercase text-red-600 bg-red-100/90 px-1.5 py-0.5 rounded shrink-0">
+                          স্টক আউট
+                        </span>
+                      )}
+                    </div>
+                    <div className="flex items-center justify-between text-[11px] mt-1">
+                      <span className="font-bold text-indigo-600">{formatPrice(sz.price)}</span>
+                      {sz.old_price && (
+                        <span className="text-[10px] text-slate-400 line-through">
+                          {formatPrice(sz.old_price)}
+                        </span>
+                      )}
+                    </div>
+                  </button>
+                );
+              })}
             </div>
           </div>
 
-          {/* QUANTITY & ADD TO CART / BUY NOW ORDER ACTIONS */}
+          {/* QUANTITY & ADD TO CART / BUY NOW ORDER ACTIONS OR WHATSAPP PREORDER */}
           <div className="space-y-3 pt-1">
-            {product.stock <= 0 ? (
-              <div className="w-full p-4 rounded-2xl bg-red-50 border border-red-200 text-center space-y-1">
-                <div className="text-sm font-black text-red-700 flex items-center justify-center gap-1.5">
-                  <span className="w-2.5 h-2.5 rounded-full bg-red-600"></span>
-                  <span>প্রোডাক্টটি বর্তমানে স্টক আউট (Out of Stock)</span>
+            {activeSize.is_stock_out || (activeSize.stock !== undefined && activeSize.stock <= 0) || product.stock <= 0 ? (
+              <div className="w-full p-4 rounded-2xl bg-amber-50 border border-amber-300 text-center space-y-3 shadow-xs">
+                <div className="text-sm font-black text-amber-900 flex items-center justify-center gap-1.5">
+                  <span className="w-2.5 h-2.5 rounded-full bg-red-500 animate-pulse"></span>
+                  <span>এই বড় সাইজটি ({activeSize.name}) বর্তমানে স্টক আউট রয়েছে</span>
                 </div>
-                <p className="text-xs text-slate-600 font-medium">
-                  এই মুহূর্তে অর্ডার করা সম্ভব নয়। অ্যাডমিন প্যানেল থেকে পুনরায় রিস্টক করা হলে সরাসরি অর্ডার করা যাবে।
+                <p className="text-xs text-slate-700 font-medium leading-relaxed">
+                  বড় সাইজটি প্রি-অর্ডার করতে অথবা কাস্টম ডিজাইনে অর্ডার করতে সরাসরি আমাদের WhatsApp-এ মেসেজ দিন।
                 </p>
+                <a
+                  href={`https://wa.me/88${settings.whatsapp_number || '01623319639'}?text=${encodeURIComponent(
+                    `আসসালামু আলাইকুম, আমি "${product.name}"-এর বড় সাইজ (${activeSize.name}) টি প্রি-অর্ডার করতে চাচ্ছি। দয়া করে এর ডেলিভারি ও অর্ডার বিস্তারিত জানাবেন।`
+                  )}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="w-full py-3.5 px-4 rounded-xl text-xs sm:text-sm font-extrabold text-white bg-emerald-600 hover:bg-emerald-700 shadow-md shadow-emerald-600/25 transition-all flex items-center justify-center gap-2 cursor-pointer select-none"
+                >
+                  <MessageCircle className="w-4 h-4" />
+                  <span>WhatsApp-এ মেসেজ দিয়ে বড় সাইজটি অর্ডার করুন</span>
+                </a>
               </div>
             ) : (
               <>
@@ -365,7 +408,7 @@ export const ProductPage: React.FC<ProductPageProps> = ({ slug, onNavigate, onOp
                     </button>
                     <span className="px-4 py-2 text-sm font-bold text-[#0f3d44]">{quantity}</span>
                     <button
-                      onClick={() => setQuantity(Math.min(product.stock, quantity + 1))}
+                      onClick={() => setQuantity(Math.min(activeSize.stock ?? product.stock, quantity + 1))}
                       className="px-3.5 py-2.5 text-slate-600 hover:bg-slate-100 font-bold cursor-pointer"
                     >
                       +
@@ -409,32 +452,55 @@ export const ProductPage: React.FC<ProductPageProps> = ({ slug, onNavigate, onOp
             <div className="flex items-center justify-between font-bold text-[#0f3d44]">
               <span className="flex items-center gap-1.5">
                 <Truck className="w-4 h-4 text-teal-600" />
-                <span>Delivery Charge Estimate</span>
+                <span>ডেলিভারি চার্জ (Delivery Charge Estimate)</span>
               </span>
               <div className="flex items-center gap-2">
                 <button
                   type="button"
                   onClick={() => setDeliveryZone('dhaka')}
-                  className={`px-2 py-0.5 rounded text-[10px] font-bold ${deliveryZone === 'dhaka' ? 'bg-indigo-600 text-white' : 'bg-white text-slate-600'}`}
+                  className={`px-2 py-0.5 rounded text-[10px] font-bold ${deliveryZone === 'dhaka' ? 'bg-indigo-600 text-white' : 'bg-white text-slate-600 border border-slate-200'}`}
                 >
-                  Dhaka
+                  ঢাকার ভেতরে
                 </button>
                 <button
                   type="button"
                   onClick={() => setDeliveryZone('outside_dhaka')}
-                  className={`px-2 py-0.5 rounded text-[10px] font-bold ${deliveryZone === 'outside_dhaka' ? 'bg-indigo-600 text-white' : 'bg-white text-slate-600'}`}
+                  className={`px-2 py-0.5 rounded text-[10px] font-bold ${deliveryZone === 'outside_dhaka' ? 'bg-indigo-600 text-white' : 'bg-white text-slate-600 border border-slate-200'}`}
                 >
-                  Outside
+                  ঢাকার বাইরে
                 </button>
               </div>
             </div>
 
             <div className="flex items-center justify-between text-slate-700">
-              <span>Estimated shipping fee ({deliveryZone === 'none' ? 'Select Zone Above' : deliveryZone === 'dhaka' ? 'Dhaka' : 'Outside Dhaka'}):</span>
+              <span>ডেলিভারি ফি ({deliveryZone === 'none' ? 'জোন নির্বাচন করুন' : deliveryZone === 'dhaka' ? 'ঢাকার ভেতরে' : 'ঢাকার বাইরে'}):</span>
               <span className="font-extrabold text-[#0f3d44]">
-                {deliveryZone === 'none' ? '—' : estDeliveryFee === 0 ? 'FREE' : formatPrice(estDeliveryFee)}
+                {deliveryZone === 'none' ? (
+                  isAyatul ? (
+                    <span className="text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200 font-extrabold">
+                      FREE / ফ্রি ডেলিভারি
+                    </span>
+                  ) : (
+                    '—'
+                  )
+                ) : estDeliveryFee === 0 ? (
+                  <span className="text-emerald-600 font-extrabold">FREE / ফ্রি ডেলিভারি (৳০)</span>
+                ) : (
+                  formatPrice(estDeliveryFee)
+                )}
               </span>
             </div>
+
+            {isAyatul ? (
+              <div className="pt-1.5 border-t border-teal-200/60 text-[11px] text-emerald-700 font-bold flex items-center gap-1">
+                <span>🎉 আয়াতুল কুরসিতে পাচ্ছেন ১০০% ফ্রি হোম ডেলিভারি স্পেশাল অফার!</span>
+              </div>
+            ) : (
+              <div className="pt-1.5 border-t border-teal-200/60 text-[11px] text-slate-600 flex items-center justify-between">
+                <span>ওজন: {activeSize?.weight_grams || product.weight_grams} গ্রাম</span>
+                <span className="font-semibold text-indigo-700">{calcDelivery.slabDescription}</span>
+              </div>
+            )}
           </div>
 
           {/* BANGLA SHORT DESCRIPTION & QUALITIES BOX */}

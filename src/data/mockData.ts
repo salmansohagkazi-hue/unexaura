@@ -16,22 +16,23 @@ export const INITIAL_SETTINGS: StoreSettings = {
   active_currency: 'BDT',
   stripe_publishable_key: 'pk_test_UNEXAURA_DEMO_KEY_51234567890',
   stripe_secret_key: 'sk_test_UNEXAURA_DEMO_SECRET_9876543210',
-  free_shipping_threshold_dhaka: 3000,
-  base_charge_dhaka: 80,
-  per_100g_dhaka: 10,
-  base_charge_outside: 130,
-  per_100g_outside: 15,
+  free_shipping_threshold_dhaka: 0,
+  base_charge_dhaka: 0,
+  per_100g_dhaka: 0,
+  base_charge_outside: 0,
+  per_100g_outside: 0,
   promo_video_url: 'https://player.cloudinary.com/embed/?cloud_name=glq1jvyu&public_id=lv_0_20260818164632',
   hero_banner_image: 'https://res.cloudinary.com/glq1jvyu/image/upload/v1786771553/tajbih_drawingrm.jpg.jpg',
   best_deal_product_id: 7,
   admin_password: 'admin123',
   whatsapp_number: '01623319639',
-  whatsapp_auto_notify_enabled: true,
+  whatsapp_auto_notify_enabled: false,
   whatsapp_api_key: '',
   whatsapp_webhook_url: '',
   google_sheet_id: '1YyeLB14VCribl9J2qHnD5Ac8Za0tk0c_rG4CGJWzoxA',
   google_sheet_url: 'https://docs.google.com/spreadsheets/d/1YyeLB14VCribl9J2qHnD5Ac8Za0tk0c_rG4CGJWzoxA/edit?usp=drivesdk',
-  google_sheet_autosync_enabled: true
+  google_sheet_autosync_enabled: true,
+  google_sheet_webhook_url: 'https://script.google.com/macros/s/AKfycbywI74iof_FO3cDL5E1x3IYQXPsRzFb-AAYgXxujIb3reGaC_YiArDAYzWKq8ZwOuFR/exec'
 };
 
 export const INITIAL_COUPONS: Coupon[] = [
@@ -387,7 +388,7 @@ export const INITIAL_PRODUCTS: Product[] = [
       'ড্রয়িং রুম, বেডরুম, নামাজের ঘর বা অফিসের দেয়াল সাজানোর জন্য দারুণ পছন্দ।',
       'সহজ ও নিরাপদ ইনস্টলেশন - প্যাকেটের সাথে রয়েছে শক্তিশালী ডাবল সাইডেড টেপ।'
     ],
-    price: 999,
+    price: 1199,
     old_price: 1399,
     image_url: 'https://res.cloudinary.com/glq1jvyu/image/upload/v1786771499/ayatulkursi_Drawing.jpg.jpg',
     room_images: {
@@ -396,27 +397,31 @@ export const INITIAL_PRODUCTS: Product[] = [
       prayer_or_reading_room: 'https://res.cloudinary.com/glq1jvyu/image/upload/v1786771497/ayatulkursi_namaj.jpg.jpg',
       bedroom: 'https://res.cloudinary.com/glq1jvyu/image/upload/v1786771494/ayatulkursi_bed.jpg.jpg'
     },
-    badge: 'NEW',
-    stock: 5,
+    badge: 'HOT',
+    stock: 15,
     featured: true,
-    weight_grams: 500,
-    size_dimensions: '38 inch × 7 inch',
+    weight_grams: 800,
+    size_dimensions: '17 × 23 inch',
     sizes: [
       {
-        id: 'medium',
-        name: 'মিডিয়াম (38 inch × 7 inch)',
-        size_dimensions: '38 inch × 7 inch',
-        price: 999,
+        id: 'small',
+        name: 'স্মল (17 × 23 inch)',
+        size_dimensions: '17 × 23 inch',
+        price: 1199,
         old_price: 1399,
-        weight_grams: 500
+        weight_grams: 800,
+        stock: 15,
+        is_stock_out: false
       },
       {
         id: 'large',
-        name: 'লার্জ (60 inch × 12 inch)',
-        size_dimensions: '60 inch × 12 inch',
-        price: 1799,
-        old_price: 2199,
-        weight_grams: 800
+        name: 'লার্জ (23 × 32 inch)',
+        size_dimensions: '23 × 32 inch',
+        price: 2599,
+        old_price: 2999,
+        weight_grams: 1400,
+        stock: 0,
+        is_stock_out: true
       }
     ],
     material: 'Surgical Stainless Steel (0.6mm Thickness)',

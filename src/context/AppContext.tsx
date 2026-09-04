@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { Product, Category, CartItem, User, CurrencyConfig, StoreSettings, ProductSize, Coupon, Order } from '../types';
 import { CURRENCIES, INITIAL_SETTINGS, INITIAL_CATEGORIES, INITIAL_PRODUCTS, INITIAL_COUPONS } from '../data/mockData';
-import { calculateDeliveryFee, DeliveryFeeDetails } from '../utils/delivery';
+import { calculateDeliveryFee, DeliveryFeeDetails, isAyatulKursiProduct } from '../utils/delivery';
 import { getAccessToken } from '../lib/firebase';
 import { appendOrdersToSheet } from '../lib/googleSheets';
 import { trackAddToCart, trackPurchase } from '../utils/analytics';
@@ -41,6 +41,7 @@ interface AppContextType {
   refreshProducts: () => Promise<void>;
   refreshCategories: () => Promise<void>;
   refreshOrders: () => Promise<Order[]>;
+  restoreOrders: (ordersList: Order[]) => Promise<boolean>;
   addOrder: (orderPayload: any) => Promise<Order>;
   updateOrderStatus: (orderId: number, status: string, paymentStatus?: string) => Promise<boolean>;
   updateSettings: (newSettings: Partial<StoreSettings>) => Promise<void>;
@@ -256,6 +257,43 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   };
 
+  const restoreOrders = async (ordersList: Order[]): Promise<boolean> => {
+    if (!Array.isArray(ordersList) || ordersList.length === 0) return false;
+    try {
+      const res = await fetch('/api/orders/restore', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ orders: ordersList })
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (Array.isArray(data.orders)) {
+          setOrders(data.orders);
+          localStorage.setItem('unex_placed_orders', JSON.stringify(data.orders));
+          return true;
+        }
+      }
+    } catch (e) {
+      console.warn('API restore failed, applying local merge fallback:', e);
+    }
+
+    try {
+      const map = new Map<string, Order>();
+      orders.forEach(o => { if (o && o.order_number) map.set(String(o.order_number), o); });
+      ordersList.forEach(o => { if (o && o.order_number) map.set(String(o.order_number), o); });
+      const merged = Array.from(map.values()).sort((a, b) => {
+        const numA = parseInt(String(a.order_number || '').replace(/\D/g, ''), 10) || 0;
+        const numB = parseInt(String(b.order_number || '').replace(/\D/g, ''), 10) || 0;
+        return numB - numA;
+      });
+      setOrders(merged);
+      localStorage.setItem('unex_placed_orders', JSON.stringify(merged));
+      return true;
+    } catch {
+      return false;
+    }
+  };
+
   const addOrder = async (orderPayload: any): Promise<Order> => {
     let existingLocal: Order[] = [];
     try {
@@ -450,11 +488,29 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   }, [settings.active_currency]);
 
   // Calculate weight-based delivery charge & COD fee whenever cart or zone changes
+  // Policy: Only Ayatul Kursi has 100% Free Delivery. Other products pay weight-based courier charges.
+  // If Ayatul Kursi is in cart with other products, Ayatul Kursi weight is waived (0g) and remaining products pay according to their weight.
   useEffect(() => {
-    const totalWeight = cart.reduce((sum, item) => {
-      const w = item.selectedSize ? item.selectedSize.weight_grams : item.product.weight_grams;
-      return sum + (w * item.quantity);
-    }, 0);
+    let ayatulKursiWeight = 0;
+    let otherProductsWeight = 0;
+    let hasAyatulKursi = false;
+    let hasOtherProducts = false;
+
+    cart.forEach(item => {
+      const isAyatul = isAyatulKursiProduct(item);
+      const w = (item.selectedSize ? item.selectedSize.weight_grams : item.product.weight_grams) || 0;
+      const totalItemWeight = w * item.quantity;
+      if (isAyatul) {
+        hasAyatulKursi = true;
+        ayatulKursiWeight += totalItemWeight;
+      } else {
+        hasOtherProducts = true;
+        otherProductsWeight += totalItemWeight;
+      }
+    });
+
+    const totalWeight = ayatulKursiWeight + otherProductsWeight;
+    const billableWeight = hasAyatulKursi ? otherProductsWeight : totalWeight;
 
     const subtotal = cart.reduce((sum, item) => {
       const p = item.selectedSize ? item.selectedSize.price : item.product.price;
@@ -462,10 +518,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }, 0);
 
     const details = calculateDeliveryFee(
-      totalWeight,
+      billableWeight,
       deliveryZone,
       subtotal,
-      settings.free_shipping_threshold_dhaka
+      settings.free_shipping_threshold_dhaka,
+      {
+        isAyatulKursiOnly: hasAyatulKursi && !hasOtherProducts,
+        hasAyatulKursi,
+        hasOtherProducts,
+        ayatulKursiWeight,
+        totalWeight
+      }
     );
 
     setDeliveryDetails(details);
@@ -820,6 +883,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       refreshProducts,
       refreshCategories,
       refreshOrders,
+      restoreOrders,
       addOrder,
       updateOrderStatus,
       updateSettings,

@@ -692,7 +692,7 @@ export const HomePage: React.FC<HomePageProps> = ({ onNavigate, onOpenWallModal 
             </div>
             <div>
               <h4 className="text-xs font-bold text-[#0f3d44]">Free Delivery / ফ্রি ডেলিভারি</h4>
-              <p className="text-[11px] text-slate-500">Inside Dhaka (&gt;৳3,000)</p>
+              <p className="text-[11px] text-slate-500">আয়াতুল কুরসি অর্ডারে ফ্রি ডেলিভারি</p>
             </div>
           </div>
 

@@ -44,8 +44,8 @@ export const Header: React.FC<HeaderProps> = ({
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  const handleNav = (tab: string) => {
-    setActiveTab(tab);
+  const handleNav = (tab: string, params?: any) => {
+    setActiveTab(tab, params);
     setMobileMenuOpen(false);
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
@@ -184,7 +184,7 @@ export const Header: React.FC<HeaderProps> = ({
           ✨ Premium Laser-Cut Stainless &amp; MS Steel Wall Decor
         </div>
         <div className="mx-auto sm:mx-0 flex items-center gap-3">
-          <span>🎉 Free Delivery inside Dhaka on orders over ৳3,000</span>
+          <span>🎉 আয়াতুল কুরসিতে স্পেশাল ফ্রি হোম ডেলিভারি অফার!</span>
           <span className="opacity-60 hidden md:inline">|</span>
           <span className="hidden md:inline">🛡️ Lifetime Rust-Proof Guarantee</span>
         </div>
@@ -239,6 +239,18 @@ export const Header: React.FC<HeaderProps> = ({
           >
             <Eye className="w-4 h-4 text-[#9333ea]" />
             <span>See On Your Wall</span>
+          </button>
+          <button
+            onClick={() => handleNav('admin', { tab: 'orders' })}
+            className={`px-3 py-2 rounded-xl text-sm font-semibold transition-all flex items-center gap-1.5 ${
+              activeTab === 'admin'
+                ? 'bg-emerald-50 text-emerald-700 shadow-xs'
+                : 'text-slate-600 hover:text-emerald-700 hover:bg-emerald-50/60'
+            }`}
+            title="অর্ডার, প্রোডাক্ট ও ইনভেন্টরি কন্ট্রোল প্যানেল"
+          >
+            <Shield className="w-4 h-4 text-emerald-600" />
+            <span>Admin</span>
           </button>
         </nav>
 
@@ -447,6 +459,19 @@ export const Header: React.FC<HeaderProps> = ({
           >
             <Eye className="w-4 h-4" />
             <span>See It On Your Wall</span>
+          </button>
+
+          <button
+            onClick={() => {
+              setMobileMenuOpen(false);
+              handleNav('admin', { tab: 'orders' });
+            }}
+            className="w-full text-left px-4 py-2.5 rounded-xl text-sm font-semibold text-emerald-800 bg-emerald-50/80 border border-emerald-200/60 flex items-center justify-between"
+          >
+            <span className="flex items-center gap-2">
+              <Shield className="w-4 h-4 text-emerald-600" />
+              <span>Admin Portal (ম্যানেজমেন্ট)</span>
+            </span>
           </button>
 
           <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-xs text-slate-600">

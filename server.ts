@@ -19,6 +19,7 @@ if (!fs.existsSync(DATA_DIR)) {
   }
 }
 const ORDERS_FILE_PATH = path.join(DATA_DIR, 'orders_db.json');
+const BACKUP_ORDERS_FILE_PATH = path.join(process.cwd(), 'public', 'orders_backup.json');
 
 // Initial default orders
 const INITIAL_ORDERS: any[] = [
@@ -32,7 +33,7 @@ const INITIAL_ORDERS: any[] = [
     city: 'Dhaka',
     delivery_zone: 'dhaka',
     total_weight_grams: 2200,
-    delivery_charge: 0, // free shipping threshold met (>3000 BDT)
+    delivery_charge: 0,
     subtotal_amount: 7500,
     total_amount: 7500,
     payment_method: 'cod',
@@ -102,28 +103,60 @@ const INITIAL_ORDERS: any[] = [
   }
 ];
 
-// Helper to load orders from disk
+// Helper to load orders from disk with fallback & merge
 function loadOrders(): any[] {
+  let loadedOrders: any[] = [];
   try {
     if (fs.existsSync(ORDERS_FILE_PATH)) {
       const content = fs.readFileSync(ORDERS_FILE_PATH, 'utf-8');
       const parsed = JSON.parse(content);
       if (Array.isArray(parsed) && parsed.length > 0) {
-        return parsed;
+        loadedOrders = parsed;
       }
     }
   } catch (e) {
     console.error('Failed to load orders from orders_db.json:', e);
   }
-  return [...INITIAL_ORDERS];
+
+  // Also check secondary backup file
+  try {
+    if (fs.existsSync(BACKUP_ORDERS_FILE_PATH)) {
+      const content = fs.readFileSync(BACKUP_ORDERS_FILE_PATH, 'utf-8');
+      const parsed = JSON.parse(content);
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        // Merge backup with loaded
+        const map = new Map<string, any>();
+        loadedOrders.forEach(o => { if (o && o.order_number) map.set(String(o.order_number), o); });
+        parsed.forEach(o => { if (o && o.order_number && !map.has(String(o.order_number))) map.set(String(o.order_number), o); });
+        loadedOrders = Array.from(map.values());
+      }
+    }
+  } catch (e) {
+    console.error('Failed to load from backup orders:', e);
+  }
+
+  if (loadedOrders.length === 0) {
+    loadedOrders = [...INITIAL_ORDERS];
+    try {
+      fs.writeFileSync(ORDERS_FILE_PATH, JSON.stringify(loadedOrders, null, 2), 'utf-8');
+      fs.writeFileSync(BACKUP_ORDERS_FILE_PATH, JSON.stringify(loadedOrders, null, 2), 'utf-8');
+    } catch {}
+  }
+
+  return loadedOrders;
 }
 
-// Helper to save orders to disk
+// Helper to save orders to disk with dual-file resilience
 function saveOrders(ordersList: any[]) {
   try {
     fs.writeFileSync(ORDERS_FILE_PATH, JSON.stringify(ordersList, null, 2), 'utf-8');
   } catch (e) {
     console.error('Failed to save orders to orders_db.json:', e);
+  }
+  try {
+    fs.writeFileSync(BACKUP_ORDERS_FILE_PATH, JSON.stringify(ordersList, null, 2), 'utf-8');
+  } catch (e) {
+    console.error('Failed to save orders to backup file:', e);
   }
 }
 
@@ -468,6 +501,12 @@ ${order.order_notes ? `\n📝 *গ্রাহকের বিশেষ নো�
 
 // Backend Automated WhatsApp Dispatcher (Zero customer redirect, purely in background)
 async function sendWhatsAppOrderNotification(order: any, currentSettings: any) {
+  // If auto WhatsApp notification is disabled by store owner, skip completely
+  if (currentSettings?.whatsapp_auto_notify_enabled !== true) {
+    console.log(`[BACKEND WHATSAPP NOTIFICATION SKIPPED: Feature disabled by admin]`);
+    return { dispatched: false, reason: 'Disabled by user settings' };
+  }
+
   const rawPhone = currentSettings.whatsapp_number || process.env.WHATSAPP_PHONE || '01623319639';
   let cleanPhone = rawPhone.replace(/[^0-9]/g, '');
   if (cleanPhone.startsWith('0')) cleanPhone = '880' + cleanPhone.substring(1);
@@ -522,6 +561,55 @@ async function sendWhatsAppOrderNotification(order: any, currentSettings: any) {
   }
 
   return results;
+}
+
+// Backend Automated Google Sheet Webhook Dispatcher (Google Apps Script / Webhook)
+async function sendGoogleSheetOrderWebhook(order: any, currentSettings: any) {
+  const webhookUrl = currentSettings?.google_sheet_webhook_url || process.env.GOOGLE_SHEET_WEBHOOK_URL;
+  if (!webhookUrl || typeof webhookUrl !== 'string' || !webhookUrl.startsWith('http')) {
+    return { dispatched: false, reason: 'No Google Sheet Webhook URL configured' };
+  }
+
+  try {
+    const itemsSummary = Array.isArray(order.items)
+      ? order.items.map((it: any) => `${it.product_name || it.name || 'Product'}${it.selected_size_name ? ` (${it.selected_size_name})` : ''} x${it.quantity || 1}`).join('; ')
+      : 'N/A';
+
+    const payload = {
+      timestamp: order.created_at || new Date().toISOString(),
+      order_number: order.order_number,
+      customer_name: order.customer_name || order.user_name || '',
+      customer_phone: order.customer_phone || order.user_phone || '',
+      customer_email: order.customer_email || order.user_email || '',
+      shipping_address: order.shipping_address || '',
+      city: order.city || '',
+      delivery_zone: order.delivery_zone === 'dhaka' ? 'Inside Dhaka' : 'Outside Dhaka',
+      items_summary: itemsSummary,
+      total_weight_grams: order.total_weight_grams || 0,
+      delivery_fee: order.delivery_fee || 0,
+      subtotal: order.subtotal || 0,
+      total_amount: order.total_amount || 0,
+      payment_method: order.payment_method || 'Cash on Delivery',
+      payment_details: order.payment_details || '',
+      payment_status: order.payment_status || 'Pending',
+      status: order.status || 'Pending',
+      order: order
+    };
+
+    const res = await fetch(webhookUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+      redirect: 'follow'
+    });
+
+    const respText = await res.text();
+    console.log(`[Google Sheet Webhook Dispatch]: Order #${order.order_number} sent, status: ${res.status}`);
+    return { dispatched: true, status: res.status, response: respText };
+  } catch (err: any) {
+    console.error(`[Google Sheet Webhook Dispatch Error]:`, err.message);
+    return { dispatched: false, error: err.message };
+  }
 }
 
 // POST Create Order
@@ -629,9 +717,16 @@ app.post('/api/orders', (req, res) => {
   orders.unshift(newOrder);
   saveOrders(orders);
 
-  // Trigger backend automated WhatsApp message in background (Zero client redirect)
-  sendWhatsAppOrderNotification(newOrder, settings).catch(err => {
-    console.error('[Background WhatsApp Notification Error]:', err);
+  // Trigger backend automated WhatsApp message in background only if explicitly enabled
+  if (settings?.whatsapp_auto_notify_enabled === true) {
+    sendWhatsAppOrderNotification(newOrder, settings).catch(err => {
+      console.error('[Background WhatsApp Notification Error]:', err);
+    });
+  }
+
+  // Trigger backend automated Google Sheet Webhook in background (Zero auth token expiration)
+  sendGoogleSheetOrderWebhook(newOrder, settings).catch(err => {
+    console.error('[Background Google Sheet Webhook Error]:', err);
   });
 
   // Automatically decrease product stock for each ordered item
@@ -678,6 +773,59 @@ app.post('/api/whatsapp/test', async (req, res) => {
   }
 });
 
+// POST Test Google Sheets Webhook Dispatch
+app.post('/api/google-sheets/test-webhook', async (req, res) => {
+  const testOrder = {
+    order_number: 'UA-TEST-' + Math.floor(100 + Math.random() * 900),
+    user_name: req.body.user_name || 'Salman Sohag (টেস্ট কাস্টমার)',
+    user_phone: req.body.phone || '01623319639',
+    user_email: 'customer@example.com',
+    shipping_address: 'House 12, Road 4, Sector 3, Uttara',
+    city: 'Dhaka',
+    delivery_zone: 'dhaka',
+    items: [
+      { product_name: 'Ayatul Kursi Regal 3D Stainless Steel Wall Art', selected_size_name: 'Large (36" x 24")', quantity: 1, price: 7500 }
+    ],
+    total_weight_grams: 1500,
+    delivery_fee: 0,
+    subtotal: 7500,
+    total_amount: 7500,
+    payment_method: 'Cash on Delivery',
+    payment_details: 'COD',
+    payment_status: 'Pending',
+    status: 'Pending',
+    created_at: new Date().toISOString().replace('T', ' ').substring(0, 19)
+  };
+
+  const targetSettings = { ...settings, ...req.body };
+  if (!targetSettings.google_sheet_webhook_url) {
+    return res.status(400).json({
+      success: false,
+      message: 'কোনো Webhook URL দেওয়া হয়নি! দয়া করে Apps Script Webhook URL প্রবেশ করান।'
+    });
+  }
+
+  try {
+    const result = await sendGoogleSheetOrderWebhook(testOrder, targetSettings);
+    if (result.dispatched) {
+      res.json({
+        success: true,
+        message: 'টেস্ট অর্ডার সফলভাবে Google Sheet Webhook-এ পাঠানো হয়েছে! অনুগ্রহ করে আপনার গুগল শিটটি চেক করুন।',
+        result,
+        testOrder
+      });
+    } else {
+      res.status(500).json({
+        success: false,
+        message: `Webhook পাঠাতে ব্যর্থ হয়েছে: ${result.reason || result.error || 'Unknown error'}`,
+        result
+      });
+    }
+  } catch (err: any) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
 // POST Bulk Sync Client-side Local Orders to Database
 app.post('/api/orders/sync', (req, res) => {
   orders = loadOrders();
@@ -715,6 +863,45 @@ app.post('/api/orders/sync', (req, res) => {
 app.get('/api/orders', (req, res) => {
   orders = loadOrders();
   res.json({ success: true, count: orders.length, orders });
+});
+
+// GET Orders backup as JSON download
+app.get('/api/orders/backup', (req, res) => {
+  orders = loadOrders();
+  res.setHeader('Content-Type', 'application/json');
+  res.setHeader('Content-Disposition', `attachment; filename="unex_orders_backup_${Date.now()}.json"`);
+  res.send(JSON.stringify(orders, null, 2));
+});
+
+// POST Restore / Import Orders backup
+app.post('/api/orders/restore', (req, res) => {
+  const importedOrders = req.body.orders || req.body;
+  if (!Array.isArray(importedOrders)) {
+    return res.status(400).json({ success: false, message: 'Invalid orders array format' });
+  }
+
+  orders = loadOrders();
+  const map = new Map();
+  orders.forEach(o => { if (o && o.order_number) map.set(String(o.order_number), o); });
+  let importedCount = 0;
+  for (const io of importedOrders) {
+    if (io && io.order_number) {
+      if (!map.has(String(io.order_number))) {
+        orders.push(io);
+        map.set(String(io.order_number), io);
+        importedCount++;
+      }
+    }
+  }
+
+  orders.sort((a, b) => {
+    const numA = parseInt(String(a.order_number || '').replace(/\D/g, ''), 10) || 0;
+    const numB = parseInt(String(b.order_number || '').replace(/\D/g, ''), 10) || 0;
+    return numB - numA;
+  });
+
+  saveOrders(orders);
+  res.json({ success: true, count: orders.length, importedCount, orders });
 });
 
 // UPDATE Order Status or Details (supports PUT /api/orders/:id, PATCH /api/orders/:id, PATCH /api/orders/:id/status)

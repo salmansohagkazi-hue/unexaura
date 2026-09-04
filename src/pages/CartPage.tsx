@@ -20,6 +20,7 @@ export const CartPage: React.FC<CartPageProps> = ({ onNavigate }) => {
     getCartSubtotal,
     getCartWeight,
     deliveryCharge,
+    deliveryDetails,
     deliveryZone,
     setDeliveryZone,
     formatPrice,
@@ -242,15 +243,29 @@ export const CartPage: React.FC<CartPageProps> = ({ onNavigate }) => {
                 </div>
               )}
 
-              <div className="flex justify-between text-slate-600 items-center">
-                <span>
-                  Delivery Charge ({deliveryZone === 'none' ? 'Not Selected' : deliveryZone === 'dhaka' ? 'Dhaka' : 'Outside Dhaka'}):
-                </span>
+              <div className="flex justify-between text-slate-600 items-start">
+                <div className="flex flex-col">
+                  <span>
+                    Delivery Charge ({deliveryZone === 'none' ? 'জোন নির্বাচন করুন' : deliveryZone === 'dhaka' ? 'ঢাকার ভেতরে' : 'ঢাকার বাইরে'}):
+                  </span>
+                  {deliveryDetails.isAyatulKursiFreeOffer && (
+                    <span className="text-[10px] text-emerald-600 font-bold">
+                      {deliveryDetails.hasOtherProducts
+                        ? '✨ আয়াতুল কুরসি ডেলিভারি চার্জ ফ্রি'
+                        : '✨ আয়াতুল কুরসি স্পেশাল ফ্রি ডেলিভারি'}
+                    </span>
+                  )}
+                  {deliveryZone !== 'none' && deliveryDetails.slabDescription && (
+                    <span className="text-[10px] text-slate-500 font-medium">
+                      {deliveryDetails.slabDescription}
+                    </span>
+                  )}
+                </div>
                 <span className="font-bold text-[#0f3d44]">
                   {deliveryZone === 'none' ? (
                     <span className="text-amber-700 font-bold text-[11px] bg-amber-50 px-2 py-0.5 rounded border border-amber-200">চেকআউটে জোন নির্বাচন করুন</span>
                   ) : deliveryCharge === 0 ? (
-                    <span className="text-emerald-600">FREE</span>
+                    <span className="text-emerald-600 font-black">FREE / ফ্রি</span>
                   ) : (
                     formatPrice(deliveryCharge)
                   )}

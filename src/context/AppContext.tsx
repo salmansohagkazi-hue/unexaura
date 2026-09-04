@@ -119,6 +119,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         return {
           ...INITIAL_SETTINGS,
           ...parsed,
+          google_sheet_webhook_url: (parsed.google_sheet_webhook_url && parsed.google_sheet_webhook_url.trim()) ? parsed.google_sheet_webhook_url : INITIAL_SETTINGS.google_sheet_webhook_url,
           promo_video_url: promoVideo,
           best_deal_product_id: parsed.best_deal_product_id || 7
         };
@@ -387,7 +388,54 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       localStorage.setItem('unex_placed_orders', JSON.stringify(updatedLocal));
     } catch {}
 
-    // Auto-sync to Google Sheets if connected
+    // Auto-sync to Google Sheets Webhook (24/7 background sync without OAuth token expiry)
+    const targetWebhook = settings.google_sheet_webhook_url || INITIAL_SETTINGS.google_sheet_webhook_url;
+    if (targetWebhook && createdOrder) {
+      try {
+        const itemsSummary = Array.isArray(createdOrder.items)
+          ? createdOrder.items.map((it: any) => `${it.product_name || it.name || 'Product'}${it.selected_size_name ? ` (${it.selected_size_name})` : ''} x${it.quantity || 1}`).join('; ')
+          : 'N/A';
+
+        const payload = {
+          timestamp: createdOrder.created_at || new Date().toLocaleString('en-US', { timeZone: 'Asia/Dhaka' }),
+          order_number: createdOrder.order_number,
+          customer_name: createdOrder.user_name || 'Customer',
+          customer_phone: createdOrder.user_phone || '',
+          customer_email: createdOrder.user_email || '',
+          shipping_address: createdOrder.shipping_address || '',
+          city: createdOrder.city || '',
+          delivery_zone: createdOrder.delivery_zone === 'dhaka' ? 'Inside Dhaka' : 'Outside Dhaka',
+          items_summary: itemsSummary,
+          total_weight_grams: createdOrder.total_weight_grams || 0,
+          delivery_fee: createdOrder.delivery_charge !== undefined ? createdOrder.delivery_charge : 0,
+          subtotal: createdOrder.subtotal_amount !== undefined ? createdOrder.subtotal_amount : 0,
+          total_amount: createdOrder.total_amount || 0,
+          payment_method: createdOrder.payment_method === 'cod' ? 'ক্যাশ অন ডেলিভারি (Cash on Delivery)' : createdOrder.payment_method,
+          payment_details: createdOrder.payment_details || 'N/A',
+          payment_status: createdOrder.payment_status || 'Pending',
+          status: createdOrder.status || 'Pending'
+        };
+
+        // 1. Direct browser fetch with mode: 'no-cors' (fire-and-forget direct to Google Apps Script)
+        fetch(targetWebhook, {
+          method: 'POST',
+          mode: 'no-cors',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        }).catch(e => console.warn('Direct client webhook ping error:', e));
+
+        // 2. Server-side proxy fetch (ensures server container also dispatches cleanly)
+        fetch('/api/google-sheets/sync-order', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ order: createdOrder, webhook_url: targetWebhook })
+        }).catch(e => console.warn('Server sync order ping error:', e));
+      } catch (err) {
+        console.warn('Webhook auto-sync error:', err);
+      }
+    }
+
+    // Auto-sync to Google Sheets if connected via Google Drive OAuth
     if (settings.google_sheet_id && settings.google_sheet_autosync_enabled !== false) {
       const token = getAccessToken();
       if (token) {

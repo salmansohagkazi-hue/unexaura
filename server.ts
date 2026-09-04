@@ -565,8 +565,9 @@ async function sendWhatsAppOrderNotification(order: any, currentSettings: any) {
 
 // Backend Automated Google Sheet Webhook Dispatcher (Google Apps Script / Webhook)
 async function sendGoogleSheetOrderWebhook(order: any, currentSettings: any) {
-  const webhookUrl = currentSettings?.google_sheet_webhook_url || process.env.GOOGLE_SHEET_WEBHOOK_URL;
+  const webhookUrl = currentSettings?.google_sheet_webhook_url || process.env.GOOGLE_SHEET_WEBHOOK_URL || INITIAL_SETTINGS.google_sheet_webhook_url;
   if (!webhookUrl || typeof webhookUrl !== 'string' || !webhookUrl.startsWith('http')) {
+    console.warn('[Google Sheet Webhook]: No valid webhook URL configured');
     return { dispatched: false, reason: 'No Google Sheet Webhook URL configured' };
   }
 
@@ -575,22 +576,34 @@ async function sendGoogleSheetOrderWebhook(order: any, currentSettings: any) {
       ? order.items.map((it: any) => `${it.product_name || it.name || 'Product'}${it.selected_size_name ? ` (${it.selected_size_name})` : ''} x${it.quantity || 1}`).join('; ')
       : 'N/A';
 
+    const deliveryFee = order.delivery_charge !== undefined && order.delivery_charge !== null 
+      ? Number(order.delivery_charge) 
+      : (order.delivery_fee !== undefined ? Number(order.delivery_fee) : 0);
+
+    const subtotal = order.subtotal_amount !== undefined && order.subtotal_amount !== null
+      ? Number(order.subtotal_amount)
+      : (order.subtotal !== undefined ? Number(order.subtotal) : 0);
+
+    const totalAmount = order.total_amount !== undefined && order.total_amount !== null
+      ? Number(order.total_amount)
+      : (subtotal + deliveryFee);
+
     const payload = {
-      timestamp: order.created_at || new Date().toISOString(),
-      order_number: order.order_number,
-      customer_name: order.customer_name || order.user_name || '',
+      timestamp: order.created_at || new Date().toLocaleString('en-US', { timeZone: 'Asia/Dhaka' }),
+      order_number: order.order_number || ('UA-' + Date.now()),
+      customer_name: order.customer_name || order.user_name || 'Customer',
       customer_phone: order.customer_phone || order.user_phone || '',
       customer_email: order.customer_email || order.user_email || '',
       shipping_address: order.shipping_address || '',
       city: order.city || '',
-      delivery_zone: order.delivery_zone === 'dhaka' ? 'Inside Dhaka' : 'Outside Dhaka',
+      delivery_zone: order.delivery_zone === 'dhaka' ? 'Inside Dhaka' : (order.delivery_zone || 'Outside Dhaka'),
       items_summary: itemsSummary,
       total_weight_grams: order.total_weight_grams || 0,
-      delivery_fee: order.delivery_fee || 0,
-      subtotal: order.subtotal || 0,
-      total_amount: order.total_amount || 0,
-      payment_method: order.payment_method || 'Cash on Delivery',
-      payment_details: order.payment_details || '',
+      delivery_fee: deliveryFee,
+      subtotal: subtotal,
+      total_amount: totalAmount,
+      payment_method: order.payment_method === 'cod' ? 'ক্যাশ অন ডেলিভারি (Cash on Delivery)' : (order.payment_method || 'Cash on Delivery'),
+      payment_details: order.payment_details || 'N/A',
       payment_status: order.payment_status || 'Pending',
       status: order.status || 'Pending',
       order: order
@@ -604,7 +617,7 @@ async function sendGoogleSheetOrderWebhook(order: any, currentSettings: any) {
     });
 
     const respText = await res.text();
-    console.log(`[Google Sheet Webhook Dispatch]: Order #${order.order_number} sent, status: ${res.status}`);
+    console.log(`[Google Sheet Webhook Dispatch]: Order #${order.order_number} sent, status: ${res.status}, response: ${respText}`);
     return { dispatched: true, status: res.status, response: respText };
   } catch (err: any) {
     console.error(`[Google Sheet Webhook Dispatch Error]:`, err.message);
@@ -823,6 +836,34 @@ app.post('/api/google-sheets/test-webhook', async (req, res) => {
     }
   } catch (err: any) {
     res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+// Proxy endpoint to sync single order to Google Sheets
+app.post('/api/google-sheets/sync-order', async (req, res) => {
+  try {
+    const order = req.body.order || req.body;
+    const targetUrl = req.body.webhook_url || settings.google_sheet_webhook_url || INITIAL_SETTINGS.google_sheet_webhook_url;
+    const result = await sendGoogleSheetOrderWebhook(order, { ...settings, google_sheet_webhook_url: targetUrl });
+    res.json({ success: true, result });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// Endpoint to sync all store orders to Google Sheet Webhook
+app.post('/api/google-sheets/sync-all', async (req, res) => {
+  try {
+    const targetUrl = req.body.webhook_url || settings.google_sheet_webhook_url || INITIAL_SETTINGS.google_sheet_webhook_url;
+    orders = loadOrders();
+    const results = [];
+    for (const ord of orders) {
+      const r = await sendGoogleSheetOrderWebhook(ord, { ...settings, google_sheet_webhook_url: targetUrl });
+      results.push({ order_number: ord.order_number, result: r });
+    }
+    res.json({ success: true, count: results.length, results });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
   }
 });
 

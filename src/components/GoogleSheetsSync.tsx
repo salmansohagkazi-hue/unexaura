@@ -19,17 +19,89 @@ import {
   Send,
   Zap,
   Code,
-  Globe
+  Globe,
+  Upload,
+  Download,
+  Layers
 } from 'lucide-react';
 
 const APPS_SCRIPT_CODE = `function doPost(e) {
   try {
-    var sheet = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();
+    var ss = SpreadsheetApp.getActiveSpreadsheet();
     var data = JSON.parse(e.postData.contents);
     
-    // Auto-create beautiful Header row if the sheet is completely empty
-    if (sheet.getLastRow() === 0) {
-      sheet.appendRow([
+    // 1. ACTION: Push / Sync Entire Product & Category Catalog from Website
+    if (data.action === 'sync_catalog') {
+      // Setup or update Products Sheet
+      var prodSheet = ss.getSheetByName('Products');
+      if (!prodSheet) {
+        prodSheet = ss.insertSheet('Products');
+      }
+      prodSheet.clear();
+      prodSheet.appendRow([
+        'Product ID',
+        'Name (পণ্যের নাম)',
+        'Category ID',
+        'Category Name (ক্যাটাগরি)',
+        'Price (দাম ৳)',
+        'Old Price (পূর্বের দাম ৳)',
+        'Stock (মজুদ সংখ্যা)',
+        'Dimensions (সাইজ)',
+        'Material (উপাদান)',
+        'Weight (grams)',
+        'Badge',
+        'Image URL',
+        'Description (বিবরণ)'
+      ]);
+      prodSheet.getRange(1, 1, 1, 13).setBackground('#0f3d44').setFontColor('#ffffff').setFontWeight('bold');
+      
+      if (Array.isArray(data.products)) {
+        for (var p = 0; p < data.products.length; p++) {
+          var item = data.products[p];
+          prodSheet.appendRow([
+            item.id,
+            item.name,
+            item.category_id,
+            item.category_name || '',
+            item.price,
+            item.old_price || '',
+            item.stock !== undefined ? item.stock : 20,
+            item.size_dimensions || '',
+            item.material || '',
+            item.weight_grams || '',
+            item.badge || '',
+            item.image_url || '',
+            item.bangla_short_desc || item.description || ''
+          ]);
+        }
+      }
+      
+      // Setup or update Categories Sheet
+      var catSheet = ss.getSheetByName('Categories');
+      if (!catSheet) {
+        catSheet = ss.insertSheet('Categories');
+      }
+      catSheet.clear();
+      catSheet.appendRow(['Category ID', 'Category Name', 'Slug', 'Icon', 'Sort Order']);
+      catSheet.getRange(1, 1, 1, 5).setBackground('#0f3d44').setFontColor('#ffffff').setFontWeight('bold');
+      
+      if (Array.isArray(data.categories)) {
+        for (var c = 0; c < data.categories.length; c++) {
+          var cat = data.categories[c];
+          catSheet.appendRow([cat.id, cat.name, cat.slug || '', cat.icon || '', cat.sort_order || (c + 1)]);
+        }
+      }
+      
+      return ContentService.createTextOutput(JSON.stringify({
+        status: 'success',
+        message: 'Products and Categories catalog synced successfully in Google Sheet!'
+      })).setMimeType(ContentService.MimeType.JSON);
+    }
+    
+    // 2. ACTION: New Order Append & Auto Stock Deduction
+    var orderSheet = ss.getSheetByName('Customer Orders') || ss.getSheetByName('Orders') || ss.getActiveSheet();
+    if (orderSheet.getLastRow() === 0) {
+      orderSheet.appendRow([
         'তারিখ ও সময় (Date)',
         'অর্ডার নম্বর (Order #)',
         'গ্রাহকের নাম (Customer Name)',
@@ -47,11 +119,10 @@ const APPS_SCRIPT_CODE = `function doPost(e) {
         'পেমেন্ট স্ট্যাটাস (Payment Status)',
         'অর্ডার স্ট্যাটাস (Order Status)'
       ]);
-      sheet.getRange(1, 1, 1, 16).setBackground('#0f3d44').setFontColor('#ffffff').setFontWeight('bold');
+      orderSheet.getRange(1, 1, 1, 16).setBackground('#0f3d44').setFontColor('#ffffff').setFontWeight('bold');
     }
     
-    // Append the incoming order data
-    sheet.appendRow([
+    orderSheet.appendRow([
       data.timestamp || new Date().toLocaleString('en-US', { timeZone: 'Asia/Dhaka' }),
       data.order_number || '',
       data.customer_name || '',
@@ -70,16 +141,137 @@ const APPS_SCRIPT_CODE = `function doPost(e) {
       data.status || 'Pending'
     ]);
     
-    return ContentService.createTextOutput(JSON.stringify({ status: 'success', message: 'Order row saved successfully' }))
+    // Automatic stock deduction in Products sheet if it exists
+    var prodSheet = ss.getSheetByName('Products');
+    if (prodSheet && data.order && Array.isArray(data.order.items)) {
+      var prodData = prodSheet.getDataRange().getValues();
+      for (var it = 0; it < data.order.items.length; it++) {
+        var orderedItem = data.order.items[it];
+        var ordProdId = Number(orderedItem.product_id);
+        var ordQty = Number(orderedItem.quantity || 1);
+        
+        for (var r = 1; r < prodData.length; r++) {
+          if (Number(prodData[r][0]) === ordProdId) {
+            var currStock = Number(prodData[r][6]) || 0;
+            var newStock = Math.max(0, currStock - ordQty);
+            prodSheet.getRange(r + 1, 7).setValue(newStock);
+            break;
+          }
+        }
+      }
+    }
+    
+    return ContentService.createTextOutput(JSON.stringify({ status: 'success', message: 'Order row saved and stock updated' }))
       .setMimeType(ContentService.MimeType.JSON);
   } catch (err) {
     return ContentService.createTextOutput(JSON.stringify({ status: 'error', error: err.message }))
       .setMimeType(ContentService.MimeType.JSON);
   }
+}
+
+function doGet(e) {
+  try {
+    var ss = SpreadsheetApp.getActiveSpreadsheet();
+    var responseObj = { success: true };
+    
+    // 1. Read Products
+    var prodSheet = ss.getSheetByName('Products');
+    if (prodSheet && prodSheet.getLastRow() > 1) {
+      var pData = prodSheet.getDataRange().getValues();
+      var prods = [];
+      for (var i = 1; i < pData.length; i++) {
+        var row = pData[i];
+        if (!row[0] && !row[1]) continue;
+        prods.push({
+          id: Number(row[0]) || i,
+          name: String(row[1] || ''),
+          category_id: Number(row[2]) || 1,
+          category_name: String(row[3] || 'Islamic Metal Wall Art'),
+          price: Number(row[4]) || 0,
+          old_price: row[5] ? Number(row[5]) : undefined,
+          stock: Number(row[6] || 0),
+          size_dimensions: String(row[7] || ''),
+          material: String(row[8] || 'Surgical Stainless Steel'),
+          weight_grams: Number(row[9]) || 1500,
+          badge: String(row[10] || ''),
+          image_url: String(row[11] || ''),
+          bangla_short_desc: String(row[12] || '')
+        });
+      }
+      responseObj.products = prods;
+      responseObj.product_count = prods.length;
+    }
+    
+    // 2. Read Categories
+    var catSheet = ss.getSheetByName('Categories');
+    if (catSheet && catSheet.getLastRow() > 1) {
+      var cData = catSheet.getDataRange().getValues();
+      var cats = [];
+      for (var c = 1; c < cData.length; c++) {
+        var cRow = cData[c];
+        if (!cRow[1]) continue;
+        cats.push({
+          id: Number(cRow[0]) || c,
+          name: String(cRow[1] || ''),
+          slug: String(cRow[2] || '').toLowerCase().replace(/\\s+/g, '-'),
+          icon: String(cRow[3] || '✨'),
+          sort_order: Number(cRow[4]) || c
+        });
+      }
+      responseObj.categories = cats;
+    }
+    
+    // 3. Read Orders
+    var orderSheet = ss.getSheetByName('Customer Orders') || ss.getSheetByName('Orders') || ss.getActiveSheet();
+    var oData = orderSheet.getDataRange().getValues();
+    var orders = [];
+    if (oData.length > 1) {
+      for (var j = 1; j < oData.length; j++) {
+        var oRow = oData[j];
+        if (!oRow[1]) continue;
+        orders.push({
+          created_at: String(oRow[0] || ''),
+          order_number: String(oRow[1] || ''),
+          user_name: String(oRow[2] || ''),
+          user_phone: String(oRow[3] || '').replace(/^'/, ''),
+          user_email: String(oRow[4] || ''),
+          shipping_address: String(oRow[5] || ''),
+          city: String(oRow[6] || '').split('(')[0].trim(),
+          delivery_zone: String(oRow[6] || '').toLowerCase().includes('dhaka') ? 'dhaka' : 'outside_dhaka',
+          items_summary: String(oRow[7] || ''),
+          total_weight_grams: Number(oRow[8]) || 1000,
+          delivery_charge: Number(oRow[9]) || 0,
+          subtotal_amount: Number(oRow[10]) || 0,
+          total_amount: Number(oRow[11]) || 0,
+          payment_method: String(oRow[12] || 'cod'),
+          payment_details: String(oRow[13] || 'N/A'),
+          payment_status: String(oRow[14] || 'unpaid').toLowerCase(),
+          status: String(oRow[15] || 'pending').toLowerCase()
+        });
+      }
+    }
+    responseObj.orders = orders;
+    responseObj.order_count = orders.length;
+    
+    return ContentService.createTextOutput(JSON.stringify(responseObj))
+      .setMimeType(ContentService.MimeType.JSON);
+  } catch (err) {
+    return ContentService.createTextOutput(JSON.stringify({ success: false, error: err.message }))
+      .setMimeType(ContentService.MimeType.JSON);
+  }
 }`;
 
 export const GoogleSheetsSync: React.FC = () => {
-  const { orders, settings, updateSettings, showToast } = useApp();
+  const {
+    orders,
+    products,
+    categories,
+    settings,
+    updateSettings,
+    showToast,
+    syncInventoryFromSheet,
+    pushCatalogToSheet
+  } = useApp();
 
   const [googleUser, setGoogleUser] = useState<User | null>(null);
   const [accessToken, setAccessToken] = useState<string | null>(null);
@@ -94,6 +286,11 @@ export const GoogleSheetsSync: React.FC = () => {
   const [copiedScript, setCopiedScript] = useState(false);
   const [isTestingWebhook, setIsTestingWebhook] = useState(false);
   const [testWebhookStatus, setTestWebhookStatus] = useState<{ success: boolean; message: string } | null>(null);
+
+  // 2-Way Inventory Sync state
+  const [isPullingInventory, setIsPullingInventory] = useState(false);
+  const [isPushingCatalog, setIsPushingCatalog] = useState(false);
+  const [inventorySyncResult, setInventorySyncResult] = useState<{ success: boolean; message: string } | null>(null);
 
   useEffect(() => {
     if (settings.google_sheet_webhook_url) {
@@ -466,6 +663,164 @@ export const GoogleSheetsSync: React.FC = () => {
             </p>
           )}
         </form>
+      </div>
+
+      {/* 2-WAY GOOGLE SHEETS INVENTORY & PRODUCT CATALOG BACKEND */}
+      <div className="bg-gradient-to-br from-[#0f3d44] to-[#1a535c] rounded-3xl p-6 sm:p-8 text-white shadow-xl space-y-6 relative overflow-hidden border border-teal-500/30">
+        <div className="absolute -right-12 -top-12 w-64 h-64 bg-teal-400/10 rounded-full blur-3xl pointer-events-none"></div>
+
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 pb-5 border-b border-teal-400/20 relative z-10">
+          <div className="flex items-center gap-3.5">
+            <div className="w-12 h-12 rounded-2xl bg-teal-400/20 border border-teal-300/30 flex items-center justify-center text-teal-200 shrink-0 shadow-inner">
+              <Layers className="w-6 h-6" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2 flex-wrap">
+                <h3 className="text-base sm:text-lg font-black text-white">
+                  গুগল শিট ২-ওয়ে ইনভেন্টরি ও প্রোডাক্ট ক্যাটালগ ব্যাকএন্ড
+                </h3>
+                <span className="px-2.5 py-0.5 rounded-full bg-emerald-400/20 border border-emerald-400/40 text-emerald-200 text-[11px] font-black">
+                  No-Code Live Backend ⚡
+                </span>
+              </div>
+              <p className="text-xs text-teal-100/80 mt-1">
+                আর কখনোই কোড পরিবর্তন করতে হবে না! অ্যাডমিন প্যানেল অথবা আপনার গুগল শিট থেকেই সরাসরি নতুন প্রোডাক্ট ও ক্যাটাগরি তৈরি, স্টক নিয়ন্ত্রণ ও মূল্য আপডেট করুন।
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <div className="bg-teal-900/60 border border-teal-400/30 px-3.5 py-1.5 rounded-xl text-center">
+              <span className="text-[10px] uppercase font-bold text-teal-300 block">মোট পণ্য</span>
+              <span className="text-base font-black text-white">{products.length} টি</span>
+            </div>
+            <div className="bg-teal-900/60 border border-teal-400/30 px-3.5 py-1.5 rounded-xl text-center">
+              <span className="text-[10px] uppercase font-bold text-teal-300 block">ক্যাটাগরি</span>
+              <span className="text-base font-black text-white">{categories.length} টি</span>
+            </div>
+          </div>
+        </div>
+
+        {/* ACTION BUTTONS */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 relative z-10">
+          {/* PULL FROM SHEET */}
+          <div className="bg-white/10 backdrop-blur-md p-5 rounded-2xl border border-white/15 space-y-3 flex flex-col justify-between hover:bg-white/15 transition-all">
+            <div className="space-y-1.5">
+              <div className="flex items-center gap-2 text-sm font-black text-teal-200">
+                <Download className="w-4 h-4" />
+                <span>শিট থেকে ওয়েবসাইটে সিঙ্ক (Pull from Sheet)</span>
+              </div>
+              <p className="text-[11px] text-slate-200 leading-relaxed">
+                আপনার গুগল শিটের <span className="font-mono font-bold text-emerald-300">"Products"</span> ট্যাবে কোনো নতুন প্রোডাক্ট যোগ করলে বা স্টক পরিবর্তন করলে, এই বাটনে চাপ দিন। সাথে সাথে ওয়েবসাইটে স্টক ও ক্যাটালগ লাইভ আপডেট হয়ে যাবে।
+              </p>
+            </div>
+
+            <button
+              type="button"
+              onClick={async () => {
+                const targetUrl = webhookUrl.trim() || settings.google_sheet_webhook_url;
+                if (!targetUrl) {
+                  alert('দয়া করে প্রথমে ওপরে Google Sheet Webhook URL সংরক্ষণ করুন।');
+                  return;
+                }
+                setIsPullingInventory(true);
+                setInventorySyncResult(null);
+                try {
+                  const res = await syncInventoryFromSheet(targetUrl);
+                  setInventorySyncResult(res);
+                } finally {
+                  setIsPullingInventory(false);
+                }
+              }}
+              disabled={isPullingInventory || (!webhookUrl.trim() && !settings.google_sheet_webhook_url)}
+              className="w-full py-3 px-4 rounded-xl bg-emerald-500 hover:bg-emerald-400 disabled:opacity-50 text-slate-950 font-black text-xs flex items-center justify-center gap-2 transition-all shadow-lg cursor-pointer"
+            >
+              {isPullingInventory ? (
+                <>
+                  <RefreshCw className="w-4 h-4 animate-spin" />
+                  <span>গুগল শিট থেকে সিঙ্ক হচ্ছে...</span>
+                </>
+              ) : (
+                <>
+                  <Download className="w-4 h-4" />
+                  <span>📥 গুগল শিট থেকে ইনভেন্টরি সিঙ্ক করুন</span>
+                </>
+              )}
+            </button>
+          </div>
+
+          {/* PUSH TO SHEET */}
+          <div className="bg-white/10 backdrop-blur-md p-5 rounded-2xl border border-white/15 space-y-3 flex flex-col justify-between hover:bg-white/15 transition-all">
+            <div className="space-y-1.5">
+              <div className="flex items-center gap-2 text-sm font-black text-teal-200">
+                <Upload className="w-4 h-4" />
+                <span>ওয়েবসাইট থেকে শিটে এক্সপোর্ট (Push to Sheet)</span>
+              </div>
+              <p className="text-[11px] text-slate-200 leading-relaxed">
+                ওয়েবসাইটের বর্তমান সমস্ত {products.length}টি প্রোডাক্ট ও {categories.length}টি ক্যাটাগরিকে আপনার গুগল শিটের <span className="font-mono font-bold text-emerald-300">"Products"</span> ও <span className="font-mono font-bold text-emerald-300">"Categories"</span> ট্যাবে পাঠাতে এই বাটনটি চাপুন।
+              </p>
+            </div>
+
+            <button
+              type="button"
+              onClick={async () => {
+                const targetUrl = webhookUrl.trim() || settings.google_sheet_webhook_url;
+                if (!targetUrl) {
+                  alert('দয়া করে প্রথমে ওপরে Google Sheet Webhook URL সংরক্ষণ করুন।');
+                  return;
+                }
+                const confirmed = window.confirm(`আপনি কি ওয়েবসাইটের ${products.length}টি প্রোডাক্ট এবং ${categories.length}টি ক্যাটাগরি গুগল শিটে পাঠাতে চান?`);
+                if (!confirmed) return;
+
+                setIsPushingCatalog(true);
+                setInventorySyncResult(null);
+                try {
+                  const res = await pushCatalogToSheet(targetUrl);
+                  setInventorySyncResult(res);
+                } finally {
+                  setIsPushingCatalog(false);
+                }
+              }}
+              disabled={isPushingCatalog || (!webhookUrl.trim() && !settings.google_sheet_webhook_url)}
+              className="w-full py-3 px-4 rounded-xl bg-teal-400 hover:bg-teal-300 disabled:opacity-50 text-slate-950 font-black text-xs flex items-center justify-center gap-2 transition-all shadow-lg cursor-pointer"
+            >
+              {isPushingCatalog ? (
+                <>
+                  <RefreshCw className="w-4 h-4 animate-spin" />
+                  <span>গুগল শিটে ক্যাটালগ পাঠানো হচ্ছে...</span>
+                </>
+              ) : (
+                <>
+                  <Upload className="w-4 h-4" />
+                  <span>📤 গুগল শিটে সম্পূর্ণ ক্যাটালগ পাঠান</span>
+                </>
+              )}
+            </button>
+          </div>
+        </div>
+
+        {/* SYNC RESULT ALERT */}
+        {inventorySyncResult && (
+          <div className={`p-4 rounded-2xl text-xs font-bold flex items-center gap-2.5 border relative z-10 ${
+            inventorySyncResult.success ? 'bg-emerald-500/20 text-emerald-100 border-emerald-400/40' : 'bg-rose-500/20 text-rose-100 border-rose-400/40'
+          }`}>
+            {inventorySyncResult.success ? <CheckCircle2 className="w-5 h-5 text-emerald-300 shrink-0" /> : <AlertCircle className="w-5 h-5 text-rose-300 shrink-0" />}
+            <span>{inventorySyncResult.message}</span>
+          </div>
+        )}
+
+        {/* HOW TO USE GUIDE */}
+        <div className="p-4 rounded-2xl bg-teal-950/60 border border-teal-400/20 text-[11px] text-teal-100 space-y-2 relative z-10">
+          <div className="font-black text-xs text-white flex items-center gap-2">
+            <Sparkles className="w-3.5 h-3.5 text-amber-300" />
+            <span>কীভাবে কোড পরিবর্তন না করে গুগল শিট দিয়ে স্টোর চালাবেন?</span>
+          </div>
+          <ul className="list-disc list-inside space-y-1 text-teal-100/90 leading-relaxed">
+            <li><strong>নতুন পণ্য বা ক্যাটাগরি যোগ:</strong> আপনি অ্যাডমিন প্যানেলের "Products" বা "Categories" ট্যাব থেকে সহজেই নতুন প্রোডাক্ট/ক্যাটাগরি তৈরি করতে পারেন। সার্ভার ও ব্রাউজারে এটি সাথে সাথে স্বয়ংক্রিয়ভাবে সংরক্ষিত হবে।</li>
+            <li><strong>গুগল শিট থেকে ম্যানেজ:</strong> শিটের <span className="font-mono text-amber-300">Products</span> ট্যাবে কোনো পণ্যের স্টক বা দাম পরিবর্তন করে এখানে <strong>"গুগল শিট থেকে ইনভেন্টরি সিঙ্ক করুন"</strong> চাপলেই ওয়েবসাইটে আপডেট চলে আসবে।</li>
+            <li><strong>স্বয়ংক্রিয় স্টক হ্রাস:</strong> গ্রাহক যেকোনো অর্ডার প্লেস করার পর সার্ভার এবং গুগল শিটে ওই পণ্যের স্টক স্বয়ংক্রিয়ভাবে ১ টি বা অর্ডারকৃত সংখ্যা অনুযায়ী কমে যায়।</li>
+          </ul>
+        </div>
       </div>
 
       {/* METHOD 2: DIRECT GOOGLE DRIVE OAUTH (BUILT-IN) */}

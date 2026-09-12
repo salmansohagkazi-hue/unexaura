@@ -32,7 +32,7 @@ export const INITIAL_SETTINGS: StoreSettings = {
   google_sheet_id: '1YyeLB14VCribl9J2qHnD5Ac8Za0tk0c_rG4CGJWzoxA',
   google_sheet_url: 'https://docs.google.com/spreadsheets/d/1YyeLB14VCribl9J2qHnD5Ac8Za0tk0c_rG4CGJWzoxA/edit?usp=drivesdk',
   google_sheet_autosync_enabled: true,
-  google_sheet_webhook_url: 'https://script.google.com/macros/s/AKfycbywI74iof_FO3cDL5E1x3IYQXPsRzFb-AAYgXxujIb3reGaC_YiArDAYzWKq8ZwOuFR/exec'
+  google_sheet_webhook_url: 'https://script.google.com/macros/s/AKfycbxObQDGAgMY_wUx3_YP8lKBy5Y1Flke8e_bfMHQu1BYMWIJq7Myq2-Yc3rQeDo8VVYq/exec'
 };
 
 export const INITIAL_COUPONS: Coupon[] = [

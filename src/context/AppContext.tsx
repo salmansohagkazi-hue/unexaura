@@ -66,6 +66,10 @@ interface AppContextType {
   addCategory: (cat: Omit<Category, 'id'>) => void;
   updateCategory: (id: number, cat: Partial<Category>) => void;
   deleteCategory: (id: number) => void;
+
+  // Google Sheets Inventory 2-Way Synchronization
+  syncInventoryFromSheet: (webhookUrl?: string) => Promise<{ success: boolean; message: string; count?: number }>;
+  pushCatalogToSheet: (webhookUrl?: string) => Promise<{ success: boolean; message: string }>;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -77,14 +81,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       if (saved) {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed) && parsed.length > 0) {
-          // Filter out deleted old mock products (id 1 to 6)
-          const validInitialIds = new Set(INITIAL_PRODUCTS.map(p => p.id));
-          const updated = INITIAL_PRODUCTS.map(initP => {
-            const savedP = parsed.find((p: Product) => p.id === initP.id);
-            return savedP ? { ...initP, ...savedP, category_id: initP.category_id, category_name: initP.category_name, image_url: initP.image_url, room_images: initP.room_images, sizes: initP.sizes } : initP;
-          });
-          const customAdminProducts = parsed.filter((p: Product) => !validInitialIds.has(p.id) && p.id > 10);
-          return [...updated, ...customAdminProducts];
+          return parsed;
         }
       }
     } catch {}
@@ -97,10 +94,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       if (saved) {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed) && parsed.length > 0) {
-          return INITIAL_CATEGORIES.map(initC => {
-            const savedC = parsed.find((c: Category) => c.id === initC.id || c.slug === initC.slug);
-            return savedC ? { ...savedC, image_url: initC.image_url, name: initC.name, item_count: initC.item_count } : initC;
-          });
+          return parsed;
         }
       }
     } catch {}
@@ -215,13 +209,34 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         localOrders = JSON.parse(localStorage.getItem('unex_placed_orders') || '[]');
       } catch {}
 
-      // Merge & deduplicate by order_number
+      // Merge & deduplicate by order_number without losing any order
       const map = new Map<string, Order>();
-      localOrders.forEach(o => {
+
+      // 1. First include existing React state orders
+      orders.forEach(o => {
         if (o && o.order_number) map.set(String(o.order_number), o);
       });
+
+      // 2. Include local storage orders
+      localOrders.forEach(o => {
+        if (o && o.order_number) {
+          if (!map.has(String(o.order_number))) {
+            map.set(String(o.order_number), o);
+          } else {
+            map.set(String(o.order_number), { ...map.get(String(o.order_number))!, ...o });
+          }
+        }
+      });
+
+      // 3. Include server orders
       serverOrders.forEach(o => {
-        if (o && o.order_number) map.set(String(o.order_number), o);
+        if (o && o.order_number) {
+          if (!map.has(String(o.order_number))) {
+            map.set(String(o.order_number), o);
+          } else {
+            map.set(String(o.order_number), { ...map.get(String(o.order_number))!, ...o });
+          }
+        }
       });
 
       const merged = Array.from(map.values()).sort((a, b) => {
@@ -236,7 +251,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       } catch {}
 
       // Background sync unsaved local orders to server DB
-      const unsyncedLocals = localOrders.filter(lo => lo && lo.order_number && !serverOrders.some(so => so.order_number === lo.order_number));
+      const unsyncedLocals = merged.filter(m => m && m.order_number && !serverOrders.some(so => so.order_number === m.order_number));
       if (unsyncedLocals.length > 0) {
         fetch('/api/orders/sync', {
           method: 'POST',
@@ -381,11 +396,21 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       };
     }
 
-    // Save to local storage & state without overwriting existing orders
-    const updatedLocal = [createdOrder, ...existingLocal.filter(o => o.order_number !== createdOrder!.order_number)];
-    setOrders(updatedLocal);
+    // Save to local storage & state without overwriting ANY existing orders
+    const allMap = new Map<string, Order>();
+    orders.forEach(o => { if (o && o.order_number) allMap.set(String(o.order_number), o); });
+    existingLocal.forEach(o => { if (o && o.order_number) allMap.set(String(o.order_number), o); });
+    allMap.set(String(createdOrder.order_number), createdOrder);
+
+    const updatedMerged = Array.from(allMap.values()).sort((a, b) => {
+      const numA = parseInt(String(a.order_number || '').replace(/\D/g, ''), 10) || 0;
+      const numB = parseInt(String(b.order_number || '').replace(/\D/g, ''), 10) || 0;
+      return numB - numA;
+    });
+
+    setOrders(updatedMerged);
     try {
-      localStorage.setItem('unex_placed_orders', JSON.stringify(updatedLocal));
+      localStorage.setItem('unex_placed_orders', JSON.stringify(updatedMerged));
     } catch {}
 
     // Auto-sync to Google Sheets Webhook (24/7 background sync without OAuth token expiry)
@@ -411,7 +436,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           subtotal: createdOrder.subtotal_amount !== undefined ? createdOrder.subtotal_amount : 0,
           total_amount: createdOrder.total_amount || 0,
           payment_method: createdOrder.payment_method === 'cod' ? 'ক্যাশ অন ডেলিভারি (Cash on Delivery)' : createdOrder.payment_method,
-          payment_details: createdOrder.payment_details || 'N/A',
+          payment_details: (createdOrder as any).payment_details || createdOrder.payment_method || 'N/A',
           payment_status: createdOrder.payment_status || 'Pending',
           status: createdOrder.status || 'Pending'
         };
@@ -481,7 +506,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const res = await fetch('/api/products');
       if (res.ok) {
         const data = await res.json();
-        if (data.products) {
+        if (Array.isArray(data.products) && data.products.length > 0) {
           const currentCats = categories.length > 0 ? categories : INITIAL_CATEGORIES;
           const enriched = data.products.map((p: Product) => {
             const matchedCat = currentCats.find(c => c.id === p.category_id);
@@ -491,6 +516,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             };
           });
           setProducts(enriched);
+          try {
+            localStorage.setItem('unex_products', JSON.stringify(enriched));
+          } catch {}
         }
       }
     } catch (e) {
@@ -503,7 +531,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const res = await fetch('/api/categories');
       if (res.ok) {
         const data = await res.json();
-        if (data.categories) setCategories(data.categories);
+        if (Array.isArray(data.categories) && data.categories.length > 0) {
+          setCategories(data.categories);
+          try {
+            localStorage.setItem('unex_categories', JSON.stringify(data.categories));
+          } catch {}
+        }
       }
     } catch (e) {
       console.warn('API connection falling back to local state:', e);
@@ -875,7 +908,69 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       return updated;
     });
     fetch(`/api/categories/${id}`, { method: 'DELETE' }).catch(() => {});
+    fetch('/api/categories', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'delete', id })
+    }).catch(() => {});
     showToast('ক্যাটাগরি মুছে ফেলা হয়েছে');
+  };
+
+  // Google Sheets Inventory 2-Way Synchronization Handlers
+  const syncInventoryFromSheet = async (webhookUrl?: string): Promise<{ success: boolean; message: string; count?: number }> => {
+    try {
+      const url = webhookUrl || settings.google_sheet_webhook_url || INITIAL_SETTINGS.google_sheet_webhook_url;
+      if (!url) {
+        return { success: false, message: 'Google Sheet Webhook URL পাওয়া যায়নি।' };
+      }
+
+      const res = await fetch(`/api/inventory/pull-from-sheet?webhook_url=${encodeURIComponent(url)}`);
+      const data = await res.json();
+      if (res.ok && data.success) {
+        if (Array.isArray(data.products) && data.products.length > 0) {
+          setProducts(data.products);
+          try {
+            localStorage.setItem('unex_products', JSON.stringify(data.products));
+          } catch {}
+        }
+        if (Array.isArray(data.categories) && data.categories.length > 0) {
+          setCategories(data.categories);
+          try {
+            localStorage.setItem('unex_categories', JSON.stringify(data.categories));
+          } catch {}
+        }
+        showToast(data.message || 'গুগল শিট থেকে সফলভাবে ইনভেন্টরি সিঙ্ক হয়েছে!');
+        return { success: true, message: data.message, count: data.products_count };
+      } else {
+        return { success: false, message: data.message || 'সিঙ্ক ব্যর্থ হয়েছে।' };
+      }
+    } catch (e: any) {
+      return { success: false, message: e.message || 'সার্ভার সংযোগ সমস্যা।' };
+    }
+  };
+
+  const pushCatalogToSheet = async (webhookUrl?: string): Promise<{ success: boolean; message: string }> => {
+    try {
+      const url = webhookUrl || settings.google_sheet_webhook_url || INITIAL_SETTINGS.google_sheet_webhook_url;
+      if (!url) {
+        return { success: false, message: 'Google Sheet Webhook URL পাওয়া যায়নি।' };
+      }
+
+      const res = await fetch('/api/inventory/push-to-sheet', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ webhook_url: url })
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        showToast(data.message || 'গুগল শিটে সম্পূর্ণ ক্যাটালগ এক্সপোর্ট হয়েছে!');
+        return { success: true, message: data.message };
+      } else {
+        return { success: false, message: data.message || 'ক্যাটালগ এক্সপোর্ট ব্যর্থ হয়েছে।' };
+      }
+    } catch (e: any) {
+      return { success: false, message: e.message || 'সার্ভার সংযোগ সমস্যা।' };
+    }
   };
 
   const toggleWishlist = (productId: number) => {
@@ -948,7 +1043,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       deleteCoupon,
       addCategory,
       updateCategory,
-      deleteCategory
+      deleteCategory,
+      syncInventoryFromSheet,
+      pushCatalogToSheet
     }}>
       {children}
     </AppContext.Provider>

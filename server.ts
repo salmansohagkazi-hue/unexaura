@@ -20,6 +20,16 @@ if (!fs.existsSync(DATA_DIR)) {
 }
 const ORDERS_FILE_PATH = path.join(DATA_DIR, 'orders_db.json');
 const BACKUP_ORDERS_FILE_PATH = path.join(process.cwd(), 'public', 'orders_backup.json');
+const PERSISTED_ORDERS_FILE_PATH = path.join(process.cwd(), 'src', 'data', 'persisted_orders.json');
+
+const PRODUCTS_FILE_PATH = path.join(DATA_DIR, 'products_db.json');
+const BACKUP_PRODUCTS_FILE_PATH = path.join(process.cwd(), 'public', 'products_backup.json');
+
+const CATEGORIES_FILE_PATH = path.join(DATA_DIR, 'categories_db.json');
+const BACKUP_CATEGORIES_FILE_PATH = path.join(process.cwd(), 'public', 'categories_backup.json');
+
+const SETTINGS_FILE_PATH = path.join(DATA_DIR, 'settings_db.json');
+const BACKUP_SETTINGS_FILE_PATH = path.join(process.cwd(), 'public', 'settings_backup.json');
 
 // Initial default orders
 const INITIAL_ORDERS: any[] = [
@@ -103,60 +113,76 @@ const INITIAL_ORDERS: any[] = [
   }
 ];
 
-// Helper to load orders from disk with fallback & merge
+// Helper to load orders from disk with multi-tier fallback & merge
 function loadOrders(): any[] {
-  let loadedOrders: any[] = [];
-  try {
-    if (fs.existsSync(ORDERS_FILE_PATH)) {
-      const content = fs.readFileSync(ORDERS_FILE_PATH, 'utf-8');
-      const parsed = JSON.parse(content);
-      if (Array.isArray(parsed) && parsed.length > 0) {
-        loadedOrders = parsed;
-      }
-    }
-  } catch (e) {
-    console.error('Failed to load orders from orders_db.json:', e);
-  }
+  const map = new Map<string, any>();
 
-  // Also check secondary backup file
-  try {
-    if (fs.existsSync(BACKUP_ORDERS_FILE_PATH)) {
-      const content = fs.readFileSync(BACKUP_ORDERS_FILE_PATH, 'utf-8');
-      const parsed = JSON.parse(content);
-      if (Array.isArray(parsed) && parsed.length > 0) {
-        // Merge backup with loaded
-        const map = new Map<string, any>();
-        loadedOrders.forEach(o => { if (o && o.order_number) map.set(String(o.order_number), o); });
-        parsed.forEach(o => { if (o && o.order_number && !map.has(String(o.order_number))) map.set(String(o.order_number), o); });
-        loadedOrders = Array.from(map.values());
+  const tryLoadFile = (filePath: string, label: string) => {
+    try {
+      if (fs.existsSync(filePath)) {
+        const content = fs.readFileSync(filePath, 'utf-8');
+        const parsed = JSON.parse(content);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          parsed.forEach(o => {
+            if (o && o.order_number) {
+              if (!map.has(String(o.order_number))) {
+                map.set(String(o.order_number), o);
+              } else {
+                // Merge retaining any populated fields
+                map.set(String(o.order_number), { ...map.get(String(o.order_number)), ...o });
+              }
+            }
+          });
+        }
       }
+    } catch (e: any) {
+      console.warn(`Failed to read orders from ${label}:`, e.message);
     }
-  } catch (e) {
-    console.error('Failed to load from backup orders:', e);
-  }
+  };
+
+  // 1. Check primary persistent file in src/data
+  tryLoadFile(PERSISTED_ORDERS_FILE_PATH, 'src/data/persisted_orders.json');
+  // 2. Check public backup file
+  tryLoadFile(BACKUP_ORDERS_FILE_PATH, 'public/orders_backup.json');
+  // 3. Check .data database file
+  tryLoadFile(ORDERS_FILE_PATH, '.data/orders_db.json');
+
+  let loadedOrders = Array.from(map.values());
 
   if (loadedOrders.length === 0) {
-    loadedOrders = [...INITIAL_ORDERS];
-    try {
-      fs.writeFileSync(ORDERS_FILE_PATH, JSON.stringify(loadedOrders, null, 2), 'utf-8');
-      fs.writeFileSync(BACKUP_ORDERS_FILE_PATH, JSON.stringify(loadedOrders, null, 2), 'utf-8');
-    } catch {}
+    INITIAL_ORDERS.forEach(o => map.set(String(o.order_number), o));
+    loadedOrders = Array.from(map.values());
   }
+
+  // Sort newest first
+  loadedOrders.sort((a, b) => {
+    const numA = parseInt(String(a.order_number || '').replace(/\D/g, ''), 10) || 0;
+    const numB = parseInt(String(b.order_number || '').replace(/\D/g, ''), 10) || 0;
+    return numB - numA;
+  });
 
   return loadedOrders;
 }
 
-// Helper to save orders to disk with dual-file resilience
+// Helper to save orders to disk across all 3 tiers
 function saveOrders(ordersList: any[]) {
+  if (!Array.isArray(ordersList)) return;
+  const json = JSON.stringify(ordersList, null, 2);
+
   try {
-    fs.writeFileSync(ORDERS_FILE_PATH, JSON.stringify(ordersList, null, 2), 'utf-8');
-  } catch (e) {
-    console.error('Failed to save orders to orders_db.json:', e);
+    fs.writeFileSync(ORDERS_FILE_PATH, json, 'utf-8');
+  } catch (e: any) {
+    console.error('Failed to save orders to orders_db.json:', e.message);
   }
   try {
-    fs.writeFileSync(BACKUP_ORDERS_FILE_PATH, JSON.stringify(ordersList, null, 2), 'utf-8');
-  } catch (e) {
-    console.error('Failed to save orders to backup file:', e);
+    fs.writeFileSync(BACKUP_ORDERS_FILE_PATH, json, 'utf-8');
+  } catch (e: any) {
+    console.error('Failed to save orders to backup file:', e.message);
+  }
+  try {
+    fs.writeFileSync(PERSISTED_ORDERS_FILE_PATH, json, 'utf-8');
+  } catch (e: any) {
+    console.error('Failed to save orders to persisted file:', e.message);
   }
 }
 
@@ -181,10 +207,86 @@ function generateNextOrderNumber(ordersList: any[], clientMaxSerial: number = 0)
   return `UA-${nextVal}`;
 }
 
+// Helper functions to load & save products
+function loadProducts(): any[] {
+  try {
+    if (fs.existsSync(PRODUCTS_FILE_PATH)) {
+      const data = JSON.parse(fs.readFileSync(PRODUCTS_FILE_PATH, 'utf-8'));
+      if (Array.isArray(data) && data.length > 0) return data;
+    }
+  } catch (e: any) {
+    console.warn('Failed to load products from .data/products_db.json:', e.message);
+  }
+  try {
+    if (fs.existsSync(BACKUP_PRODUCTS_FILE_PATH)) {
+      const data = JSON.parse(fs.readFileSync(BACKUP_PRODUCTS_FILE_PATH, 'utf-8'));
+      if (Array.isArray(data) && data.length > 0) return data;
+    }
+  } catch {}
+  return [...INITIAL_PRODUCTS];
+}
+
+function saveProducts(list: any[]) {
+  if (!Array.isArray(list)) return;
+  const json = JSON.stringify(list, null, 2);
+  try { fs.writeFileSync(PRODUCTS_FILE_PATH, json, 'utf-8'); } catch (e: any) { console.error('Error writing products_db.json:', e.message); }
+  try { fs.writeFileSync(BACKUP_PRODUCTS_FILE_PATH, json, 'utf-8'); } catch (e: any) { console.error('Error writing backup products:', e.message); }
+}
+
+// Helper functions to load & save categories
+function loadCategories(): any[] {
+  try {
+    if (fs.existsSync(CATEGORIES_FILE_PATH)) {
+      const data = JSON.parse(fs.readFileSync(CATEGORIES_FILE_PATH, 'utf-8'));
+      if (Array.isArray(data) && data.length > 0) return data;
+    }
+  } catch (e: any) {
+    console.warn('Failed to load categories from .data/categories_db.json:', e.message);
+  }
+  try {
+    if (fs.existsSync(BACKUP_CATEGORIES_FILE_PATH)) {
+      const data = JSON.parse(fs.readFileSync(BACKUP_CATEGORIES_FILE_PATH, 'utf-8'));
+      if (Array.isArray(data) && data.length > 0) return data;
+    }
+  } catch {}
+  return [...INITIAL_CATEGORIES];
+}
+
+function saveCategories(list: any[]) {
+  if (!Array.isArray(list)) return;
+  const json = JSON.stringify(list, null, 2);
+  try { fs.writeFileSync(CATEGORIES_FILE_PATH, json, 'utf-8'); } catch (e: any) { console.error('Error writing categories_db.json:', e.message); }
+  try { fs.writeFileSync(BACKUP_CATEGORIES_FILE_PATH, json, 'utf-8'); } catch (e: any) { console.error('Error writing backup categories:', e.message); }
+}
+
+// Helper functions to load & save settings
+function loadSettings(): any {
+  try {
+    if (fs.existsSync(SETTINGS_FILE_PATH)) {
+      const data = JSON.parse(fs.readFileSync(SETTINGS_FILE_PATH, 'utf-8'));
+      if (data && typeof data === 'object') return { ...INITIAL_SETTINGS, ...data };
+    }
+  } catch {}
+  try {
+    if (fs.existsSync(BACKUP_SETTINGS_FILE_PATH)) {
+      const data = JSON.parse(fs.readFileSync(BACKUP_SETTINGS_FILE_PATH, 'utf-8'));
+      if (data && typeof data === 'object') return { ...INITIAL_SETTINGS, ...data };
+    }
+  } catch {}
+  return { ...INITIAL_SETTINGS };
+}
+
+function saveSettings(obj: any) {
+  if (!obj || typeof obj !== 'object') return;
+  const json = JSON.stringify(obj, null, 2);
+  try { fs.writeFileSync(SETTINGS_FILE_PATH, json, 'utf-8'); } catch {}
+  try { fs.writeFileSync(BACKUP_SETTINGS_FILE_PATH, json, 'utf-8'); } catch {}
+}
+
 // In-memory data store initialized with defaults & file persistence
-let products = [...INITIAL_PRODUCTS];
-let categories = [...INITIAL_CATEGORIES];
-let settings = { ...INITIAL_SETTINGS };
+let products = loadProducts();
+let categories = loadCategories();
+let settings = loadSettings();
 let orders: any[] = loadOrders();
 
 // Delivery charge calculator function matching includes/delivery.php
@@ -328,6 +430,7 @@ app.post('/api/products', (req, res) => {
         image_url: image_url || products[index].image_url,
         placements: placements !== undefined ? placements : products[index].placements,
       };
+      saveProducts(products);
       return res.json({ success: true, message: 'Product updated successfully', product: products[index] });
     }
   }
@@ -362,6 +465,7 @@ app.post('/api/products', (req, res) => {
   };
 
   products.push(newProduct);
+  saveProducts(products);
   res.json({ success: true, message: 'Product created successfully', product: newProduct });
 });
 
@@ -369,6 +473,7 @@ app.post('/api/products', (req, res) => {
 app.delete('/api/products/:id', (req, res) => {
   const id = Number(req.params.id);
   products = products.filter(p => p.id !== id);
+  saveProducts(products);
   res.json({ success: true, message: 'Product deleted' });
 });
 
@@ -395,6 +500,7 @@ app.post('/api/categories', (req, res) => {
       });
     }
     categories = categories.filter(c => c.id !== Number(id));
+    saveCategories(categories);
     return res.json({ success: true, message: 'Category deleted successfully' });
   }
 
@@ -409,6 +515,7 @@ app.post('/api/categories', (req, res) => {
         icon: icon || categories[idx].icon,
         sort_order: Number(sort_order) || categories[idx].sort_order
       };
+      saveCategories(categories);
       return res.json({ success: true, message: 'Category updated', category: categories[idx] });
     }
   }
@@ -423,7 +530,23 @@ app.post('/api/categories', (req, res) => {
     sort_order: Number(sort_order) || categories.length + 1
   };
   categories.push(newCat);
+  saveCategories(categories);
   res.json({ success: true, message: 'New category created successfully', category: newCat });
+});
+
+// DELETE Category
+app.delete('/api/categories/:id', (req, res) => {
+  const id = Number(req.params.id);
+  const productsInCat = products.filter(p => p.category_id === id);
+  if (productsInCat.length > 0) {
+    return res.status(400).json({
+      success: false,
+      message: `এই ক্যাটাগরিতে ${productsInCat.length}টি প্রোডাক্ট রয়েছে। ক্যাটাগরি মোছার আগে প্রোডাক্টগুলোকে অন্য ক্যাটাগরিতে স্থানান্তর করুন।`
+    });
+  }
+  categories = categories.filter(c => c.id !== id);
+  saveCategories(categories);
+  res.json({ success: true, message: 'Category deleted successfully' });
 });
 
 // POST Delivery Charge Calculation
@@ -453,6 +576,7 @@ app.get('/api/settings', (req, res) => {
 
 app.post('/api/settings', (req, res) => {
   settings = { ...settings, ...req.body };
+  saveSettings(settings);
   res.json({ success: true, message: 'Settings saved successfully', settings });
 });
 
@@ -750,6 +874,7 @@ app.post('/api/orders', (req, res) => {
       products[prodIndex].stock = Math.max(0, currentStock - Number(item.quantity || 1));
     }
   });
+  saveProducts(products);
 
   res.json({
     success: true,
@@ -898,6 +1023,212 @@ app.post('/api/orders/sync', (req, res) => {
   }
 
   res.json({ success: true, count: orders.length, orders });
+});
+
+// GET Pull and sync orders from Google Sheet Webhook
+app.get('/api/orders/pull-from-sheet', async (req, res) => {
+  try {
+    const webhook = (req.query.webhook_url as string) || settings.google_sheet_webhook_url || INITIAL_SETTINGS.google_sheet_webhook_url;
+    if (!webhook) {
+      return res.status(400).json({ success: false, message: 'Google Sheet Webhook URL পাওয়া যায়নি' });
+    }
+
+    const response = await fetch(webhook, { redirect: 'follow' });
+    const text = await response.text();
+    let data: any;
+    try {
+      data = JSON.parse(text);
+    } catch {
+      return res.status(400).json({
+        success: false,
+        message: 'Google Apps Script এ doGet পাওয়া যায়নি বা শিটটি এখনও doGet রেসপন্স প্রদান করছে না।'
+      });
+    }
+
+    if (data && Array.isArray(data.orders)) {
+      orders = loadOrders();
+      const map = new Map();
+      orders.forEach(o => { if (o && o.order_number) map.set(String(o.order_number), o); });
+      let added = 0;
+      data.orders.forEach((o: any) => {
+        if (o && o.order_number && !map.has(String(o.order_number))) {
+          orders.push(o);
+          map.set(String(o.order_number), o);
+          added++;
+        }
+      });
+
+      if (added > 0) {
+        orders.sort((a, b) => {
+          const numA = parseInt(String(a.order_number || '').replace(/\D/g, ''), 10) || 0;
+          const numB = parseInt(String(b.order_number || '').replace(/\D/g, ''), 10) || 0;
+          return numB - numA;
+        });
+        saveOrders(orders);
+      }
+
+      return res.json({ success: true, count: orders.length, imported: added, orders });
+    }
+
+    return res.status(400).json({ success: false, message: 'Google Sheet থেকে কোনো অর্ডার ডাটা পাওয়া যায়নি।' });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// POST Push all products & categories catalog to Google Sheet
+app.post('/api/inventory/push-to-sheet', async (req, res) => {
+  try {
+    const webhook = (req.body && req.body.webhook_url) || settings.google_sheet_webhook_url || INITIAL_SETTINGS.google_sheet_webhook_url;
+    if (!webhook) {
+      return res.status(400).json({ success: false, message: 'Google Sheet Webhook URL পাওয়া যায়নি।' });
+    }
+
+    products = loadProducts();
+    categories = loadCategories();
+
+    const payload = {
+      action: 'sync_catalog',
+      timestamp: new Date().toISOString(),
+      products: products,
+      categories: categories
+    };
+
+    const response = await fetch(webhook, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+      redirect: 'follow'
+    });
+
+    const text = await response.text();
+    let data: any = {};
+    try {
+      data = JSON.parse(text);
+    } catch {
+      data = { raw: text };
+    }
+
+    return res.json({
+      success: true,
+      message: 'গুগল শিটে সম্পূর্ণ ক্যাটালগ সফলভাবে এক্সপোর্ট হয়েছে!',
+      products_count: products.length,
+      categories_count: categories.length,
+      sheet_response: data
+    });
+  } catch (err: any) {
+    console.error('Error pushing catalog to sheet:', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// GET / POST Pull and sync products & inventory from Google Sheet Webhook
+app.all('/api/inventory/pull-from-sheet', async (req, res) => {
+  try {
+    const webhook = (req.query.webhook_url as string) || (req.body && req.body.webhook_url) || settings.google_sheet_webhook_url || INITIAL_SETTINGS.google_sheet_webhook_url;
+    if (!webhook) {
+      return res.status(400).json({ success: false, message: 'Google Sheet Webhook URL পাওয়া যায়নি।' });
+    }
+
+    const separator = webhook.includes('?') ? '&' : '?';
+    const fetchUrl = `${webhook}${separator}action=get_products&t=${Date.now()}`;
+    const response = await fetch(fetchUrl, { redirect: 'follow' });
+    const text = await response.text();
+    let data: any;
+    try {
+      data = JSON.parse(text);
+    } catch {
+      return res.status(400).json({
+        success: false,
+        message: 'Google Apps Script থেকে সঠিক JSON রেসপন্স পাওয়া যায়নি। অনুগ্রহ করে Apps Script কোডটি আপডেট করে Web App রি-ডিপ্লয় করুন।'
+      });
+    }
+
+    let updatedProductsCount = 0;
+    if (data && Array.isArray(data.products) && data.products.length > 0) {
+      products = loadProducts();
+      data.products.forEach((sp: any) => {
+        const prodId = Number(sp.id);
+        const existingIdx = products.findIndex(p => p.id === prodId || (sp.name && p.name.trim().toLowerCase() === sp.name.trim().toLowerCase()));
+        if (existingIdx !== -1) {
+          if (sp.stock !== undefined && sp.stock !== null) products[existingIdx].stock = Number(sp.stock);
+          if (sp.price) products[existingIdx].price = Number(sp.price);
+          if (sp.old_price) products[existingIdx].old_price = Number(sp.old_price);
+          if (sp.name) products[existingIdx].name = sp.name;
+          if (sp.size_dimensions) products[existingIdx].size_dimensions = sp.size_dimensions;
+          if (sp.image_url) products[existingIdx].image_url = sp.image_url;
+          if (sp.badge) products[existingIdx].badge = sp.badge;
+          updatedProductsCount++;
+        } else if (sp.name) {
+          const newId = prodId || (Math.max(0, ...products.map(p => p.id)) + 1);
+          products.push({
+            id: newId,
+            name: sp.name,
+            slug: sp.slug || sp.name.toLowerCase().replace(/[^a-z0-9]+/g, '-'),
+            category_id: Number(sp.category_id) || 1,
+            category_name: sp.category_name || 'Islamic Metal Wall Art',
+            price: Number(sp.price) || 0,
+            old_price: sp.old_price ? Number(sp.old_price) : undefined,
+            stock: Number(sp.stock || 0),
+            size_dimensions: sp.size_dimensions || '80cm × 40cm × 2mm',
+            material: sp.material || 'Surgical Stainless Steel',
+            weight_grams: Number(sp.weight_grams || 1500),
+            badge: sp.badge || 'NEW',
+            image_url: sp.image_url || 'https://images.unsplash.com/photo-1513519245088-0e12902e5a38?auto=format&fit=crop&w=1000&q=80',
+            description: sp.description || sp.bangla_short_desc || '',
+            bangla_short_desc: sp.bangla_short_desc || sp.description || '',
+            qualities: [
+              '১০০% খাঁটি সার্জিক্যাল স্টেইনলেস স্টিল - মরিচা পড়া বা রঙ চটে যাওয়ার কোনো সম্ভাবনা নেই।',
+              'প্রিসিশন ফাইবার লেজার কাটিং - প্রতিটি হরফ ও ডিজাইন অত্যন্ত নিখুঁত ও মসৃণ।',
+              '৩ডি ফ্লোটিং শ্যাডো লুক - দেয়াল থেকে ১ ইঞ্চি সামনে ভেসে থাকে যা দৃষ্টিনন্দন ছায়া তৈরি করে।'
+            ],
+            featured: true,
+            rating: 5.0,
+            review_count: 1,
+            placements: [],
+            sizes: [],
+            created_at: new Date().toISOString().split('T')[0]
+          });
+          updatedProductsCount++;
+        }
+      });
+
+      saveProducts(products);
+    }
+
+    if (data && Array.isArray(data.categories) && data.categories.length > 0) {
+      categories = loadCategories();
+      data.categories.forEach((sc: any) => {
+        const catId = Number(sc.id);
+        const existingCatIdx = categories.findIndex(c => c.id === catId || (sc.name && c.name.trim().toLowerCase() === sc.name.trim().toLowerCase()));
+        if (existingCatIdx !== -1) {
+          if (sc.name) categories[existingCatIdx].name = sc.name;
+          if (sc.icon) categories[existingCatIdx].icon = sc.icon;
+        } else if (sc.name) {
+          categories.push({
+            id: catId || (Math.max(0, ...categories.map(c => c.id)) + 1),
+            name: sc.name,
+            slug: sc.slug || sc.name.toLowerCase().replace(/[^a-z0-9]+/g, '-'),
+            icon: sc.icon || '✨',
+            sort_order: Number(sc.sort_order) || categories.length + 1
+          });
+        }
+      });
+      saveCategories(categories);
+    }
+
+    return res.json({
+      success: true,
+      message: `গুগল শিট থেকে ${updatedProductsCount} টি প্রোডাক্টের ইনভেন্টরি সফলভাবে সিঙ্ক হয়েছে!`,
+      products_count: products.length,
+      categories_count: categories.length,
+      products,
+      categories
+    });
+  } catch (err: any) {
+    console.error('Error pulling inventory from sheet:', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
 });
 
 // GET Orders

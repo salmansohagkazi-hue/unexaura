@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useApp } from '../context/AppContext';
 import { ProductCard } from '../components/ProductCard';
+import { CategoryCarousel } from '../components/CategoryCarousel';
+import { QuickOrderModal } from '../components/QuickOrderModal';
 import { Product } from '../types';
 import { useSEO } from '../hooks/useSEO';
 import { INITIAL_TESTIMONIALS } from '../data/mockData';
@@ -26,15 +28,17 @@ import {
   Edit3,
   ShoppingBag,
   Copy,
-  Check
+  Check,
+  Zap
 } from 'lucide-react';
 
 interface HomePageProps {
   onNavigate: (page: string, params?: any) => void;
   onOpenWallModal: (p: Product) => void;
+  onQuickOrder?: (p: Product) => void;
 }
 
-export const HomePage: React.FC<HomePageProps> = ({ onNavigate, onOpenWallModal }) => {
+export const HomePage: React.FC<HomePageProps> = ({ onNavigate, onOpenWallModal, onQuickOrder }) => {
   const { products, categories, formatPrice, addToCart, settings } = useApp();
   const [copyFeedback, setCopyFeedback] = useState<string | null>(null);
 
@@ -346,230 +350,53 @@ export const HomePage: React.FC<HomePageProps> = ({ onNavigate, onOpenWallModal 
         </div>
       </section>
 
-      {/* 3. CATEGORY GRID */}
+      {/* 3. COMPACT 3D AUTO-SWIPING CATEGORY CAROUSEL */}
       <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex items-end justify-between mb-8">
+        <div className="flex items-center justify-between mb-4">
           <div>
-            <h2 className="text-2xl sm:text-3xl font-extrabold text-[#0f3d44]">
-              Explore Design Categories
-            </h2>
-            <p className="text-sm text-slate-500 mt-1">
-              Curated laser-cut wall art tailored for every living space
+            <div className="flex items-center gap-2">
+              <span className="w-2 h-2 rounded-full bg-teal-500 animate-ping"></span>
+              <h2 className="text-lg sm:text-2xl font-black text-[#0f3d44]">
+                ক্যাটাগরি কালেকশন
+              </h2>
+            </div>
+            <p className="text-xs text-slate-500 mt-0.5">
+              পছন্দের ক্যাটাগরি বেছে নিন এবং সরাসরি আকর্ষণীয় ডিজাইনগুলো দেখুন
             </p>
           </div>
 
           <button
             onClick={() => onNavigate('shop')}
-            className="text-xs font-bold text-[#4f46e5] hover:text-[#9333ea] flex items-center gap-1 cursor-pointer"
+            className="text-xs font-bold text-teal-700 hover:text-teal-900 bg-teal-50 hover:bg-teal-100/80 px-3 py-1.5 rounded-xl border border-teal-200/80 flex items-center gap-1 cursor-pointer transition-all"
           >
-            <span>View All Categories</span>
-            <ArrowRight className="w-4 h-4" />
+            <span>সব দেখুন</span>
+            <ArrowRight className="w-3.5 h-3.5" />
           </button>
         </div>
 
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
-          {categories.map((cat) => (
-            <div
-              key={cat.id}
-              onClick={() => onNavigate('shop', { cat: cat.id })}
-              className="group bg-white p-3.5 sm:p-4 rounded-2xl border border-slate-200/80 hover:border-indigo-400 hover:shadow-lg hover:shadow-indigo-500/10 transition-all cursor-pointer flex flex-col items-center text-center space-y-2.5 relative"
-            >
-              {/* Quick Copy Link Button on Hover */}
-              <button
-                type="button"
-                onClick={(e) => handleCopyCategoryLink(cat.id, cat.name, e)}
-                title={`"${cat.name}" ক্যাটাগরির লিংক কপি করুন`}
-                className="absolute top-2 right-2 p-1.5 rounded-full bg-white/90 shadow-sm border border-slate-200 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 opacity-0 group-hover:opacity-100 transition-all cursor-pointer z-10"
-              >
-                <Copy className="w-3.5 h-3.5" />
-              </button>
-
-              <div className="w-full aspect-square rounded-xl bg-slate-50 border border-slate-100 p-2 overflow-hidden flex items-center justify-center group-hover:scale-[1.03] transition-transform">
-                {cat.image_url ? (
-                  <img
-                    src={cat.image_url}
-                    alt={cat.name}
-                    referrerPolicy="no-referrer"
-                    onError={(e) => {
-                      (e.target as HTMLImageElement).style.display = 'none';
-                      const parent = (e.target as HTMLElement).parentElement;
-                      if (parent && !parent.querySelector('.fallback-icon')) {
-                        const span = document.createElement('span');
-                        span.className = 'fallback-icon text-3xl';
-                        span.textContent = cat.icon || '🕌';
-                        parent.appendChild(span);
-                      }
-                    }}
-                    className="w-full h-full object-contain drop-shadow-sm rounded-lg"
-                  />
-                ) : (
-                  <span className="text-3xl">{cat.icon}</span>
-                )}
-              </div>
-              <h3 className="font-bold text-xs sm:text-sm text-[#0f3d44] group-hover:text-[#4f46e5] line-clamp-1">
-                {cat.name}
-              </h3>
-              <span className="text-[11px] text-slate-400 font-medium">
-                {products.filter(p => p.category_id === cat.id).length} Designs
-              </span>
-            </div>
-          ))}
-
-          <div className="bg-slate-50/60 p-4 rounded-2xl border-2 border-dashed border-slate-300 flex flex-col items-center justify-center text-center space-y-2 text-slate-400 min-h-[140px]">
-            <div className="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center text-xl">
-              ✨
-            </div>
-            <h3 className="font-bold text-xs text-slate-500">More Coming Soon</h3>
-            <span className="text-[10px] text-slate-400">Admin auto-synced</span>
-          </div>
+        {/* 3D Side Carousel with Center Zoom & Side Previews - Compact Layout */}
+        <div className="bg-slate-50/80 p-1 sm:p-2.5 rounded-2xl border border-slate-200/80 shadow-2xs">
+          <CategoryCarousel
+            categories={categories}
+            productCountMap={categories.reduce((acc, cat) => {
+              acc[cat.id] = products.filter(p => p.category_id === cat.id).length;
+              return acc;
+            }, {} as Record<number, number>)}
+            onSelectCategory={(catId) => onNavigate('shop', { cat: catId })}
+            onViewAll={() => onNavigate('shop')}
+          />
         </div>
-
-        {/* TOAST FEEDBACK NOTIFICATION */}
-        {copyFeedback && (
-          <div className="fixed bottom-6 right-6 z-50 bg-slate-900 text-white px-4 py-3 rounded-2xl shadow-2xl border border-teal-500/40 flex items-center gap-2.5 animate-bounce">
-            <div className="w-6 h-6 rounded-full bg-teal-500 text-slate-950 flex items-center justify-center font-bold text-xs">
-              <Check className="w-3.5 h-3.5" />
-            </div>
-            <div className="text-xs">
-              <p className="font-bold text-teal-300">লিংক কপি সফল হয়েছে!</p>
-              <p className="text-slate-300 text-[11px]">"{copyFeedback}" ক্যাটাগরির ডিরেক্ট লিংক কপি করা হয়েছে।</p>
-            </div>
-          </div>
-        )}
       </section>
 
-      {/* 4. DEAL OF THE DAY (FULL PROPORTIONAL SPOTLIGHT SHOWCASE) */}
-      {dealProduct && (
-        <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="bg-gradient-to-br from-slate-900 via-[#0f3d44] to-slate-950 rounded-2xl sm:rounded-3xl border border-teal-500/30 text-white shadow-2xl p-4 sm:p-8 relative overflow-hidden">
-            {/* Ambient background glow */}
-            <div className="absolute -top-24 -right-24 w-72 h-72 bg-teal-500/20 rounded-full blur-3xl pointer-events-none"></div>
-
-            <div className="grid grid-cols-1 md:grid-cols-12 gap-6 sm:gap-8 items-center relative z-10">
-              {/* Product Image Area - Same high quality aspect-4/3 as standard product cards */}
-              <div
-                onClick={() => onNavigate('product', { slug: dealProduct.slug })}
-                className="md:col-span-6 relative w-full aspect-4/3 rounded-2xl overflow-hidden border-2 border-white/20 bg-slate-800 shadow-xl group/deal cursor-pointer"
-              >
-                <img
-                  src={dealProduct.image_url}
-                  alt={dealProduct.name}
-                  referrerPolicy="no-referrer"
-                  onError={(e) => {
-                    e.currentTarget.src = '/images/cat_islamic_combo_v2.jpg';
-                  }}
-                  className="w-full h-full object-cover group-hover/deal:scale-105 transition-transform duration-500"
-                />
-
-                {/* Discount Badge */}
-                <div className="absolute top-3 left-3 z-10 flex flex-col gap-1">
-                  <span className="text-xs sm:text-sm font-black text-white bg-gradient-to-r from-red-600 to-pink-600 px-3 py-1 rounded-full shadow-lg">
-                    SAVE {formatPrice((dealProduct.old_price || 9200) - dealProduct.price)}
-                  </span>
-                </div>
-
-                {/* Quick view overlay */}
-                <div className="absolute inset-0 bg-slate-950/40 opacity-0 group-hover/deal:opacity-100 transition-opacity flex items-center justify-center">
-                  <span className="bg-white/90 text-slate-900 font-extrabold text-xs px-4 py-2 rounded-full shadow-lg backdrop-blur-md flex items-center gap-1.5">
-                    <Eye className="w-4 h-4 text-teal-600" />
-                    <span>পণ্য দেখুন (Quick View)</span>
-                  </span>
-                </div>
-              </div>
-
-              {/* Product Details & Deal Info */}
-              <div className="md:col-span-6 space-y-3.5 sm:space-y-4 text-left">
-                {/* Header Row: Flame Badge + Countdown */}
-                <div className="flex flex-wrap items-center justify-between gap-2 border-b border-white/10 pb-3">
-                  <div className="inline-flex items-center gap-1.5 text-xs font-black text-red-400 bg-red-950/90 px-3 py-1 rounded-full border border-red-800/80">
-                    <Flame className="w-4 h-4 fill-red-400 animate-bounce" />
-                    <span>DAILY SPECIAL DEAL (আজকের স্পেশাল ডিল)</span>
-                  </div>
-
-                  <div className="inline-flex items-center gap-2 bg-slate-800/90 border border-white/15 px-3 py-1 rounded-xl text-xs font-mono font-bold text-teal-300">
-                    <Clock className="w-4 h-4 text-amber-400" />
-                    <span className="text-slate-300">Ends In:</span>
-                    <span>{String(timeLeft.hours).padStart(2, '0')}h:{String(timeLeft.minutes).padStart(2, '0')}m:{String(timeLeft.seconds).padStart(2, '0')}s</span>
-                  </div>
-                </div>
-
-                {/* Title */}
-                <h3
-                  onClick={() => onNavigate('product', { slug: dealProduct.slug })}
-                  className="text-lg sm:text-2xl font-black text-white hover:text-teal-300 transition-colors cursor-pointer leading-snug"
-                >
-                  {dealProduct.name}
-                </h3>
-
-                {/* Short Bangla Description */}
-                <p className="text-xs sm:text-sm text-slate-300 leading-relaxed">
-                  {dealProduct.bangla_short_desc || dealProduct.description}
-                </p>
-
-                {/* Highlights checklist */}
-                <div className="grid grid-cols-2 gap-2 text-[11px] sm:text-xs text-slate-300 py-1">
-                  <div className="flex items-center gap-1.5">
-                    <CheckCircle2 className="w-4 h-4 text-teal-400 shrink-0" />
-                    <span>সার্জিক্যাল মেটাল কাস্টিং</span>
-                  </div>
-                  <div className="flex items-center gap-1.5">
-                    <CheckCircle2 className="w-4 h-4 text-teal-400 shrink-0" />
-                    <span>১০০% মরিচারোধক টেকসই</span>
-                  </div>
-                  <div className="flex items-center gap-1.5">
-                    <CheckCircle2 className="w-4 h-4 text-teal-400 shrink-0" />
-                    <span>সহজে স্থাপনযোগ্য ডাবল সাইড টেপ</span>
-                  </div>
-                  <div className="flex items-center gap-1.5">
-                    <CheckCircle2 className="w-4 h-4 text-teal-400 shrink-0" />
-                    <span>ক্যাশ অন ডেলিভারি সুবিধা</span>
-                  </div>
-                </div>
-
-                {/* Price & Action Buttons */}
-                <div className="pt-3 border-t border-white/10 space-y-3">
-                  <div className="flex items-baseline gap-3">
-                    <span className="text-2xl sm:text-3xl font-black text-teal-300">
-                      {formatPrice(dealProduct.price)}
-                    </span>
-                    {dealProduct.old_price && (
-                      <span className="text-sm sm:text-base text-slate-400 line-through font-semibold">
-                        {formatPrice(dealProduct.old_price)}
-                      </span>
-                    )}
-                  </div>
-
-                  <div className="flex items-center gap-3">
-                    <button
-                      onClick={() => addToCart(dealProduct, 1)}
-                      className="flex-1 py-3 px-4 rounded-xl text-xs sm:text-sm font-extrabold text-white bg-gradient-to-r from-teal-500 via-indigo-600 to-pink-600 hover:opacity-95 shadow-lg transition-all cursor-pointer flex items-center justify-center gap-2"
-                    >
-                      <ShoppingBag className="w-4 h-4" />
-                      <span>Add To Cart Now</span>
-                    </button>
-                    <button
-                      onClick={() => onNavigate('product', { slug: dealProduct.slug })}
-                      className="py-3 px-4 rounded-xl text-xs sm:text-sm font-bold text-slate-200 bg-white/10 hover:bg-white/20 border border-white/20 transition-all cursor-pointer"
-                    >
-                      View Specs
-                    </button>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </section>
-      )}
-
-      {/* 5. FEATURED PRODUCTS GRID */}
+      {/* 4. DIRECT PRODUCTS COLLECTION RIGHT BENEATH CATEGORIES */}
       <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex items-end justify-between mb-8">
+        <div className="flex items-end justify-between mb-6">
           <div>
             <span className="text-xs font-bold uppercase tracking-wider text-teal-600 bg-teal-50 px-2.5 py-1 rounded-md border border-teal-100">
-              Handpicked Collections
+              Exclusive Wall Art Collection
             </span>
-            <h2 className="text-2xl sm:text-3xl font-extrabold text-[#0f3d44] mt-2">
-              Featured Wall Designs
+            <h2 className="text-xl sm:text-3xl font-extrabold text-[#0f3d44] mt-1.5">
+              সব আকর্ষণীয় ডিজাইন (Featured Wall Designs)
             </h2>
           </div>
 
@@ -582,13 +409,14 @@ export const HomePage: React.FC<HomePageProps> = ({ onNavigate, onOpenWallModal 
           </button>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-3 gap-3 sm:gap-6">
           {featuredProducts.map((p) => (
             <ProductCard
               key={p.id}
               product={p}
               onSelectProduct={(prod) => onNavigate('product', { slug: prod.slug })}
               onOpenWallModal={onOpenWallModal}
+              onQuickOrder={onQuickOrder}
             />
           ))}
         </div>
@@ -671,13 +499,14 @@ export const HomePage: React.FC<HomePageProps> = ({ onNavigate, onOpenWallModal 
           </button>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+        <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-6">
           {newArrivals.map((p) => (
             <ProductCard
               key={p.id}
               product={p}
               onSelectProduct={(prod) => onNavigate('product', { slug: prod.slug })}
               onOpenWallModal={onOpenWallModal}
+              onQuickOrder={onQuickOrder}
             />
           ))}
         </div>

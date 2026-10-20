@@ -178,6 +178,10 @@ export interface StoreSettings {
   google_sheet_url?: string;
   google_sheet_autosync_enabled?: boolean;
   google_sheet_webhook_url?: string;
+  meta_pixel_id?: string;
+  meta_capi_access_token?: string;
+  meta_capi_enabled?: boolean;
+  meta_test_event_code?: string;
 }
 
 export interface Review {

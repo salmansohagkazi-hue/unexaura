@@ -1,6 +1,7 @@
 import express from 'express';
 import path from 'path';
 import fs from 'fs';
+import crypto from 'crypto';
 import { createServer as createViteServer } from 'vite';
 import { INITIAL_PRODUCTS, INITIAL_CATEGORIES, INITIAL_SETTINGS, CURRENCIES } from './src/data/mockData.js';
 
@@ -749,9 +750,215 @@ async function sendGoogleSheetOrderWebhook(order: any, currentSettings: any) {
   }
 }
 
+// Meta Conversions API (CAPI) Helper
+function hashSha256(value: string): string | undefined {
+  if (!value || typeof value !== 'string') return undefined;
+  const cleaned = value.trim().toLowerCase();
+  if (!cleaned) return undefined;
+  return crypto.createHash('sha256').update(cleaned).digest('hex');
+}
+
+function cleanPhoneForMeta(rawPhone: string): string | undefined {
+  if (!rawPhone || typeof rawPhone !== 'string') return undefined;
+  // Keep only digits
+  let digits = rawPhone.replace(/\D/g, '');
+  if (!digits) return undefined;
+  // If Bangladesh local number (e.g. 017xxxxxxxx or 018xxxxxxxx), prefix with 88
+  if (digits.startsWith('01') && digits.length === 11) {
+    digits = '88' + digits;
+  }
+  return digits;
+}
+
+async function sendMetaConversionsEvent(eventName: string, eventData: {
+  order?: any;
+  user_name?: string;
+  user_email?: string;
+  user_phone?: string;
+  client_ip?: string;
+  client_user_agent?: string;
+  fbp?: string;
+  fbc?: string;
+  event_source_url?: string;
+  test_event_code?: string;
+}, currentSettings: any) {
+  const pixelId = currentSettings?.meta_pixel_id || process.env.META_PIXEL_ID || INITIAL_SETTINGS.meta_pixel_id || '1814759089902668';
+  const accessToken = currentSettings?.meta_capi_access_token || process.env.META_CAPI_ACCESS_TOKEN || INITIAL_SETTINGS.meta_capi_access_token;
+  const isCapiEnabled = currentSettings?.meta_capi_enabled !== false; // default true if token exists
+
+  if (!isCapiEnabled || !accessToken) {
+    return { dispatched: false, reason: 'Meta CAPI is not enabled or access token is missing' };
+  }
+
+  try {
+    const order = eventData.order || {};
+    const rawName = eventData.user_name || order.user_name || order.customer_name || '';
+    const nameParts = rawName.trim().split(/\s+/);
+    const firstName = nameParts[0] || '';
+    const lastName = nameParts.length > 1 ? nameParts.slice(1).join(' ') : '';
+
+    const rawEmail = eventData.user_email || order.user_email || order.customer_email || '';
+    const rawPhone = eventData.user_phone || order.user_phone || order.customer_phone || '';
+    const cleanedPhone = cleanPhoneForMeta(rawPhone);
+
+    const hashedEmail = hashSha256(rawEmail);
+    const hashedPhone = cleanedPhone ? hashSha256(cleanedPhone) : undefined;
+    const hashedFn = hashSha256(firstName);
+    const hashedLn = hashSha256(lastName);
+    const hashedCity = hashSha256(order.city || 'Dhaka');
+    const hashedCountry = hashSha256('bd');
+
+    const userData: any = {
+      client_user_agent: eventData.client_user_agent || 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+    };
+
+    if (eventData.client_ip && eventData.client_ip !== '127.0.0.1' && eventData.client_ip !== '::1') {
+      userData.client_ip_address = eventData.client_ip;
+    }
+    if (hashedEmail) userData.em = [hashedEmail];
+    if (hashedPhone) userData.ph = [hashedPhone];
+    if (hashedFn) userData.fn = [hashedFn];
+    if (hashedLn) userData.ln = [hashedLn];
+    if (hashedCity) userData.ct = [hashedCity];
+    userData.country = [hashedCountry];
+    if (eventData.fbp) userData.fbp = eventData.fbp;
+    if (eventData.fbc) userData.fbc = eventData.fbc;
+
+    const eventId = String(order.order_number || ('UA-' + Date.now()));
+    const orderTotal = Number(order.total_amount || 0);
+
+    const contents = Array.isArray(order.items)
+      ? order.items.map((it: any) => ({
+          id: String(it.product_id || it.id || it.product_name),
+          quantity: Number(it.quantity || 1),
+          item_price: Number(it.price || 0),
+          title: it.product_name || 'Wall Decor'
+        }))
+      : [];
+
+    const numItems = Array.isArray(order.items)
+      ? order.items.reduce((sum: number, it: any) => sum + Number(it.quantity || 1), 0)
+      : 1;
+
+    const payloadEvent: any = {
+      event_name: eventName,
+      event_time: Math.floor(Date.now() / 1000),
+      event_id: eventId,
+      event_source_url: eventData.event_source_url || 'https://unexaura.com/order-success',
+      action_source: 'website',
+      user_data: userData,
+      custom_data: {
+        currency: 'BDT',
+        value: orderTotal,
+        content_type: 'product',
+        order_id: eventId,
+        num_items: numItems,
+        contents: contents
+      }
+    };
+
+    const payload: any = {
+      data: [payloadEvent],
+      access_token: accessToken
+    };
+
+    const testCode = currentSettings?.meta_test_event_code || eventData.test_event_code;
+    if (testCode && testCode.trim()) {
+      payload.test_event_code = testCode.trim();
+    }
+
+    const apiUrl = `https://graph.facebook.com/v19.0/${pixelId}/events`;
+    const res = await fetch(apiUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+
+    const resData: any = await res.json();
+    console.log(`[Meta CAPI Dispatch]: Event "${eventName}" (order #${eventId}) response:`, JSON.stringify(resData));
+    return {
+      dispatched: true,
+      status: res.status,
+      success: res.status >= 200 && res.status < 300 && !resData.error,
+      response: resData
+    };
+  } catch (err: any) {
+    console.error(`[Meta CAPI Dispatch Error]:`, err.message);
+    return { dispatched: false, error: err.message };
+  }
+}
+
+// POST Test Meta CAPI
+app.post('/api/meta/test-capi', async (req, res) => {
+  try {
+    const currentSettings = loadSettings();
+    const token = req.body?.access_token || currentSettings.meta_capi_access_token || INITIAL_SETTINGS.meta_capi_access_token;
+    const pixelId = req.body?.pixel_id || currentSettings.meta_pixel_id || INITIAL_SETTINGS.meta_pixel_id || '1814759089902668';
+    const testCode = req.body?.test_event_code || currentSettings.meta_test_event_code || '';
+
+    if (!token) {
+      return res.status(400).json({ success: false, message: 'Meta CAPI Access Token পাওয়া যায়নি।' });
+    }
+
+    const clientIp = (req.headers['x-forwarded-for'] as string)?.split(',')[0] || req.socket.remoteAddress || '';
+    const userAgent = req.headers['user-agent'] || 'Mozilla/5.0';
+
+    const testOrder = {
+      order_number: 'UA-TEST-' + Math.floor(1000 + Math.random() * 9000),
+      user_name: 'Salman Shohag Test',
+      user_email: 'salmansohagkazi@gmail.com',
+      user_phone: '01711223344',
+      city: 'Dhaka',
+      total_amount: 1099,
+      items: [
+        {
+          product_id: 10,
+          product_name: 'Ayatul Kursi Laser-Cut Wall Art',
+          price: 1099,
+          quantity: 1
+        }
+      ]
+    };
+
+    const result = await sendMetaConversionsEvent(
+      'Purchase',
+      {
+        order: testOrder,
+        client_ip: clientIp,
+        client_user_agent: userAgent,
+        test_event_code: testCode
+      },
+      {
+        meta_pixel_id: pixelId,
+        meta_capi_access_token: token,
+        meta_capi_enabled: true,
+        meta_test_event_code: testCode
+      }
+    );
+
+    if (result.success) {
+      res.json({
+        success: true,
+        message: 'Meta Conversions API টেস্ট ইভেন্ট সফলভাবে Facebook Events Manager-এ সেন্ড হয়েছে!',
+        details: result.response
+      });
+    } else {
+      res.status(400).json({
+        success: false,
+        message: 'Meta API থেকে ত্রুটি পাওয়া গেছে: ' + (result.response?.error?.message || result.error || 'Unknown error'),
+        details: result
+      });
+    }
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
 // POST Create Order
 app.post('/api/orders', (req, res) => {
-  const { user_name, user_email, user_phone, shipping_address, city, delivery_zone, payment_method, order_notes, items } = req.body;
+  const { user_name, user_email, user_phone, shipping_address, city, delivery_zone, payment_method, order_notes, items, fbp, fbc } = req.body;
+  const clientIp = (req.headers['x-forwarded-for'] as string)?.split(',')[0] || req.socket.remoteAddress || '';
+  const clientUserAgent = req.headers['user-agent'] || '';
 
   if (!items || !items.length) {
     return res.status(400).json({ success: false, message: 'Cart is empty' });
@@ -864,6 +1071,24 @@ app.post('/api/orders', (req, res) => {
   // Trigger backend automated Google Sheet Webhook in background (Zero auth token expiration)
   sendGoogleSheetOrderWebhook(newOrder, settings).catch(err => {
     console.error('[Background Google Sheet Webhook Error]:', err);
+  });
+
+  // Trigger Meta Conversions API (CAPI) Server-Side Purchase Event in background
+  sendMetaConversionsEvent(
+    'Purchase',
+    {
+      order: newOrder,
+      user_name: user_name,
+      user_email: user_email,
+      user_phone: user_phone,
+      client_ip: clientIp,
+      client_user_agent: clientUserAgent,
+      fbp: fbp,
+      fbc: fbc
+    },
+    settings
+  ).catch(err => {
+    console.error('[Background Meta CAPI Error]:', err);
   });
 
   // Automatically decrease product stock for each ordered item

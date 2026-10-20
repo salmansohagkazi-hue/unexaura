@@ -288,16 +288,21 @@ export const trackPurchase = (order: {
     });
   }
 
-  // Meta Pixel Purchase
+  // Meta Pixel Purchase with eventID matching backend CAPI event_id for deduplication
   if (window.fbq) {
-    window.fbq('track', 'Purchase', {
-      content_ids: contentIds,
-      content_type: 'product',
-      value: orderTotal,
-      currency: 'BDT',
-      order_id: orderNum,
-      num_items: totalNumItems,
-    });
+    window.fbq(
+      'track',
+      'Purchase',
+      {
+        content_ids: contentIds,
+        content_type: 'product',
+        value: orderTotal,
+        currency: 'BDT',
+        order_id: orderNum,
+        num_items: totalNumItems,
+      },
+      { eventID: orderNum }
+    );
   }
 };
 

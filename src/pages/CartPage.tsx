@@ -120,11 +120,6 @@ export const CartPage: React.FC<CartPageProps> = ({ onNavigate }) => {
                         <span className="text-[10px] font-bold uppercase text-teal-700 bg-teal-50 px-2 py-0.5 rounded">
                           {product.category_name || 'Wall Art'}
                         </span>
-                        {itemSizeName && (
-                          <span className="text-[10px] font-extrabold text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded border border-indigo-200">
-                            Size: {itemSizeName}
-                          </span>
-                        )}
                       </div>
                       <h3
                         onClick={() => onNavigate('product', { slug: product.slug })}

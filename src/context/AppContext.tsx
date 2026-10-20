@@ -35,6 +35,10 @@ interface AppContextType {
   getCartSubtotal: () => number;
   getCartWeight: () => number;
   formatPrice: (bdtAmount: number) => string;
+  isCartDrawerOpen: boolean;
+  setIsCartDrawerOpen: (open: boolean) => void;
+  openCartDrawer: () => void;
+  closeCartDrawer: () => void;
   setActiveModalProduct: (p: Product | null) => void;
   showToast: (msg: string) => void;
   setUser: (u: User | null) => void;
@@ -156,6 +160,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [codFee, setCodFee] = useState<number>(0);
   const [activeModalProduct, setActiveModalProduct] = useState<Product | null>(null);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const [isCartDrawerOpen, setIsCartDrawerOpen] = useState<boolean>(false);
+  const openCartDrawer = () => setIsCartDrawerOpen(true);
+  const closeCartDrawer = () => setIsCartDrawerOpen(false);
   const [wishlist, setWishlist] = useState<number[]>(() => {
     try {
       const saved = localStorage.getItem('unex_wishlist');
@@ -333,10 +340,25 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
     });
 
+    // Extract Meta _fbp and _fbc cookies for Conversions API deduplication & matching
+    let fbp = '';
+    let fbc = '';
+    try {
+      if (typeof document !== 'undefined') {
+        const cookies = document.cookie.split('; ');
+        for (const cookie of cookies) {
+          if (cookie.startsWith('_fbp=')) fbp = cookie.split('=')[1];
+          if (cookie.startsWith('_fbc=')) fbc = cookie.split('=')[1];
+        }
+      }
+    } catch {}
+
     const fullPayload = {
       ...orderPayload,
       client_max_serial: clientMaxSerial,
-      existing_order_numbers: existingOrderNumbers
+      existing_order_numbers: existingOrderNumbers,
+      fbp: fbp,
+      fbc: fbc
     };
 
     let createdOrder: Order | null = null;
@@ -667,6 +689,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (addedSuccessfully) {
       const sizeStr = sizeToUse ? ` (${sizeToUse.name})` : '';
       showToast(`Added "${product.name}"${sizeStr} to cart!`);
+      setIsCartDrawerOpen(true);
       trackAddToCart(
         {
           id: product.id,
@@ -1020,6 +1043,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       getCartSubtotal,
       getCartWeight,
       formatPrice,
+      isCartDrawerOpen,
+      setIsCartDrawerOpen,
+      openCartDrawer,
+      closeCartDrawer,
       setActiveModalProduct,
       showToast,
       setUser,

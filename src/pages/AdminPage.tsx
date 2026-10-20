@@ -44,7 +44,8 @@ import {
   Package,
   Settings,
   Store,
-  ChevronRight
+  ChevronRight,
+  Share2
 } from 'lucide-react';
 import { GoogleSheetsSync } from '../components/GoogleSheetsSync';
 
@@ -54,7 +55,7 @@ interface AdminPageProps {
 }
 
 export type AdminMainTab = 'dashboard' | 'orders' | 'products' | 'sheets' | 'settings';
-export type AdminSettingsSubTab = 'media' | 'categories' | 'coupons' | 'shipping' | 'security';
+export type AdminSettingsSubTab = 'media' | 'categories' | 'coupons' | 'shipping' | 'security' | 'meta';
 
 export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate, initialTab = 'dashboard' }) => {
   const {
@@ -149,6 +150,14 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate, initialTab = '
   const [adminWhatsAppWebhook, setAdminWhatsAppWebhook] = useState(settings.whatsapp_webhook_url || '');
   const [isTestingWhatsApp, setIsTestingWhatsApp] = useState(false);
 
+  // Meta Pixel & Conversions API (CAPI) state
+  const [adminMetaPixelId, setAdminMetaPixelId] = useState(settings.meta_pixel_id || '1814759089902668');
+  const [adminMetaCapiToken, setAdminMetaCapiToken] = useState(settings.meta_capi_access_token || '');
+  const [adminMetaCapiEnabled, setAdminMetaCapiEnabled] = useState<boolean>(settings.meta_capi_enabled ?? true);
+  const [adminMetaTestCode, setAdminMetaTestCode] = useState(settings.meta_test_event_code || '');
+  const [isTestingMetaCapi, setIsTestingMetaCapi] = useState(false);
+  const [metaTestResult, setMetaTestResult] = useState<{ success: boolean; message: string } | null>(null);
+
   // Product filter state
   const [selectedCatFilter, setSelectedCatFilter] = useState<number | 'all'>('all');
   const [productSearch, setProductSearch] = useState<string>('');
@@ -207,6 +216,12 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate, initialTab = '
     }
     if (settings.whatsapp_api_key) setAdminWhatsAppApiKey(settings.whatsapp_api_key);
     if (settings.whatsapp_webhook_url) setAdminWhatsAppWebhook(settings.whatsapp_webhook_url);
+    if (settings.meta_pixel_id) setAdminMetaPixelId(settings.meta_pixel_id);
+    if (settings.meta_capi_access_token) setAdminMetaCapiToken(settings.meta_capi_access_token);
+    if (typeof settings.meta_capi_enabled !== 'undefined') {
+      setAdminMetaCapiEnabled(Boolean(settings.meta_capi_enabled));
+    }
+    if (settings.meta_test_event_code) setAdminMetaTestCode(settings.meta_test_event_code);
   }, [settings]);
 
   const handleVerifyPin = (e: React.FormEvent) => {
@@ -432,6 +447,53 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate, initialTab = '
       alert('Error triggering test: ' + e.message);
     } finally {
       setIsTestingWhatsApp(false);
+    }
+  };
+
+  const handleSaveMetaSettings = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!adminMetaPixelId.trim()) {
+      alert('দয়া করে Meta Pixel ID প্রদান করুন');
+      return;
+    }
+    await updateSettings({
+      ...settings,
+      meta_pixel_id: adminMetaPixelId.trim(),
+      meta_capi_access_token: adminMetaCapiToken.trim(),
+      meta_capi_enabled: adminMetaCapiEnabled,
+      meta_test_event_code: adminMetaTestCode.trim()
+    });
+    showToast(`Meta Pixel & CAPI সেটিংস সফলভাবে সেভ হয়েছে! (Status: ${adminMetaCapiEnabled ? 'সক্রিয়/Active' : 'নিষ্ক্রিয়/Disabled'})`);
+  };
+
+  const handleTestMetaCapi = async () => {
+    if (!adminMetaCapiToken.trim()) {
+      alert('টেস্ট করার আগে Meta CAPI Access Token প্রদান করুন');
+      return;
+    }
+    setIsTestingMetaCapi(true);
+    setMetaTestResult(null);
+    try {
+      const res = await fetch('/api/meta/test-capi', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          pixel_id: adminMetaPixelId.trim(),
+          access_token: adminMetaCapiToken.trim(),
+          test_event_code: adminMetaTestCode.trim()
+        })
+      });
+      const data = await res.json();
+      if (data.success) {
+        setMetaTestResult({ success: true, message: data.message });
+        showToast('Meta CAPI টেস্ট ইভেন্ট সফলভাবে পাঠানো হয়েছে!');
+      } else {
+        setMetaTestResult({ success: false, message: data.message || 'ত্রুটি ঘটেছে' });
+      }
+    } catch (err: any) {
+      setMetaTestResult({ success: false, message: 'সার্ভার রিকোয়েস্ট ত্রুটি: ' + err.message });
+    } finally {
+      setIsTestingMetaCapi(false);
     }
   };
 
@@ -1572,52 +1634,29 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate, initialTab = '
                         </div>
                       </div>
 
-                      {/* SIZES, PRICING & WEIGHT ROW */}
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
-                        {/* Medium Size Card */}
-                        <div className="bg-indigo-50/50 p-3 rounded-2xl border border-indigo-100 flex items-center justify-between">
-                          <div>
-                            <span className="text-[10px] font-extrabold text-indigo-900 uppercase tracking-wider block">
-                              মিডিয়াম সাইজ (Medium)
-                            </span>
-                            <div className="text-xs font-black text-[#0f3d44]">
-                              {medSize.size_dimensions || '75cm × 40cm'}
-                            </div>
-                            <span className="text-[10px] text-slate-500">ওজন: {medSize.weight_grams || 1400}g</span>
+                      {/* PRICING, DIMENSION & WEIGHT ROW */}
+                      <div className="bg-slate-50 p-3 rounded-2xl border border-slate-200 flex flex-wrap items-center justify-between gap-3">
+                        <div className="flex items-center gap-3">
+                          <div className="px-3 py-1.5 rounded-xl bg-white border border-slate-200 text-xs">
+                            <span className="text-[10px] text-slate-400 font-bold uppercase block">সাইজ / ডাইমেনশন</span>
+                            <span className="font-black text-[#0f3d44] font-mono">{p.size_dimensions || '75cm × 40cm'}</span>
                           </div>
-                          <div className="text-right">
-                            <div className="text-sm font-black text-indigo-900">
-                              {formatPrice(medSize.price)}
-                            </div>
-                            {medSize.old_price && (
-                              <div className="text-[10px] text-slate-400 line-through">
-                                {formatPrice(medSize.old_price)}
-                              </div>
-                            )}
+                          <div className="px-3 py-1.5 rounded-xl bg-white border border-slate-200 text-xs">
+                            <span className="text-[10px] text-slate-400 font-bold uppercase block">ওজন (Weight)</span>
+                            <span className="font-bold text-slate-700 font-mono">{p.weight_grams || 1400} গ্রাম</span>
+                          </div>
+                          <div className="px-3 py-1.5 rounded-xl bg-white border border-slate-200 text-xs">
+                            <span className="text-[10px] text-slate-400 font-bold uppercase block">ইনভেন্টরি স্টক</span>
+                            <span className={`font-black font-mono ${p.stock > 0 ? 'text-emerald-700' : 'text-rose-600'}`}>{p.stock} টি</span>
                           </div>
                         </div>
 
-                        {/* Large Size Card */}
-                        <div className="bg-purple-50/50 p-3 rounded-2xl border border-purple-100 flex items-center justify-between">
-                          <div>
-                            <span className="text-[10px] font-extrabold text-purple-900 uppercase tracking-wider block">
-                              লার্জ সাইজ (Large)
-                            </span>
-                            <div className="text-xs font-black text-[#0f3d44]">
-                              {lrgSize.size_dimensions || '120cm × 60cm'}
-                            </div>
-                            <span className="text-[10px] text-slate-500">ওজন: {lrgSize.weight_grams || 2200}g</span>
-                          </div>
-                          <div className="text-right">
-                            <div className="text-sm font-black text-purple-900">
-                              {formatPrice(lrgSize.price)}
-                            </div>
-                            {lrgSize.old_price && (
-                              <div className="text-[10px] text-slate-400 line-through">
-                                {formatPrice(lrgSize.old_price)}
-                              </div>
-                            )}
-                          </div>
+                        <div className="flex items-baseline gap-2 text-right">
+                          <span className="text-[11px] text-slate-400 font-bold">বিক্রয় মূল্য:</span>
+                          <span className="text-base sm:text-lg font-black text-teal-800">{formatPrice(p.price)}</span>
+                          {p.old_price && (
+                            <span className="text-xs text-slate-400 line-through">{formatPrice(p.old_price)}</span>
+                          )}
                         </div>
                       </div>
 
@@ -1708,6 +1747,18 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate, initialTab = '
             >
               <Lock className="w-3.5 h-3.5" />
               <span>পাসওয়ার্ড ও হোয়াটসঅ্যাপ</span>
+            </button>
+
+            <button
+              onClick={() => setSettingsSubTab('meta')}
+              className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                settingsSubTab === 'meta'
+                  ? 'bg-[#1877F2] text-white shadow-xs'
+                  : 'bg-blue-50 text-blue-700 hover:bg-blue-100'
+              }`}
+            >
+              <Share2 className="w-3.5 h-3.5" />
+              <span>Meta Pixel & CAPI</span>
             </button>
           </div>
         </div>
@@ -2286,6 +2337,20 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate, initialTab = '
                     <span>{loadingOrders ? 'লোড হচ্ছে...' : 'রিফ্রেশ (Live Sync)'}</span>
                   </button>
 
+                  {/* DIRECT OPEN GOOGLE SHEET BUTTON */}
+                  {settings.google_sheet_url && (
+                    <a
+                      href={settings.google_sheet_url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="px-3.5 py-2 rounded-xl border border-emerald-500 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold flex items-center gap-1.5 cursor-pointer transition-all shadow-xs"
+                      title="ওয়েবসাইটের সাথে যুক্ত লাইভ গুগল শিট ওপেন করুন"
+                    >
+                      <ExternalLink className="w-3.5 h-3.5 text-white" />
+                      <span>গুগল শিট ওপেন করুন</span>
+                    </a>
+                  )}
+
                   <button
                     onClick={handlePullFromSheet}
                     disabled={isPullingFromSheet}
@@ -2537,9 +2602,13 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate, initialTab = '
                                   <div className="flex-1 min-w-0">
                                     <div className="font-bold text-slate-900 truncate text-[11px]">{item.product_name}</div>
                                     <div className="text-[10px] text-slate-500 flex items-center gap-1">
-                                      <span className="font-semibold text-teal-700 bg-teal-50 px-1 rounded">{item.size || 'Medium'}</span>
-                                      <span>•</span>
-                                      <span>পরিমাণ: {item.quantity}</span>
+                                      {item.size && !item.size.toLowerCase().includes('medium') && (
+                                        <>
+                                          <span className="font-semibold text-teal-700 bg-teal-50 px-1 rounded">{item.size}</span>
+                                          <span>•</span>
+                                        </>
+                                      )}
+                                      <span className="font-bold text-[#0f3d44]">পরিমাণ: {item.quantity} টি</span>
                                     </div>
                                   </div>
                                   <div className="font-bold text-slate-800 text-[11px] shrink-0">
@@ -2891,6 +2960,174 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate, initialTab = '
                 >
                   <MessageCircle className="w-4 h-4 text-emerald-600" />
                   <span>{isTestingWhatsApp ? 'টেস্ট পাঠানো হচ্ছে...' : 'টেস্ট মেসেজ পাঠান (Test WhatsApp)'}</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* TAB 7: META PIXEL & CONVERSIONS API (CAPI) */}
+      {(activeTab === 'settings' && settingsSubTab === 'meta') && (
+        <div className="space-y-6">
+          <div className="bg-white p-6 rounded-3xl border border-slate-200/80 shadow-xs space-y-6">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-4">
+              <div className="flex items-center gap-3">
+                <div className="w-12 h-12 rounded-2xl bg-[#1877F2]/10 text-[#1877F2] flex items-center justify-center font-bold shadow-xs">
+                  <Share2 className="w-6 h-6" />
+                </div>
+                <div>
+                  <h3 className="text-base font-black text-[#0f3d44]">
+                    Meta Pixel & Conversions API (CAPI) সেটআপ
+                  </h3>
+                  <p className="text-xs text-slate-500">
+                    ব্রাউজার ব্লকার ও iOS 14+ ট্র্যাকিং লিমিটেশন বাইপাস করে সরাসরি ফেসবুক সার্ভারে ১০০% সঠিক অর্ডার ইভেন্ট পাঠান
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className={`px-3 py-1 rounded-full text-[11px] font-bold ${
+                  adminMetaCapiEnabled ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-600'
+                }`}>
+                  {adminMetaCapiEnabled ? '● CAPI সক্রিয় (Active)' : '○ CAPI বন্ধ (Disabled)'}
+                </span>
+              </div>
+            </div>
+
+            {/* Information Callout */}
+            <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200/70 rounded-2xl p-4 text-xs text-blue-900 space-y-2">
+              <div className="font-bold flex items-center gap-2 text-blue-950">
+                <CheckCircle2 className="w-4 h-4 text-blue-600" />
+                <span>সার্ভার-সাইড ট্র্যাকিং ও ব্রাউজার পিক্সেল ডিডুপ্লিকেশন (Deduplication) সিস্টেম</span>
+              </div>
+              <p className="text-blue-800/90 leading-relaxed">
+                ব্রাউজারে <code className="bg-blue-100/80 px-1 py-0.5 rounded font-mono text-[11px]">fbq('track', 'Purchase')</code> ফায়ার হওয়ার সাথে সাথে আমাদের এক্সপ্রেস সার্ভার থেকে সরাসরি Meta Graph API-তে একই <code className="bg-blue-100/80 px-1 py-0.5 rounded font-mono text-[11px]">event_id</code> (অর্ডার নাম্বার) এবং SHA-256 হ্যাশড কাস্টমার ডাটা সহ রিকোয়েস্ট পাঠানো হয়। এতে ফেসবুক কোনো ডুপ্লিকেট কাউন্ট না করে সর্বোচ্চ কোয়ালিটি স্কোরসহ অর্ডার ট্র্যাক করে।
+              </p>
+            </div>
+
+            <form onSubmit={handleSaveMetaSettings} className="space-y-4">
+              {/* Meta Pixel ID */}
+              <div>
+                <label className="font-bold text-slate-700 block mb-1 text-xs">
+                  Meta Pixel ID / Dataset ID *
+                </label>
+                <div className="relative">
+                  <input
+                    type="text"
+                    required
+                    value={adminMetaPixelId}
+                    onChange={(e) => setAdminMetaPixelId(e.target.value)}
+                    placeholder="1814759089902668"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs text-[#0f3d44] font-mono font-bold focus:bg-white focus:border-blue-500 focus:outline-none"
+                  />
+                </div>
+                <p className="text-[11px] text-slate-500 mt-1">
+                  Facebook Events Manager থেকে প্রাপ্ত পিক্সেল আইডি। (ডিফল্ট: 1814759089902668)
+                </p>
+              </div>
+
+              {/* Conversions API Access Token */}
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="font-bold text-slate-700 block text-xs">
+                    Meta Conversions API (CAPI) Access Token *
+                  </label>
+                  <a
+                    href="https://business.facebook.com/events_manager2"
+                    target="_blank"
+                    rel="noreferrer"
+                    className="text-[11px] text-blue-600 hover:underline font-semibold flex items-center gap-1"
+                  >
+                    <span>Events Manager ওপেন করুন</span>
+                    <ExternalLink className="w-3 h-3" />
+                  </a>
+                </div>
+                <textarea
+                  rows={3}
+                  value={adminMetaCapiToken}
+                  onChange={(e) => setAdminMetaCapiToken(e.target.value)}
+                  placeholder="EAAZANzZCMuiTQ..."
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2 text-xs text-[#0f3d44] font-mono focus:bg-white focus:border-blue-500 focus:outline-none"
+                />
+                <p className="text-[11px] text-slate-500 mt-1">
+                  Facebook Business Manager &gt; Events Manager &gt; Settings &gt; Generate access token থেকে কপি করা দীর্ঘ মেটা টোকেন।
+                </p>
+              </div>
+
+              {/* Test Event Code */}
+              <div>
+                <label className="font-bold text-slate-700 block mb-1 text-xs">
+                  Test Event Code (ঐচ্ছিক - টেস্ট করার জন্য)
+                </label>
+                <input
+                  type="text"
+                  value={adminMetaTestCode}
+                  onChange={(e) => setAdminMetaTestCode(e.target.value)}
+                  placeholder="e.g. TEST12345"
+                  className="w-full sm:w-64 bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2 text-xs text-[#0f3d44] font-mono focus:bg-white focus:border-blue-500 focus:outline-none"
+                />
+                <p className="text-[11px] text-slate-500 mt-1">
+                  Events Manager &gt; Test Events ট্যাবে দেওয়া কোড লিখলে টেস্ট ইভেন্ট সেখানে সরাসরি শো করবে।
+                </p>
+              </div>
+
+              {/* Enable Toggle */}
+              <div className="pt-2 border-t border-slate-100">
+                <label className="flex items-center gap-3 cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    checked={adminMetaCapiEnabled}
+                    onChange={(e) => setAdminMetaCapiEnabled(e.target.checked)}
+                    className="w-4 h-4 rounded text-blue-600 focus:ring-blue-500 border-slate-300"
+                  />
+                  <div>
+                    <span className="text-xs font-bold text-slate-800">
+                      সার্ভার-সাইড Conversions API সক্রিয় রাখুন (Enable Server-Side CAPI)
+                    </span>
+                    <p className="text-[11px] text-slate-500">
+                      চেক করা থাকলে কাস্টমার অর্ডার সাবমিট করার সাথে সাথে ব্যাকএন্ড স্বয়ংক্রিয়ভাবে মেটাতে Purchase ইভেন্ট পোস্ট করবে।
+                    </p>
+                  </div>
+                </label>
+              </div>
+
+              {/* Test Feedback Notice */}
+              {metaTestResult && (
+                <div className={`p-3.5 rounded-xl text-xs font-medium border flex items-start gap-2 ${
+                  metaTestResult.success
+                    ? 'bg-emerald-50 border-emerald-200 text-emerald-900'
+                    : 'bg-rose-50 border-rose-200 text-rose-900'
+                }`}>
+                  {metaTestResult.success ? (
+                    <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+                  ) : (
+                    <AlertCircle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
+                  )}
+                  <div>
+                    <p className="font-bold">{metaTestResult.success ? 'টেস্ট সফল হয়েছে!' : 'টেস্টে সমস্যা পাওয়া গেছে:'}</p>
+                    <p className="text-[11px] mt-0.5">{metaTestResult.message}</p>
+                  </div>
+                </div>
+              )}
+
+              {/* Action Buttons */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-3 border-t border-slate-100">
+                <button
+                  type="submit"
+                  className="w-full py-3 rounded-xl text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 shadow-md cursor-pointer transition-all flex items-center justify-center gap-2"
+                >
+                  <Save className="w-4 h-4" />
+                  <span>Meta সেটিংস সেভ করুন (Save Meta Settings)</span>
+                </button>
+
+                <button
+                  type="button"
+                  disabled={isTestingMetaCapi}
+                  onClick={handleTestMetaCapi}
+                  className="w-full py-3 rounded-xl text-xs font-bold text-slate-700 bg-slate-100 hover:bg-slate-200 border border-slate-200 shadow-xs cursor-pointer transition-all flex items-center justify-center gap-2 disabled:opacity-60"
+                >
+                  <RefreshCw className={`w-4 h-4 text-blue-600 ${isTestingMetaCapi ? 'animate-spin' : ''}`} />
+                  <span>{isTestingMetaCapi ? 'টেস্ট ইভেন্ট পাঠানো হচ্ছে...' : 'টেস্ট CAPI ইভেন্ট পাঠান (Send Test CAPI Event)'}</span>
                 </button>
               </div>
             </form>

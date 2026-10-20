@@ -271,32 +271,18 @@ export const SeeOnWallModal: React.FC<SeeOnWallModalProps> = ({ product, onClose
                     )}
                   </div>
 
-                  {/* SIZE SELECTION CARDS (EXACT MATCH TO SCREENSHOT) */}
-                  <div className="space-y-2 bg-indigo-50/40 p-3.5 rounded-2xl border border-indigo-100">
-                    <div className="flex items-center justify-between text-xs font-extrabold text-[#0f3d44]">
-                      <span>সাইজ সিলেক্ট করুন (Select Size Option):</span>
-                      <span className="text-indigo-600 font-bold text-[11px]">{activeSize.name}</span>
+                  {/* PRODUCT DIMENSION & QUALITY BADGE */}
+                  <div className="bg-teal-50/70 p-3 rounded-2xl border border-teal-200/80 flex items-center justify-between text-xs">
+                    <div className="flex items-center gap-2">
+                      <span className="w-2 h-2 rounded-full bg-teal-500"></span>
+                      <span className="font-bold text-[#0f3d44]">পণ্যের সাইজ:</span>
+                      <span className="font-black text-teal-800 bg-white px-2 py-0.5 rounded-md border border-teal-200 shadow-2xs font-mono">
+                        {product.size_dimensions || '75cm × 40cm'}
+                      </span>
                     </div>
-
-                    <div className="grid grid-cols-2 gap-2.5">
-                      {productSizes.map((sz, idx) => (
-                        <button
-                          key={sz.id}
-                          type="button"
-                          onClick={() => setSelectedSizeIdx(idx)}
-                          className={`p-3 rounded-xl border text-left transition-all cursor-pointer ${
-                            selectedSizeIdx === idx
-                              ? 'bg-white border-[#4f46e5] ring-2 ring-indigo-200 shadow-xs'
-                              : 'bg-white/70 border-slate-200 hover:bg-white text-slate-700'
-                          }`}
-                        >
-                          <div className="font-extrabold text-xs text-[#0f3d44] truncate">{sz.name}</div>
-                          <div className="flex items-center justify-between text-[11px] mt-1.5 pt-1 border-t border-slate-100">
-                            <span className="font-extrabold text-indigo-700">{formatPrice(sz.price)}</span>
-                          </div>
-                        </button>
-                      ))}
-                    </div>
+                    <span className="text-[11px] font-bold text-emerald-800 bg-emerald-100/80 px-2 py-0.5 rounded-md">
+                      দেওয়ালে লাগানোর টেপসহ
+                    </span>
                   </div>
 
                   {/* BANGLA SHORT OVERVIEW & QUALITIES BOX (EXACT MATCH TO SCREENSHOT) */}

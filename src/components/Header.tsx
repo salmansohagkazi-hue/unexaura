@@ -17,7 +17,7 @@ export const Header: React.FC<HeaderProps> = ({
   setSearchQuery,
   onOpenSeeOnWall,
 }) => {
-  const { cart, getCartCount, user, currency, currencies, setCurrencyCode, formatPrice, getWishlistCount, products } = useApp();
+  const { cart, getCartCount, user, currency, currencies, setCurrencyCode, formatPrice, getWishlistCount, products, openCartDrawer } = useApp();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const [showSearchResults, setShowSearchResults] = useState(false);
@@ -344,7 +344,7 @@ export const Header: React.FC<HeaderProps> = ({
 
           {/* Cart Badge Button */}
           <button
-            onClick={() => handleNav('cart')}
+            onClick={() => openCartDrawer()}
             className="relative p-2.5 rounded-full bg-gradient-to-r from-[#14b8a6] via-[#4f46e5] to-[#ec4899] text-white hover:opacity-95 shadow-md shadow-indigo-500/20 active:scale-90 transition-all flex items-center justify-center select-none cursor-pointer"
             title="Shopping Cart"
           >

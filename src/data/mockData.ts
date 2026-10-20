@@ -32,7 +32,11 @@ export const INITIAL_SETTINGS: StoreSettings = {
   google_sheet_id: '1YyeLB14VCribl9J2qHnD5Ac8Za0tk0c_rG4CGJWzoxA',
   google_sheet_url: 'https://docs.google.com/spreadsheets/d/1YyeLB14VCribl9J2qHnD5Ac8Za0tk0c_rG4CGJWzoxA/edit?usp=drivesdk',
   google_sheet_autosync_enabled: true,
-  google_sheet_webhook_url: 'https://script.google.com/macros/s/AKfycbxObQDGAgMY_wUx3_YP8lKBy5Y1Flke8e_bfMHQu1BYMWIJq7Myq2-Yc3rQeDo8VVYq/exec'
+  google_sheet_webhook_url: 'https://script.google.com/macros/s/AKfycbxObQDGAgMY_wUx3_YP8lKBy5Y1Flke8e_bfMHQu1BYMWIJq7Myq2-Yc3rQeDo8VVYq/exec',
+  meta_pixel_id: '1814759089902668',
+  meta_capi_access_token: 'EAAZANzZCMuiTQBSfzYNFbRElGX8mX0VuvcT5yuKHRXJp7ZAoanGZAthXhX9tGLsNfoFWa7y7u5X0Fz4bSkbaaI1mdxP7DtbMrRD9pg7WCkUZAkhQAVulCLfF2jisjy6qnY03uiKJa50ngojWfW7wuKAf3A3dPIJLMHpUZCnmr6uNpjtO26178qje22IUFiKLgw2AZDZD',
+  meta_capi_enabled: true,
+  meta_test_event_code: ''
 };
 
 export const INITIAL_COUPONS: Coupon[] = [

@@ -8,6 +8,7 @@ import { Search, Filter, SlidersHorizontal, RotateCcw, Eye, Sparkles, Copy, Chec
 interface ShopPageProps {
   onNavigate: (page: string, params?: any) => void;
   onOpenWallModal: (p: Product) => void;
+  onQuickOrder?: (p: Product) => void;
   initialCatId?: number | 'all';
   initialBadge?: string;
   searchQuery?: string;
@@ -17,6 +18,7 @@ interface ShopPageProps {
 export const ShopPage: React.FC<ShopPageProps> = ({
   onNavigate,
   onOpenWallModal,
+  onQuickOrder,
   initialCatId,
   initialBadge,
   searchQuery = '',
@@ -331,13 +333,14 @@ export const ShopPage: React.FC<ShopPageProps> = ({
 
           {/* PRODUCT GRID */}
           {filteredProducts.length > 0 ? (
-            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-6">
+            <div className="grid grid-cols-2 sm:grid-cols-2 xl:grid-cols-3 gap-3 sm:gap-6">
               {filteredProducts.map((p) => (
                 <ProductCard
                   key={p.id}
                   product={p}
                   onSelectProduct={(prod) => onNavigate('product', { slug: prod.slug })}
                   onOpenWallModal={onOpenWallModal}
+                  onQuickOrder={onQuickOrder}
                 />
               ))}
             </div>

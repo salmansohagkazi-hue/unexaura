@@ -348,11 +348,14 @@ export const SeeOnWallModal: React.FC<SeeOnWallModalProps> = ({ product, onClose
                           onClick={() => {
                             addToCart(product, quantity, activeSize);
                             onClose();
+                            if (onNavigate) {
+                              onNavigate('checkout');
+                            }
                           }}
-                          className="flex-1 w-full py-3 px-4 rounded-xl text-xs font-extrabold text-white bg-teal-700 hover:bg-teal-800 shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer"
+                          className="flex-1 w-full py-3 px-4 rounded-xl text-xs font-bold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 shadow-2xs transition-all flex items-center justify-center gap-2 cursor-pointer"
                         >
-                          <ShoppingBag className="w-4 h-4" />
-                          <span>কার্টে যোগ করুন ({formatPrice(currentPrice * quantity)})</span>
+                          <ShoppingBag className="w-4 h-4 text-indigo-600" />
+                          <span>Add to Cart ({formatPrice(currentPrice * quantity)})</span>
                         </button>
 
                         <button
@@ -363,9 +366,9 @@ export const SeeOnWallModal: React.FC<SeeOnWallModalProps> = ({ product, onClose
                               onNavigate('checkout');
                             }
                           }}
-                          className="flex-1 w-full py-3 px-4 rounded-xl text-xs font-extrabold text-slate-900 bg-amber-400 hover:bg-amber-300 shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer"
+                          className="flex-1 w-full py-3 px-4 rounded-xl text-xs font-black text-white bg-gradient-to-r from-emerald-600 via-teal-600 to-indigo-600 hover:opacity-95 shadow-md shadow-teal-600/20 transition-all flex items-center justify-center gap-2 cursor-pointer"
                         >
-                          <span>অর্ডার করুন (Buy Now)</span>
+                          <span>বাই নাও (Buy Now)</span>
                         </button>
                       </>
                     )}
@@ -493,11 +496,14 @@ export const SeeOnWallModal: React.FC<SeeOnWallModalProps> = ({ product, onClose
                     onClick={() => {
                       addToCart(product, 1, activeSize);
                       onClose();
+                      if (onNavigate) {
+                        onNavigate('checkout');
+                      }
                     }}
-                    className="px-6 py-2.5 rounded-xl text-xs font-bold text-white bg-gradient-to-r from-[#14b8a6] via-[#4f46e5] via-[#9333ea] to-[#ec4899] hover:opacity-95 shadow-md hover:scale-[1.02] transition-all flex items-center justify-center gap-2 cursor-pointer"
+                    className="px-6 py-2.5 rounded-xl text-xs font-bold text-white bg-gradient-to-r from-emerald-600 via-teal-600 to-indigo-600 hover:opacity-95 shadow-md hover:scale-[1.02] transition-all flex items-center justify-center gap-2 cursor-pointer"
                   >
                     <ShoppingBag className="w-4 h-4" />
-                    <span>Add Design To Cart</span>
+                    <span>Add to Cart</span>
                   </button>
                 </div>
               </div>

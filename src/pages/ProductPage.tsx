@@ -21,8 +21,9 @@ import {
   Sparkles,
   Compass,
   Palette,
-  Layers,
-  MessageCircle
+  MessageCircle,
+  Zap,
+  ShoppingCart
 } from 'lucide-react';
 
 interface ProductPageProps {
@@ -32,7 +33,7 @@ interface ProductPageProps {
 }
 
 export const ProductPage: React.FC<ProductPageProps> = ({ slug, onNavigate, onOpenWallModal }) => {
-  const { products, addToCart, formatPrice, deliveryZone, setDeliveryZone, settings, toggleWishlist, isInWishlist } = useApp();
+  const { products, addToCart, formatPrice, deliveryZone, setDeliveryZone, settings, toggleWishlist, isInWishlist, openCartDrawer } = useApp();
   const [quantity, setQuantity] = useState<number>(1);
   const [activeImageIdx, setActiveImageIdx] = useState<number>(0);
 
@@ -77,11 +78,14 @@ export const ProductPage: React.FC<ProductPageProps> = ({ slug, onNavigate, onOp
     }
   ];
 
-  // Standard golden sizes (Medium & Large)
-  const standardSizes: ProductSize[] = product.sizes && product.sizes.length >= 2 ? product.sizes : [
+  const isAyatul = isAyatulKursiProduct(product);
+
+  // Standard golden sizes (Medium & Large) - Guarantee no old_price for Ayatul Kursi
+  const rawSizes: ProductSize[] = product.sizes && product.sizes.length >= 2 ? product.sizes : [
     { id: 's1', name: 'Medium (75cm × 40cm)', price: product.price, old_price: product.old_price, weight_grams: product.weight_grams || 1400, size_dimensions: product.size_dimensions || '75cm × 40cm' },
     { id: 's2', name: 'Large (120cm × 60cm)', price: Math.round(product.price * 1.36), old_price: product.old_price ? Math.round(product.old_price * 1.36) : undefined, weight_grams: Math.round((product.weight_grams || 1400) * 1.57), size_dimensions: '120cm × 60cm' }
   ];
+  const standardSizes = rawSizes.map(s => isAyatul ? { ...s, old_price: undefined } : s);
 
   const [selectedSizeIdx, setSelectedSizeIdx] = useState<number>(0);
   const activeSize = standardSizes[selectedSizeIdx] || standardSizes[0];
@@ -140,7 +144,7 @@ export const ProductPage: React.FC<ProductPageProps> = ({ slug, onNavigate, onOp
 
     const interval = setInterval(() => {
       setActiveImageIdx((prev) => (prev + 1) % galleryItems.length);
-    }, 2000);
+    }, 5500); // 5.5 seconds relaxed duration
 
     return () => clearInterval(interval);
   }, [galleryItems.length, isGalleryPaused, product?.id]);
@@ -180,7 +184,6 @@ export const ProductPage: React.FC<ProductPageProps> = ({ slug, onNavigate, onOp
     }
   };
 
-  const isAyatul = isAyatulKursiProduct(product);
 
   // Handle Add To Cart with correct variant info
   const handleAddToCart = (andCheckout: boolean = false) => {
@@ -194,6 +197,8 @@ export const ProductPage: React.FC<ProductPageProps> = ({ slug, onNavigate, onOp
     addToCart(itemToAdd, quantity, activeSize);
     if (andCheckout) {
       onNavigate('checkout');
+    } else {
+      openCartDrawer();
     }
   };
 
@@ -230,9 +235,6 @@ export const ProductPage: React.FC<ProductPageProps> = ({ slug, onNavigate, onOp
               <span className="px-3 py-1 rounded-full text-xs font-bold bg-amber-900/80 text-amber-100 backdrop-blur-md border border-amber-500/40 shadow-md flex items-center gap-1.5">
                 <span className="w-2 h-2 rounded-full bg-amber-400"></span>
                 <span>গোল্ডেন স্টেইনলেস স্টিল</span>
-              </span>
-              <span className="px-2.5 py-1 rounded-full text-[10px] font-bold bg-black/60 text-white backdrop-blur-md border border-white/20 shadow-xs">
-                ২ সেকেন্ড পর পর ছবি পরিবর্তন
               </span>
             </div>
 
@@ -320,56 +322,27 @@ export const ProductPage: React.FC<ProductPageProps> = ({ slug, onNavigate, onOp
 
         {/* RIGHT INFO PANEL (5 cols) */}
         <div className="lg:col-span-5 space-y-6">
-          <div className="space-y-2">
-            <div className="flex items-center gap-2 flex-wrap">
-              <span className="text-xs font-bold uppercase tracking-wider text-teal-700 bg-teal-50 px-2.5 py-1 rounded-md border border-teal-100">
-                {product.category_name || 'Wall Decor'}
-              </span>
-
-              <span className="text-xs font-bold text-amber-800 bg-amber-50 px-2.5 py-1 rounded-md border border-amber-200 flex items-center gap-1.5">
-                <span className="w-2 h-2 rounded-full bg-amber-500"></span>
-                <span>গোল্ডেন স্টেইনলেস স্টিল ({currentThickness})</span>
-              </span>
-            </div>
-
+          {/* CLEAN TITLE */}
+          <div className="space-y-1">
             <h1 className="text-2xl sm:text-3xl font-black text-[#0f3d44] leading-snug">
               {product.name}
             </h1>
-
-            {/* RATING */}
-            <div className="flex items-center gap-3 text-xs text-slate-500 pt-1">
-              <div className="flex items-center text-amber-400 bg-amber-50 px-2.5 py-1 rounded-md border border-amber-200/60">
-                <Star className="w-4 h-4 fill-amber-400 text-amber-400" />
-                <span className="ml-1.5 font-bold text-slate-800">{product.rating || 4.9}</span>
-              </div>
-              <span>•</span>
-              {activeSize.is_stock_out || (activeSize.stock !== undefined && activeSize.stock <= 0) || product.stock <= 0 ? (
-                <span className="text-red-600 font-extrabold bg-red-50 px-2.5 py-1 rounded-md border border-red-200 flex items-center gap-1">
-                  <span className="w-2 h-2 rounded-full bg-red-600 animate-ping"></span>
-                  <span>এই সাইজটি স্টক আউট (Out of Stock)</span>
-                </span>
-              ) : (
-                <span className="text-emerald-600 font-bold bg-emerald-50 px-2.5 py-1 rounded-md border border-emerald-100">
-                  In Stock ({activeSize.stock !== undefined ? activeSize.stock : product.stock} টি স্টক এভেলেবল)
-                </span>
-              )}
-            </div>
           </div>
 
-          {/* DYNAMIC PRICING */}
+          {/* CLEAN PRICING (NO DISCOUNT FOR AYATUL KURSI) */}
           <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200/80 flex items-baseline justify-between">
-            <div>
+            <div className="flex items-baseline gap-2">
               <span className="text-3xl font-black text-[#0f3d44]">
                 {formatPrice(currentPrice)}
               </span>
-              {activeSize.old_price && (
-                <span className="text-sm text-slate-400 line-through ml-2">
+              {!isAyatul && activeSize.old_price && activeSize.old_price > currentPrice && (
+                <span className="text-sm text-slate-400 line-through">
                   {formatPrice(activeSize.old_price)}
                 </span>
               )}
             </div>
 
-            {activeSize.old_price && (
+            {!isAyatul && activeSize.old_price && activeSize.old_price > currentPrice && (
               <span className="text-xs text-teal-800 font-bold bg-teal-100/80 px-2.5 py-1 rounded-full">
                 Save {formatPrice(activeSize.old_price - currentPrice)}
               </span>
@@ -383,7 +356,7 @@ export const ProductPage: React.FC<ProductPageProps> = ({ slug, onNavigate, onOp
             )}
           </div>
 
-          {/* QUANTITY & FAST ORDER ACTIONS */}
+          {/* QUANTITY & ACTIONS */}
           <div className="space-y-3 pt-1">
             {product.stock <= 0 ? (
               <div className="w-full p-4 rounded-2xl bg-rose-50 border border-rose-200 text-center space-y-2 shadow-xs">
@@ -391,137 +364,117 @@ export const ProductPage: React.FC<ProductPageProps> = ({ slug, onNavigate, onOp
                   <span className="w-2.5 h-2.5 rounded-full bg-red-500 animate-pulse"></span>
                   <span>এই ডিজাইনটি বর্তমানে স্টক আউট রয়েছে</span>
                 </div>
-                <p className="text-xs text-slate-600">
-                  কাস্টম তৈরি করতে সরাসরি আমাদের WhatsApp-এ মেসেজ দিন।
-                </p>
-                <a
-                  href={`https://wa.me/88${settings.whatsapp_number || '01623319639'}?text=${encodeURIComponent(
-                    `আসসালামু আলাইকুম, আমি "${product.name}" ডিজাইনটি প্রি-অর্ডার করতে চাচ্ছি।`
-                  )}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="w-full py-3 px-4 rounded-xl text-xs sm:text-sm font-extrabold text-white bg-emerald-600 hover:bg-emerald-700 transition-all flex items-center justify-center gap-2"
-                >
-                  <MessageCircle className="w-4 h-4" />
-                  <span>WhatsApp-এ মেসেজ দিয়ে অর্ডার করুন</span>
-                </a>
               </div>
             ) : (
               <>
-                <div className="flex items-center gap-3">
-                  <div className="flex items-center border border-slate-300 rounded-xl overflow-hidden bg-white shadow-2xs">
-                    <button
-                      onClick={() => setQuantity(Math.max(1, quantity - 1))}
-                      className="px-3.5 py-2.5 text-slate-600 hover:bg-slate-100 font-bold cursor-pointer transition-colors"
-                    >
-                      -
-                    </button>
-                    <span className="px-4 py-2 text-sm font-black text-[#0f3d44]">{quantity}</span>
-                    <button
-                      onClick={() => setQuantity(Math.min(product.stock, quantity + 1))}
-                      className="px-3.5 py-2.5 text-slate-600 hover:bg-slate-100 font-bold cursor-pointer transition-colors"
-                    >
-                      +
-                    </button>
+                {/* QUANTITY & WISHLIST ROW */}
+                <div className="flex items-center justify-between pb-1">
+                  <div className="flex items-center gap-3">
+                    <span className="text-xs font-bold text-slate-700">পরিমাণ:</span>
+                    <div className="flex items-center border border-slate-300 rounded-xl overflow-hidden bg-white shadow-2xs">
+                      <button
+                        type="button"
+                        onClick={() => setQuantity(Math.max(1, quantity - 1))}
+                        className="px-3.5 py-1.5 text-slate-600 hover:bg-slate-100 font-bold cursor-pointer transition-colors"
+                      >
+                        -
+                      </button>
+                      <span className="px-4 py-1.5 text-sm font-black text-[#0f3d44]">{quantity}</span>
+                      <button
+                        type="button"
+                        onClick={() => setQuantity(Math.min(product.stock, quantity + 1))}
+                        className="px-3.5 py-1.5 text-slate-600 hover:bg-slate-100 font-bold cursor-pointer transition-colors"
+                      >
+                        +
+                      </button>
+                    </div>
                   </div>
-
-                  {/* Primary 1-Click Fast Order Button */}
-                  <button
-                    onClick={() => handleAddToCart(true)}
-                    className="flex-1 py-3.5 px-4 rounded-xl text-xs sm:text-sm font-black text-white bg-gradient-to-r from-emerald-600 via-teal-600 to-indigo-600 hover:opacity-95 shadow-lg shadow-teal-600/25 transition-all cursor-pointer select-none flex items-center justify-center gap-2 active:scale-95"
-                  >
-                    <span>এখনই অর্ডার করুন (Cash on Delivery)</span>
-                  </button>
 
                   <button
                     type="button"
                     onClick={() => toggleWishlist(product.id)}
-                    className={`p-3 rounded-xl border transition-all flex items-center justify-center shrink-0 cursor-pointer select-none icon-btn ${
+                    className={`px-3 py-1.5 rounded-xl border text-xs font-bold transition-all flex items-center gap-1.5 shrink-0 cursor-pointer select-none ${
                       isWishlisted
                         ? 'bg-pink-50 border-pink-300 text-pink-600'
                         : 'bg-white border-slate-300 text-slate-700 hover:bg-slate-50'
                     }`}
                     title={isWishlisted ? 'Remove from Wishlist' : 'Add to Wishlist'}
                   >
-                    <Heart className={`w-5 h-5 ${isWishlisted ? 'fill-pink-500 text-pink-500' : ''}`} />
+                    <Heart className={`w-4 h-4 ${isWishlisted ? 'fill-pink-500 text-pink-500' : ''}`} />
+                    <span>{isWishlisted ? 'সংরক্ষিত' : 'উইশলিস্ট'}</span>
                   </button>
                 </div>
 
-                {/* Secondary Cart Button (Triggers Right Slide-Over Cart Drawer) */}
-                <button
-                  onClick={() => handleAddToCart(false)}
-                  className="w-full py-2.5 rounded-xl text-xs font-bold text-slate-700 bg-slate-100 hover:bg-slate-200 border border-slate-200 shadow-xs transition-all flex items-center justify-center gap-2 cursor-pointer select-none"
-                >
-                  <ShoppingBag className="w-4 h-4 text-teal-600" />
-                  <span>কার্টে যোগ করুন • {formatPrice(currentPrice * quantity)}</span>
-                </button>
+                {/* DUAL PROPORTIONAL HIGH-CONVERTING BUTTONS */}
+                <div className="space-y-2.5">
+                  {/* Primary Order Now Button (Yellow Amazon-style) */}
+                  <button
+                    type="button"
+                    onClick={() => handleAddToCart(true)}
+                    className="w-full py-3.5 px-4 rounded-xl text-sm font-black text-slate-950 bg-[#f59e0b] hover:bg-[#d97706] shadow-md shadow-amber-500/20 transition-all cursor-pointer select-none flex items-center justify-center gap-2 active:scale-98"
+                  >
+                    <Zap className="w-4 h-4 fill-slate-950 text-slate-950 shrink-0" />
+                    <span>Order Now (ক্যাশ অন ডেলিভারি)</span>
+                  </button>
+
+                  {/* Secondary Add to Cart Button (Dark Navy) */}
+                  <button
+                    type="button"
+                    onClick={() => handleAddToCart(false)}
+                    className="w-full py-3 px-4 rounded-xl text-sm font-bold text-white bg-slate-900 hover:bg-slate-800 shadow-xs transition-all flex items-center justify-center gap-2 cursor-pointer select-none active:scale-98"
+                  >
+                    <ShoppingCart className="w-4 h-4 text-white shrink-0" />
+                    <span>Add to Cart</span>
+                  </button>
+                </div>
               </>
             )}
           </div>
 
           {/* SINGLE CLEAN CONSOLIDATED PRODUCT DESCRIPTION SECTION */}
           <div className="bg-white rounded-2xl border border-slate-200/90 shadow-sm overflow-hidden">
-            {/* Header */}
             <div className="bg-slate-50 px-4 py-3 border-b border-slate-200/80 flex items-center justify-between">
               <div className="flex items-center gap-2 text-[#0f3d44] font-black text-sm">
                 <Sparkles className="w-4 h-4 text-indigo-600 shrink-0" />
                 <span>পণ্যের বিবরণ (Product Description)</span>
               </div>
-              <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-700 border border-indigo-200">
-                {currentMaterial}
-              </span>
             </div>
 
             <div className="p-4 sm:p-5 space-y-4">
-              {/* Product Detailed Bengali Overview */}
+              {/* Product Detailed Overview */}
               <p className="text-xs sm:text-sm text-slate-700 leading-relaxed font-normal">
                 {currentBanglaDesc}
               </p>
 
-              {/* Key Features / Qualities */}
-              {currentQualities.length > 0 && (
-                <div className="space-y-2 pt-1 border-t border-slate-100">
-                  <h4 className="text-xs font-bold text-slate-900 flex items-center gap-1.5">
-                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-                    <span>বিশেষ বৈশিষ্ট্যসমূহ:</span>
-                  </h4>
-                  <ul className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs text-slate-600">
-                    {currentQualities.map((q, idx) => (
-                      <li key={idx} className="flex items-start gap-1.5 bg-slate-50/80 p-2 rounded-lg border border-slate-100">
-                        <span className="text-teal-600 font-bold shrink-0">✦</span>
-                        <span className="leading-tight">{q}</span>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              )}
-
-              {/* Product Specifications Table */}
-              <div className="pt-2 border-t border-slate-100">
-                <h4 className="text-xs font-bold text-slate-900 mb-2">স্পেসিফিকেশন:</h4>
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 text-xs">
-                  <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-100">
-                    <span className="text-[11px] text-slate-400 block font-medium">সাইজ (Size)</span>
-                    <span className="font-bold text-[#0f3d44]">{currentDimensions}</span>
-                  </div>
-                  <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-100">
-                    <span className="text-[11px] text-slate-400 block font-medium">পুরুত্ব (Thickness)</span>
-                    <span className="font-bold text-amber-700">{currentThickness}</span>
-                  </div>
-                  <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-100 col-span-2 sm:col-span-1">
-                    <span className="text-[11px] text-slate-400 block font-medium">ইনস্টলেশন</span>
-                    <span className="font-bold text-emerald-700">ডাবল সাইড টেপযুক্ত</span>
-                  </div>
-                </div>
+              {/* Integrated Specifications & Features */}
+              <div className="space-y-2 pt-2 border-t border-slate-100">
+                <ul className="space-y-2 text-xs text-slate-700">
+                  <li className="flex items-start gap-2">
+                    <span className="text-teal-600 font-bold shrink-0 mt-0.5">✦</span>
+                    <span><strong>উপাদান ও স্থায়িত্ব:</strong> {currentMaterial} — মরিচারোধী এবং আজীবন উজ্জ্বলতা বজায় রাখে।</span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <span className="text-teal-600 font-bold shrink-0 mt-0.5">✦</span>
+                    <span><strong>সাইজ ও থিকনেস:</strong> {currentDimensions} ({currentThickness})।</span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <span className="text-teal-600 font-bold shrink-0 mt-0.5">✦</span>
+                    <span><strong>ইনস্টলেশন:</strong> দেয়ালে ড্রিল করার প্রয়োজন নেই, প্যাকেটের সাথেই শক্তিশালী ডাবল সাইড টেপ দেওয়া আছে।</span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <span className="text-teal-600 font-bold shrink-0 mt-0.5">✦</span>
+                    <span><strong>৩ডি ফ্লোটিং লুক:</strong> দেয়াল থেকে কিছুটা ভেসে থাকে, যা দৃষ্টিনন্দন মডার্ন আভিজাত্য তৈরি করে।</span>
+                  </li>
+                </ul>
               </div>
 
-              {/* Delivery & Assurance note */}
-              <div className="pt-2 border-t border-slate-100 flex items-center gap-2 text-xs text-slate-500">
+              {/* Delivery Note */}
+              <div className="pt-2 border-t border-slate-100 flex items-center gap-2 text-xs text-slate-600">
                 <Truck className="w-4 h-4 text-teal-600 shrink-0" />
                 <span>
                   {isAyatul
                     ? '🎉 আয়াতুল কুরসিতে পাচ্ছেন সারা দেশে ১০০% ফ্রি হোম ডেলিভারি!'
-                    : '📦 সারা দেশে হোম ডেলিভারি (কুরিয়ার চার্জ ওজন অনুযায়ী চেকআউটে যুক্ত হবে)'}
+                    : '📦 সারা দেশে হোম ডেলিভারি সুবিধা (পণ্য হাতে পেয়ে চেক করে টাকা দিন)।'}
                 </span>
               </div>
             </div>
@@ -579,6 +532,10 @@ export const ProductPage: React.FC<ProductPageProps> = ({ slug, onNavigate, onOp
                     onNavigate('product', { slug: p.slug });
                   }}
                   onOpenWallModal={onOpenWallModal}
+                  onQuickOrder={(p) => {
+                    addToCart(p, 1);
+                    onNavigate('checkout');
+                  }}
                 />
               </div>
             ))}

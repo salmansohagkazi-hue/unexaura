@@ -3,13 +3,11 @@ import { AppProvider, useApp } from './context/AppContext';
 import { Header } from './components/Header';
 import { Footer } from './components/Footer';
 import { SeeOnWallModal } from './components/SeeOnWallModal';
-import { QuickOrderModal } from './components/QuickOrderModal';
 import { CartDrawer } from './components/CartDrawer';
 import { WhatsAppButton } from './components/WhatsAppButton';
 import { HomePage } from './pages/HomePage';
 import { ShopPage } from './pages/ShopPage';
 import { ProductPage } from './pages/ProductPage';
-import { CartPage } from './pages/CartPage';
 import { CheckoutPage } from './pages/CheckoutPage';
 import { OrderSuccessPage } from './pages/OrderSuccessPage';
 import { MyAccountPage } from './pages/MyAccountPage';
@@ -28,12 +26,16 @@ function MainAppContent() {
   const [lastOrder, setLastOrder] = useState<any>(null);
   const [lastOrderWhatsappUrl, setLastOrderWhatsappUrl] = useState<string>('');
   const [seeOnWallProduct, setSeeOnWallProduct] = useState<Product | null>(null);
-  const [quickOrderProduct, setQuickOrderProduct] = useState<Product | null>(null);
   const [accountTab, setAccountTab] = useState<'dashboard' | 'orders' | 'tracking' | 'wishlist' | 'profile' | 'password'>('dashboard');
   const [shopCategoryId, setShopCategoryId] = useState<number | 'all'>('all');
   const [adminTab, setAdminTab] = useState<'products' | 'orders' | 'categories' | 'coupons' | 'media' | 'shipping' | 'security' | 'sheets'>('orders');
 
-  const { products, categories, isCartDrawerOpen, closeCartDrawer } = useApp();
+  const { products, categories, isCartDrawerOpen, closeCartDrawer, addToCart } = useApp();
+
+  const handleDirectCheckout = (prod: Product) => {
+    addToCart(prod, 1);
+    handleNavigate('checkout');
+  };
 
   // Helper to resolve category ID from URL parameter (ID or slug or name)
   const resolveCatParam = (val: string | null): number | 'all' => {
@@ -155,10 +157,11 @@ function MainAppContent() {
         setLastOrderWhatsappUrl(params.whatsappUrl);
       }
       window.history.pushState({}, '', '?page=order-success');
-    } else if (page === 'cart') {
-      window.history.pushState({}, '', '?page=cart');
-    } else if (page === 'checkout') {
+    } else if (page === 'cart' || page === 'checkout') {
       window.history.pushState({}, '', '?page=checkout');
+      setActiveTab('checkout');
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+      return;
     } else if (page === 'account') {
       if (params?.tab) {
         setAccountTab(params.tab);
@@ -209,7 +212,7 @@ function MainAppContent() {
           <HomePage
             onNavigate={handleNavigate}
             onOpenWallModal={(prod) => handleOpenSeeOnWall(prod)}
-            onQuickOrder={(prod) => setQuickOrderProduct(prod)}
+            onQuickOrder={handleDirectCheckout}
           />
         )}
 
@@ -217,7 +220,7 @@ function MainAppContent() {
           <ShopPage
             onNavigate={handleNavigate}
             onOpenWallModal={(prod) => handleOpenSeeOnWall(prod)}
-            onQuickOrder={(prod) => setQuickOrderProduct(prod)}
+            onQuickOrder={handleDirectCheckout}
             initialSearch={searchQuery}
             initialCatId={shopCategoryId}
           />
@@ -232,7 +235,7 @@ function MainAppContent() {
         )}
 
         {activeTab === 'cart' && (
-          <CartPage onNavigate={handleNavigate} />
+          <CheckoutPage onNavigate={handleNavigate} />
         )}
 
         {activeTab === 'checkout' && (
@@ -285,20 +288,7 @@ function MainAppContent() {
         />
       )}
 
-      {/* 1-CLICK FAST COD QUICK ORDER MODAL */}
-      {quickOrderProduct && (
-        <QuickOrderModal
-          product={quickOrderProduct}
-          onClose={() => setQuickOrderProduct(null)}
-          onSuccess={(createdOrder) => {
-            setLastOrder(createdOrder);
-            setLastOrderNumber(createdOrder?.order_number || '');
-            handleNavigate('ordersuccess', { order: createdOrder, orderNumber: createdOrder?.order_number });
-          }}
-        />
-      )}
-
-      {/* SLIDE-OVER CART DRAWER FROM THE RIGHT */}
+      {/* SLIDE-OVER CART DRAWER FROM THE RIGHT (SCREENSHOT 1) */}
       <CartDrawer
         isOpen={isCartDrawerOpen}
         onClose={closeCartDrawer}

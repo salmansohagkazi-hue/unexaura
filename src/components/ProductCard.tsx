@@ -17,13 +17,29 @@ export const ProductCard: React.FC<ProductCardProps> = ({
   onOpenWallModal,
   onQuickOrder,
 }) => {
-  const { addToCart, formatPrice, toggleWishlist, isInWishlist } = useApp();
+  const { addToCart, formatPrice, toggleWishlist, isInWishlist, openCartDrawer } = useApp();
   const isWishlisted = isInWishlist(product.id);
   const isAyatul = isAyatulKursiProduct(product);
 
-  const discountPercent = product.old_price && product.old_price > product.price
+  const discountPercent = !isAyatul && product.old_price && product.old_price > product.price
     ? Math.round(((product.old_price - product.price) / product.old_price) * 100)
     : null;
+
+  const handleAddToCart = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    addToCart(product, 1);
+    openCartDrawer();
+  };
+
+  const handleOrderNow = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (onQuickOrder) {
+      onQuickOrder(product);
+    } else {
+      addToCart(product, 1);
+      window.dispatchEvent(new CustomEvent('unex_navigate', { detail: { page: 'checkout' } }));
+    }
+  };
 
   return (
     <div className="group bg-white rounded-2xl border border-slate-200/90 hover:border-indigo-400/50 hover:shadow-lg transition-all duration-300 flex flex-col overflow-hidden relative">
@@ -46,7 +62,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({
             </span>
           )}
           {isAyatul && (
-            <span className="text-[10px] font-bold px-2 py-0.5 rounded-md text-emerald-900 bg-emerald-100/90 border border-emerald-300/80 flex items-center gap-1 shadow-xs">
+            <span className="text-[10px] font-bold px-2 py-0.5 rounded-md text-emerald-900 bg-emerald-100/95 border border-emerald-300/80 flex items-center gap-1 shadow-xs">
               <Truck className="w-3 h-3 text-emerald-700" />
               <span>ফ্রি ডেলিভারি</span>
             </span>
@@ -83,7 +99,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({
         </button>
       </div>
 
-      {/* PRODUCT IMAGE CONTAINER (MATCHING SCREENSHOT 1) */}
+      {/* PRODUCT IMAGE CONTAINER */}
       <div
         onClick={() => onSelectProduct(product)}
         className="relative aspect-square bg-slate-50 overflow-hidden cursor-pointer group-hover:opacity-95"
@@ -108,9 +124,9 @@ export const ProductCard: React.FC<ProductCardProps> = ({
             {product.name}
           </h3>
 
-          {/* PRICING & DISCOUNT BADGE (EXACTLY AS IN SCREENSHOT 1) */}
+          {/* PRICING & DISCOUNT (NO DISCOUNT FOR AYATUL KURSI) */}
           <div className="pt-0.5 space-y-0.5">
-            {product.old_price && product.old_price > product.price ? (
+            {!isAyatul && product.old_price && product.old_price > product.price ? (
               <div className="text-xs text-slate-400 line-through font-medium">
                 {formatPrice(product.old_price)}
               </div>
@@ -123,7 +139,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({
                 {formatPrice(product.price)}
               </span>
 
-              {discountPercent && (
+              {!isAyatul && discountPercent && (
                 <span className="text-[11px] font-bold text-slate-600 bg-slate-100 border border-slate-200 px-1.5 py-0.5 rounded-md">
                   -{discountPercent}%
                 </span>
@@ -132,7 +148,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({
           </div>
         </div>
 
-        {/* STACKED BUTTONS (EXACTLY AS IN SCREENSHOT 1) */}
+        {/* STACKED BUTTONS: Add to Cart (Drawer) & Order Now (Yellow Direct Checkout) */}
         <div className="pt-3 space-y-2 mt-auto">
           {product.stock <= 0 ? (
             <button
@@ -145,34 +161,24 @@ export const ProductCard: React.FC<ProductCardProps> = ({
             </button>
           ) : (
             <>
-              {/* BUTTON 1: Add to Order (White outline button with ShoppingCart icon) */}
+              {/* BUTTON 1: Add to Cart (Sweeps open side drawer) */}
               <button
                 type="button"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  addToCart(product, 1);
-                }}
-                className="w-full py-2.5 px-3 rounded-xl border border-indigo-600/40 hover:border-indigo-600 text-indigo-700 bg-white hover:bg-indigo-50/70 text-xs sm:text-sm font-bold flex items-center justify-center gap-1.5 transition select-none cursor-pointer active:scale-98 shadow-xs"
+                onClick={handleAddToCart}
+                className="w-full py-2.5 px-3 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs sm:text-sm font-bold flex items-center justify-center gap-1.5 transition select-none cursor-pointer active:scale-98 shadow-xs"
               >
-                <ShoppingCart className="w-4 h-4 shrink-0 text-indigo-600" />
-                <span>Add to Order</span>
+                <ShoppingCart className="w-4 h-4 shrink-0 text-white" />
+                <span>Add to Cart</span>
               </button>
 
-              {/* BUTTON 2: Buy Now (Solid styled button with Lightning icon) */}
+              {/* BUTTON 2: Order Now (Yellow button -> Direct checkout) */}
               <button
                 type="button"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  if (onQuickOrder) {
-                    onQuickOrder(product);
-                  } else {
-                    onSelectProduct(product);
-                  }
-                }}
-                className="w-full py-2.5 px-3 rounded-xl bg-gradient-to-r from-indigo-600 via-indigo-700 to-purple-700 hover:from-indigo-700 hover:to-purple-800 text-white text-xs sm:text-sm font-bold flex items-center justify-center gap-1.5 shadow-md shadow-indigo-600/20 transition select-none cursor-pointer active:scale-98"
+                onClick={handleOrderNow}
+                className="w-full py-2.5 px-3 rounded-xl bg-[#f59e0b] hover:bg-[#d97706] text-slate-950 text-xs sm:text-sm font-black flex items-center justify-center gap-1.5 shadow-sm transition select-none cursor-pointer active:scale-98"
               >
-                <Zap className="w-4 h-4 fill-white text-white shrink-0" />
-                <span>Buy Now</span>
+                <Zap className="w-4 h-4 fill-slate-950 text-slate-950 shrink-0" />
+                <span>Order Now</span>
               </button>
             </>
           )}

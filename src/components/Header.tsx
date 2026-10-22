@@ -342,7 +342,7 @@ export const Header: React.FC<HeaderProps> = ({
             </span>
           </button>
 
-          {/* Cart Badge Button */}
+          {/* Cart Badge Button -> Opens Side Cart Drawer (Screenshot 1) */}
           <button
             onClick={() => openCartDrawer()}
             className="relative p-2.5 rounded-full bg-gradient-to-r from-[#14b8a6] via-[#4f46e5] to-[#ec4899] text-white hover:opacity-95 shadow-md shadow-indigo-500/20 active:scale-90 transition-all flex items-center justify-center select-none cursor-pointer"

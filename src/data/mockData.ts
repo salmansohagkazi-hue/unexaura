@@ -393,7 +393,6 @@ export const INITIAL_PRODUCTS: Product[] = [
       'সহজ ও নিরাপদ ইনস্টলেশন - প্যাকেটের সাথে রয়েছে শক্তিশালী ডাবল সাইডেড টেপ।'
     ],
     price: 1199,
-    old_price: 1399,
     image_url: 'https://res.cloudinary.com/glq1jvyu/image/upload/v1786771499/ayatulkursi_Drawing.jpg.jpg',
     room_images: {
       drawing_room: 'https://res.cloudinary.com/glq1jvyu/image/upload/v1786771499/ayatulkursi_Drawing.jpg.jpg',
@@ -412,7 +411,6 @@ export const INITIAL_PRODUCTS: Product[] = [
         name: 'স্মল (17 × 23 inch)',
         size_dimensions: '17 × 23 inch',
         price: 1199,
-        old_price: 1399,
         weight_grams: 800,
         stock: 15,
         is_stock_out: false
@@ -422,7 +420,6 @@ export const INITIAL_PRODUCTS: Product[] = [
         name: 'লার্জ (23 × 32 inch)',
         size_dimensions: '23 × 32 inch',
         price: 2599,
-        old_price: 2999,
         weight_grams: 1400,
         stock: 0,
         is_stock_out: true

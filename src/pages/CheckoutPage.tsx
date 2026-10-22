@@ -15,7 +15,10 @@ import {
   Banknote,
   Sparkles,
   ShoppingBag,
-  ArrowLeft
+  ArrowLeft,
+  Trash2,
+  Plus,
+  Minus
 } from 'lucide-react';
 
 interface CheckoutPageProps {
@@ -38,6 +41,8 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({ onNavigate }) => {
     getCartSubtotal,
     getCartWeight,
     formatPrice,
+    updateCartQty,
+    removeFromCart,
     clearCart,
     showToast,
     addOrder,
@@ -202,11 +207,11 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({ onNavigate }) => {
       {/* SIMPLE BREADCRUMB */}
       <div className="flex items-center justify-between">
         <button
-          onClick={() => onNavigate('cart')}
+          onClick={() => onNavigate('shop')}
           className="inline-flex items-center gap-1.5 text-xs font-bold text-slate-500 hover:text-indigo-600 cursor-pointer transition-colors"
         >
           <ArrowLeft className="w-3.5 h-3.5" />
-          <span>কার্টে ফিরে যান</span>
+          <span>শপে ফিরে যান (Back to Shop)</span>
         </button>
         <div className="text-xs font-bold text-emerald-700 bg-emerald-50 px-3 py-1 rounded-full border border-emerald-200 flex items-center gap-1.5">
           <ShieldCheck className="w-4 h-4 text-emerald-600" />
@@ -441,14 +446,14 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({ onNavigate }) => {
               </span>
             </h3>
 
-            {/* PRODUCT MINI LIST */}
-            <div className="space-y-2.5 max-h-56 overflow-y-auto pr-1 divide-y divide-slate-100">
+            {/* PRODUCT MINI LIST WITH QUANTITY & REMOVE CONTROLS */}
+            <div className="space-y-3 max-h-64 overflow-y-auto pr-1 divide-y divide-slate-100">
               {cart.map(({ product, quantity, selectedSize }) => {
                 const itemPrice = selectedSize ? selectedSize.price : product.price;
                 const itemKey = `${product.id}-${selectedSize?.id || 'default'}`;
 
                 return (
-                  <div key={itemKey} className="pt-2 flex items-center gap-2.5">
+                  <div key={itemKey} className="pt-2.5 flex items-center gap-2.5">
                     <img
                       src={product.image_url}
                       alt=""
@@ -458,10 +463,42 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({ onNavigate }) => {
                     <div className="flex-1 min-w-0">
                       <h4 className="text-xs font-bold text-[#0f3d44] truncate">{product.name}</h4>
                       <div className="text-[11px] text-slate-500 font-medium">
-                        {quantity} টি {selectedSize ? `• ${selectedSize.name}` : ''}
+                        {selectedSize ? selectedSize.name : formatPrice(itemPrice)}
+                      </div>
+                      {/* QUANTITY CONTROLS */}
+                      <div className="flex items-center gap-2 mt-1">
+                        <div className="flex items-center border border-slate-200 rounded-lg bg-slate-50 overflow-hidden text-xs">
+                          <button
+                            type="button"
+                            onClick={() => updateCartQty(product.id, Math.max(1, quantity - 1), selectedSize?.id)}
+                            className="px-2 py-0.5 text-slate-600 hover:bg-slate-200 transition-colors font-bold cursor-pointer"
+                            title="Decrease quantity"
+                          >
+                            <Minus className="w-3 h-3" />
+                          </button>
+                          <span className="px-2 py-0.5 font-bold text-slate-800 text-[11px] min-w-5 text-center">
+                            {quantity}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => updateCartQty(product.id, quantity + 1, selectedSize?.id)}
+                            className="px-2 py-0.5 text-slate-600 hover:bg-slate-200 transition-colors font-bold cursor-pointer"
+                            title="Increase quantity"
+                          >
+                            <Plus className="w-3 h-3" />
+                          </button>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => removeFromCart(product.id, selectedSize?.id)}
+                          className="p-1 text-slate-400 hover:text-red-500 transition-colors cursor-pointer"
+                          title="Remove item"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
                       </div>
                     </div>
-                    <span className="text-xs font-black text-[#0f3d44]">
+                    <span className="text-xs font-black text-[#0f3d44] shrink-0">
                       {formatPrice(itemPrice * quantity)}
                     </span>
                   </div>

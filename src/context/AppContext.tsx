@@ -85,7 +85,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       if (saved) {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed) && parsed.length > 0) {
-          return parsed;
+          return parsed.map((p: Product) => {
+            if (p.id === 10 || p.name?.includes('আয়াতুল কুরসি') || p.slug?.includes('ayatul-kursi')) {
+              const cleaned = { ...p, old_price: undefined };
+              if (cleaned.sizes) {
+                cleaned.sizes = cleaned.sizes.map((s) => ({ ...s, old_price: undefined }));
+              }
+              return cleaned;
+            }
+            return p;
+          });
         }
       }
     } catch {}

@@ -2,7 +2,6 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useApp } from '../context/AppContext';
 import { ProductCard } from '../components/ProductCard';
 import { CategoryCarousel } from '../components/CategoryCarousel';
-import { QuickOrderModal } from '../components/QuickOrderModal';
 import { Product } from '../types';
 import { useSEO } from '../hooks/useSEO';
 import { INITIAL_TESTIMONIALS } from '../data/mockData';

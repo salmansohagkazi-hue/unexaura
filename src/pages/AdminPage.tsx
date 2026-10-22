@@ -45,9 +45,11 @@ import {
   Settings,
   Store,
   ChevronRight,
-  Share2
+  Share2,
+  Database
 } from 'lucide-react';
 import { GoogleSheetsSync } from '../components/GoogleSheetsSync';
+import { SupabaseManager } from '../components/SupabaseManager';
 
 interface AdminPageProps {
   onNavigate: (page: string, params?: any) => void;
@@ -55,7 +57,7 @@ interface AdminPageProps {
 }
 
 export type AdminMainTab = 'dashboard' | 'orders' | 'products' | 'sheets' | 'settings';
-export type AdminSettingsSubTab = 'media' | 'categories' | 'coupons' | 'shipping' | 'security' | 'meta';
+export type AdminSettingsSubTab = 'media' | 'categories' | 'coupons' | 'shipping' | 'security' | 'meta' | 'supabase';
 
 export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate, initialTab = 'dashboard' }) => {
   const {
@@ -1760,6 +1762,18 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate, initialTab = '
               <Share2 className="w-3.5 h-3.5" />
               <span>Meta Pixel & CAPI</span>
             </button>
+
+            <button
+              onClick={() => setSettingsSubTab('supabase')}
+              className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                settingsSubTab === 'supabase'
+                  ? 'bg-emerald-600 text-white shadow-xs'
+                  : 'bg-emerald-50 text-emerald-800 hover:bg-emerald-100'
+              }`}
+            >
+              <Database className="w-3.5 h-3.5" />
+              <span>Supabase Backend</span>
+            </button>
           </div>
         </div>
       )}
@@ -3133,6 +3147,11 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate, initialTab = '
             </form>
           </div>
         </div>
+      )}
+
+      {/* TAB: SUPABASE BACKEND MANAGER */}
+      {(activeTab === 'settings' && settingsSubTab === 'supabase') && (
+        <SupabaseManager />
       )}
 
           </main>

@@ -46,7 +46,10 @@ import {
   Store,
   ChevronRight,
   Share2,
-  Database
+  Database,
+  Boxes,
+  Warehouse,
+  PackageCheck
 } from 'lucide-react';
 import { GoogleSheetsSync } from '../components/GoogleSheetsSync';
 import { SupabaseManager } from '../components/SupabaseManager';
@@ -56,7 +59,7 @@ interface AdminPageProps {
   initialTab?: string;
 }
 
-export type AdminMainTab = 'dashboard' | 'orders' | 'products' | 'sheets' | 'settings';
+export type AdminMainTab = 'dashboard' | 'orders' | 'products' | 'inventory' | 'categories' | 'sheets' | 'settings';
 export type AdminSettingsSubTab = 'media' | 'categories' | 'coupons' | 'shipping' | 'security' | 'meta' | 'supabase';
 
 export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate, initialTab = 'dashboard' }) => {
@@ -79,9 +82,11 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate, initialTab = '
     refreshOrders,
     restoreOrders,
     updateOrderStatus,
+    deleteOrder,
     addProduct,
     updateProduct,
     deleteProduct,
+    updateProductStock,
     syncInventoryFromSheet,
     pushCatalogToSheet
   } = useApp();
@@ -163,6 +168,59 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate, initialTab = '
   // Product filter state
   const [selectedCatFilter, setSelectedCatFilter] = useState<number | 'all'>('all');
   const [productSearch, setProductSearch] = useState<string>('');
+
+  // Inventory state
+  const [inventorySearch, setInventorySearch] = useState<string>('');
+  const [inventoryStockFilter, setInventoryStockFilter] = useState<'all' | 'low' | 'out' | 'in'>('all');
+  const [inventoryStockEdits, setInventoryStockEdits] = useState<{ [productId: number]: number }>({});
+  const [savingStockId, setSavingStockId] = useState<number | null>(null);
+  const [isSyncingSupabaseSeed, setIsSyncingSupabaseSeed] = useState<boolean>(false);
+
+  const handleUpdateStock = async (productId: number, directValue?: number) => {
+    setSavingStockId(productId);
+    try {
+      const targetProduct = products.find(p => p.id === productId);
+      const newStock = directValue !== undefined 
+        ? Math.max(0, directValue) 
+        : (inventoryStockEdits[productId] !== undefined ? Math.max(0, inventoryStockEdits[productId]) : (targetProduct?.stock || 0));
+      
+      await updateProductStock(productId, newStock);
+      setInventoryStockEdits(prev => ({ ...prev, [productId]: newStock }));
+      showToast(`"${targetProduct?.name || `Product #${productId}`}" এর স্টক ${newStock} পিস হিসেবে Supabase-এ আপডেট হয়েছে!`);
+    } catch (e: any) {
+      showToast('স্টক আপডেট করার সময় সমস্যা হয়েছে');
+    } finally {
+      setSavingStockId(null);
+    }
+  };
+
+  const handleSeedSupabase = async () => {
+    setIsSyncingSupabaseSeed(true);
+    try {
+      const res = await fetch('/api/admin/supabase-seed', { method: 'POST' });
+      const data = await res.json();
+      if (data.success) {
+        showToast(`✅ Supabase-এ সফলভাবে ${data.categories_synced}টি ক্যাটাগরি ও ${data.products_synced}টি প্রোডাক্ট সিঙ্ক হয়েছে!`);
+      } else {
+        showToast(`সিঙ্ক সম্পন্ন: ${data.products_synced || 0}টি প্রোডাক্ট যুক্ত হয়েছে।`);
+      }
+    } catch (err: any) {
+      showToast('Supabase সিঙ্কে সমস্যা: ' + err.message);
+    } finally {
+      setIsSyncingSupabaseSeed(false);
+    }
+  };
+
+  const handleDeleteOrder = async (orderId: number | string, orderNum: string) => {
+    const confirmed = window.confirm(`আপনি কি নিশ্চিত যে অর্ডার #${orderNum} মুছে ফেলতে চান? এটি Supabase ডাটাবেজ থেকেও মুছে যাবে।`);
+    if (!confirmed) return;
+    try {
+      await deleteOrder(orderId);
+      showToast(`অর্ডার #${orderNum} সফলভাবে মুছে ফেলা হয়েছে!`);
+    } catch {
+      showToast('অর্ডার মোছার সময় ত্রুটি হয়েছে');
+    }
+  };
 
   // Product edit modal state
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
@@ -898,6 +956,24 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate, initialTab = '
             <span>প্রোডাক্ট ({products.length})</span>
           </button>
           <button
+            onClick={() => setActiveTab('inventory')}
+            className={`px-3 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap flex items-center gap-1.5 cursor-pointer ${
+              activeTab === 'inventory' ? 'bg-[#0f3d44] text-white shadow-xs' : 'bg-white text-slate-600 border border-slate-200'
+            }`}
+          >
+            <Warehouse className="w-3.5 h-3.5" />
+            <span>ইনভেন্টরি স্টক</span>
+          </button>
+          <button
+            onClick={() => setActiveTab('categories')}
+            className={`px-3 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap flex items-center gap-1.5 cursor-pointer ${
+              activeTab === 'categories' ? 'bg-[#0f3d44] text-white shadow-xs' : 'bg-white text-slate-600 border border-slate-200'
+            }`}
+          >
+            <Layers className="w-3.5 h-3.5" />
+            <span>ক্যাটাগরি ({categories.length})</span>
+          </button>
+          <button
             onClick={() => setActiveTab('sheets')}
             className={`px-3 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap flex items-center gap-1.5 cursor-pointer ${
               activeTab === 'sheets' ? 'bg-emerald-700 text-white shadow-xs' : 'bg-white text-emerald-800 border border-emerald-200'
@@ -976,10 +1052,44 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate, initialTab = '
               >
                 <div className="flex items-center gap-2.5">
                   <ShoppingBag className="w-4 h-4 text-indigo-500" />
-                  <span>প্রোডাক্ট ও স্টক</span>
+                  <span>প্রোডাক্ট ক্যাটালগ</span>
                 </div>
                 <span className={`text-[11px] px-2 py-0.5 rounded-full ${activeTab === 'products' ? 'bg-white/20' : 'bg-slate-100 text-slate-500'}`}>
                   {products.length}
+                </span>
+              </button>
+
+              <button
+                onClick={() => setActiveTab('inventory')}
+                className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-2xl font-bold transition-all cursor-pointer ${
+                  activeTab === 'inventory'
+                    ? 'bg-[#0f3d44] text-white shadow-sm'
+                    : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+                }`}
+              >
+                <div className="flex items-center gap-2.5">
+                  <Warehouse className="w-4 h-4 text-emerald-500" />
+                  <span>ইনভেন্টরি ও স্টক</span>
+                </div>
+                <span className={`text-[11px] px-2 py-0.5 rounded-full ${activeTab === 'inventory' ? 'bg-white/20' : 'bg-slate-100 text-slate-500'}`}>
+                  {products.reduce((acc, p) => acc + (p.stock || 0), 0)} টি
+                </span>
+              </button>
+
+              <button
+                onClick={() => setActiveTab('categories')}
+                className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-2xl font-bold transition-all cursor-pointer ${
+                  activeTab === 'categories'
+                    ? 'bg-[#0f3d44] text-white shadow-sm'
+                    : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+                }`}
+              >
+                <div className="flex items-center gap-2.5">
+                  <Layers className="w-4 h-4 text-teal-500" />
+                  <span>ক্যাটাগরি ম্যানেজমেন্ট</span>
+                </div>
+                <span className={`text-[11px] px-2 py-0.5 rounded-full ${activeTab === 'categories' ? 'bg-white/20' : 'bg-slate-100 text-slate-500'}`}>
+                  {categories.length}
                 </span>
               </button>
 
@@ -1677,6 +1787,331 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate, initialTab = '
         </div>
       )}
 
+      {/* TAB: INVENTORY & STOCK MANAGEMENT */}
+      {activeTab === 'inventory' && (() => {
+        const totalItems = products.length;
+        const totalStockUnits = products.reduce((sum, p) => sum + (p.stock || 0), 0);
+        const lowStockProducts = products.filter(p => (p.stock || 0) > 0 && (p.stock || 0) <= 5);
+        const outOfStockProducts = products.filter(p => (p.stock || 0) === 0);
+
+        const filteredInventoryProducts = products.filter(p => {
+          if (inventoryStockFilter === 'low') {
+            if (!((p.stock || 0) > 0 && (p.stock || 0) <= 5)) return false;
+          } else if (inventoryStockFilter === 'out') {
+            if ((p.stock || 0) !== 0) return false;
+          } else if (inventoryStockFilter === 'in') {
+            if ((p.stock || 0) <= 5) return false;
+          }
+
+          if (!inventorySearch.trim()) return true;
+          const q = inventorySearch.toLowerCase();
+          return (
+            p.name.toLowerCase().includes(q) ||
+            (p.category_name && p.category_name.toLowerCase().includes(q)) ||
+            (p.slug && p.slug.toLowerCase().includes(q))
+          );
+        });
+
+        return (
+          <div className="space-y-6">
+            {/* Header & Supabase Banner */}
+            <div className="bg-gradient-to-r from-teal-900 via-slate-900 to-[#0f3d44] p-6 rounded-3xl text-white shadow-xl flex flex-col md:flex-row md:items-center justify-between gap-4">
+              <div className="space-y-1 max-w-2xl">
+                <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 text-xs font-bold">
+                  <Database className="w-3.5 h-3.5" />
+                  <span>Supabase Live Stock Sync</span>
+                </div>
+                <h2 className="text-xl sm:text-2xl font-black">ইনভেন্টরি ও স্টক পরিচালনা (Inventory Management)</h2>
+                <p className="text-xs text-slate-300">
+                  প্রতিটি ওয়াল আর্টের বর্তমান স্টক সংখ্যা দেখুন ও এক ক্লিকে আপডেট করুন। যে পরিবর্তনই করবেন, তা সরাসরি Supabase ডেটাবেজ ও ওয়েবসাইটে আপডেট হবে।
+                </p>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  onClick={handleSeedSupabase}
+                  disabled={isSyncingSupabaseSeed}
+                  className="px-4 py-2.5 rounded-2xl bg-amber-500 hover:bg-amber-600 disabled:opacity-50 text-slate-950 font-black text-xs flex items-center gap-2 transition-all shadow-md cursor-pointer"
+                  title="সকল প্রোডাক্ট ও স্টক Supabase-এ সিঙ্ক করুন"
+                >
+                  <RefreshCw className={`w-3.5 h-3.5 ${isSyncingSupabaseSeed ? 'animate-spin' : ''}`} />
+                  <span>{isSyncingSupabaseSeed ? 'সিঙ্ক হচ্ছে...' : 'Supabase-এ ক্যাটালগ সিঙ্ক'}</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Inventory Metric Cards */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
+              <div className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-xs space-y-1">
+                <div className="flex items-center justify-between text-slate-500 text-xs font-bold">
+                  <span>মোট প্রোডাক্ট আইটেম</span>
+                  <ShoppingBag className="w-4 h-4 text-indigo-500" />
+                </div>
+                <div className="text-2xl font-black text-[#0f3d44]">{totalItems}</div>
+                <div className="text-[11px] text-slate-400">Total Catalog Items</div>
+              </div>
+
+              <div className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-xs space-y-1">
+                <div className="flex items-center justify-between text-emerald-700 text-xs font-bold">
+                  <span>মোট স্টক মজুদ</span>
+                  <Warehouse className="w-4 h-4 text-emerald-600" />
+                </div>
+                <div className="text-2xl font-black text-emerald-800">{totalStockUnits} <span className="text-xs font-normal">টি</span></div>
+                <div className="text-[11px] text-emerald-600">Total In-Stock Units</div>
+              </div>
+
+              <div
+                onClick={() => setInventoryStockFilter(inventoryStockFilter === 'low' ? 'all' : 'low')}
+                className={`p-4 rounded-2xl border transition-all cursor-pointer space-y-1 ${
+                  inventoryStockFilter === 'low' ? 'bg-amber-100 border-amber-400 shadow-md' : 'bg-amber-50/70 border-amber-200 hover:border-amber-300'
+                }`}
+              >
+                <div className="flex items-center justify-between text-amber-800 text-xs font-bold">
+                  <span>কম স্টক (≤ ৫ টি)</span>
+                  <AlertCircle className="w-4 h-4 text-amber-600" />
+                </div>
+                <div className="text-2xl font-black text-amber-950">{lowStockProducts.length} <span className="text-xs font-normal">টি পণ্য</span></div>
+                <div className="text-[11px] text-amber-700">Reorder Required</div>
+              </div>
+
+              <div
+                onClick={() => setInventoryStockFilter(inventoryStockFilter === 'out' ? 'all' : 'out')}
+                className={`p-4 rounded-2xl border transition-all cursor-pointer space-y-1 ${
+                  inventoryStockFilter === 'out' ? 'bg-rose-100 border-rose-400 shadow-md' : 'bg-rose-50/70 border-rose-200 hover:border-rose-300'
+                }`}
+              >
+                <div className="flex items-center justify-between text-rose-800 text-xs font-bold">
+                  <span>স্টক আউট (০ টি)</span>
+                  <X className="w-4 h-4 text-rose-600" />
+                </div>
+                <div className="text-2xl font-black text-rose-950">{outOfStockProducts.length} <span className="text-xs font-normal">টি পণ্য</span></div>
+                <div className="text-[11px] text-rose-700">Out of Stock Alert</div>
+              </div>
+            </div>
+
+            {/* Search & Quick Filter Controls */}
+            <div className="bg-white p-4 sm:p-5 rounded-2xl border border-slate-200/80 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-3">
+              <div className="relative flex-1 max-w-md">
+                <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                <input
+                  type="text"
+                  value={inventorySearch}
+                  onChange={(e) => setInventorySearch(e.target.value)}
+                  placeholder="প্রোডাক্ট নাম বা ক্যাটাগরি সার্চ করুন..."
+                  className="w-full pl-9 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium text-[#0f3d44] focus:outline-none focus:ring-2 focus:ring-[#0f3d44]"
+                />
+                {inventorySearch && (
+                  <button
+                    onClick={() => setInventorySearch('')}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 text-xs"
+                  >
+                    ✕
+                  </button>
+                )}
+              </div>
+
+              <div className="flex items-center gap-1.5 overflow-x-auto text-xs pb-1 sm:pb-0">
+                <button
+                  onClick={() => setInventoryStockFilter('all')}
+                  className={`px-3 py-1.5 rounded-xl font-bold transition-all cursor-pointer ${
+                    inventoryStockFilter === 'all'
+                      ? 'bg-[#0f3d44] text-white shadow-xs'
+                      : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                  }`}
+                >
+                  সব ({products.length})
+                </button>
+                <button
+                  onClick={() => setInventoryStockFilter('in')}
+                  className={`px-3 py-1.5 rounded-xl font-bold transition-all cursor-pointer ${
+                    inventoryStockFilter === 'in'
+                      ? 'bg-emerald-600 text-white shadow-xs'
+                      : 'bg-emerald-50 text-emerald-800 hover:bg-emerald-100'
+                  }`}
+                >
+                  পর্যাপ্ত স্টক ({products.filter(p => (p.stock || 0) > 5).length})
+                </button>
+                <button
+                  onClick={() => setInventoryStockFilter('low')}
+                  className={`px-3 py-1.5 rounded-xl font-bold transition-all cursor-pointer ${
+                    inventoryStockFilter === 'low'
+                      ? 'bg-amber-500 text-white shadow-xs'
+                      : 'bg-amber-50 text-amber-800 hover:bg-amber-100'
+                  }`}
+                >
+                  কম স্টক ({lowStockProducts.length})
+                </button>
+                <button
+                  onClick={() => setInventoryStockFilter('out')}
+                  className={`px-3 py-1.5 rounded-xl font-bold transition-all cursor-pointer ${
+                    inventoryStockFilter === 'out'
+                      ? 'bg-rose-600 text-white shadow-xs'
+                      : 'bg-rose-50 text-rose-800 hover:bg-rose-100'
+                  }`}
+                >
+                  স্টক আউট ({outOfStockProducts.length})
+                </button>
+              </div>
+            </div>
+
+            {/* Inventory Table */}
+            <div className="bg-white rounded-2xl border border-slate-200/80 shadow-xs overflow-hidden">
+              <div className="p-4 sm:p-5 border-b border-slate-100 flex items-center justify-between">
+                <div>
+                  <h3 className="font-black text-base text-[#0f3d44]">লাইভ স্টক পরিবর্তন তালিকা</h3>
+                  <p className="text-xs text-slate-500">
+                    ইনপুট বক্সে নতুন স্টক লিখুন অথবা +/- বোতাম চেপে এক ক্লিকে "স্টক সেভ" এ ক্লিক করুন।
+                  </p>
+                </div>
+                <span className="text-xs text-slate-400 font-mono">
+                  {filteredInventoryProducts.length} টি পণ্য প্রদর্শিত
+                </span>
+              </div>
+
+              {filteredInventoryProducts.length === 0 ? (
+                <div className="p-12 text-center text-slate-400 space-y-2">
+                  <Warehouse className="w-10 h-10 mx-auto text-slate-300" />
+                  <p className="font-bold text-sm">কোনো প্রোডাক্ট পাওয়া যায়নি</p>
+                </div>
+              ) : (
+                <div className="divide-y divide-slate-100">
+                  {filteredInventoryProducts.map((p) => {
+                    const currentEditVal = inventoryStockEdits[p.id] !== undefined ? inventoryStockEdits[p.id] : (p.stock || 0);
+                    const isSaving = savingStockId === p.id;
+                    const isLow = (p.stock || 0) > 0 && (p.stock || 0) <= 5;
+                    const isOut = (p.stock || 0) === 0;
+
+                    return (
+                      <div key={p.id} className="p-4 sm:p-5 flex flex-col md:flex-row md:items-center justify-between gap-4 hover:bg-slate-50/80 transition-colors">
+                        {/* Product Info */}
+                        <div className="flex items-center gap-3.5 min-w-0">
+                          <img
+                            src={p.image_url}
+                            alt=""
+                            className="w-14 h-14 object-cover rounded-xl border border-slate-200 shrink-0 bg-slate-100"
+                          />
+                          <div className="min-w-0 space-y-1">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <h4 className="font-black text-sm text-[#0f3d44] truncate">{p.name}</h4>
+                              <span className="text-[10px] font-mono text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded">
+                                ID: #{p.id}
+                              </span>
+                            </div>
+                            <div className="flex items-center gap-2 text-xs flex-wrap">
+                              <span className="text-teal-800 font-black">{formatPrice(p.price)}</span>
+                              <span className="text-slate-300">•</span>
+                              <span className="text-slate-500 font-medium">{p.category_name || 'Wall Art'}</span>
+                              <span className="text-slate-300">•</span>
+                              <span className="text-slate-500 font-mono">{p.size_dimensions || '75cm × 40cm'}</span>
+                            </div>
+                            <div className="pt-0.5">
+                              {isOut ? (
+                                <span className="inline-flex items-center gap-1 text-[10px] font-black bg-rose-100 text-rose-800 px-2 py-0.5 rounded-full">
+                                  <AlertCircle className="w-3 h-3" /> স্টক আউট (০ টি)
+                                </span>
+                              ) : isLow ? (
+                                <span className="inline-flex items-center gap-1 text-[10px] font-black bg-amber-100 text-amber-900 px-2 py-0.5 rounded-full">
+                                  <AlertCircle className="w-3 h-3" /> কম স্টক ({p.stock} টি বাকি)
+                                </span>
+                              ) : (
+                                <span className="inline-flex items-center gap-1 text-[10px] font-black bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded-full">
+                                  <CheckCircle2 className="w-3 h-3" /> পর্যাপ্ত স্টক ({p.stock} টি)
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Quick Stock Controls */}
+                        <div className="flex items-center gap-2 sm:gap-3 shrink-0 self-end md:self-center">
+                          {/* Stepper Buttons */}
+                          <div className="flex items-center bg-slate-100 p-1 rounded-xl border border-slate-200">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const nextVal = Math.max(0, currentEditVal - 1);
+                                setInventoryStockEdits(prev => ({ ...prev, [p.id]: nextVal }));
+                              }}
+                              className="w-7 h-7 rounded-lg bg-white hover:bg-slate-200 font-black text-slate-700 text-sm flex items-center justify-center transition-colors cursor-pointer shadow-xs"
+                              title="-১ কমান"
+                            >
+                              -1
+                            </button>
+                            <input
+                              type="number"
+                              min="0"
+                              value={currentEditVal}
+                              onChange={(e) => {
+                                const val = parseInt(e.target.value, 10);
+                                setInventoryStockEdits(prev => ({ ...prev, [p.id]: isNaN(val) ? 0 : Math.max(0, val) }));
+                              }}
+                              className="w-14 text-center font-black text-sm text-[#0f3d44] bg-transparent focus:outline-none"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const nextVal = currentEditVal + 1;
+                                setInventoryStockEdits(prev => ({ ...prev, [p.id]: nextVal }));
+                              }}
+                              className="w-7 h-7 rounded-lg bg-white hover:bg-slate-200 font-black text-slate-700 text-sm flex items-center justify-center transition-colors cursor-pointer shadow-xs"
+                              title="+১ বাড়ান"
+                            >
+                              +1
+                            </button>
+                          </div>
+
+                          {/* Quick +5 and +10 Buttons */}
+                          <div className="hidden sm:flex items-center gap-1">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const nextVal = currentEditVal + 5;
+                                setInventoryStockEdits(prev => ({ ...prev, [p.id]: nextVal }));
+                              }}
+                              className="px-2 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 text-[11px] font-bold cursor-pointer"
+                              title="+৫ স্টক যোগ করুন"
+                            >
+                              +5
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const nextVal = currentEditVal + 10;
+                                setInventoryStockEdits(prev => ({ ...prev, [p.id]: nextVal }));
+                              }}
+                              className="px-2 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 text-[11px] font-bold cursor-pointer"
+                              title="+১০ স্টক যোগ করুন"
+                            >
+                              +10
+                            </button>
+                          </div>
+
+                          {/* Save Button */}
+                          <button
+                            type="button"
+                            onClick={() => handleUpdateStock(p.id, currentEditVal)}
+                            disabled={isSaving}
+                            className={`px-3.5 py-2 rounded-xl text-xs font-black transition-all flex items-center gap-1.5 shadow-xs cursor-pointer ${
+                              currentEditVal !== p.stock
+                                ? 'bg-emerald-600 hover:bg-emerald-700 text-white animate-pulse'
+                                : 'bg-[#0f3d44] hover:bg-teal-900 text-white'
+                            }`}
+                          >
+                            <Save className={`w-3.5 h-3.5 ${isSaving ? 'animate-spin' : ''}`} />
+                            <span>{isSaving ? 'সেভ হচ্ছে...' : 'স্টক সেভ'}</span>
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          </div>
+        );
+      })()}
+
       {/* SETTINGS SUB-NAV HEADER */}
       {activeTab === 'settings' && (
         <div className="bg-white p-5 sm:p-6 rounded-3xl border border-slate-200/80 shadow-xs space-y-4">
@@ -2011,88 +2446,126 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate, initialTab = '
 
       {/* TAB 3: CATEGORIES MANAGEMENT */}
       {(activeTab === 'categories' || (activeTab === 'settings' && settingsSubTab === 'categories')) && (
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-          {/* LEFT: CREATE CATEGORY FORM */}
-          <div className="lg:col-span-5 bg-white p-6 rounded-2xl border border-slate-200/80 shadow-xs space-y-4">
-            <h3 className="font-extrabold text-base text-[#0f3d44]">Add New Category (নতুন ক্যাটাগরি যোগ করুন)</h3>
-            <form onSubmit={handleCreateCategory} className="space-y-4 text-xs">
-              <div>
-                <label className="font-bold text-slate-700 block mb-1">Category Name *</label>
-                <input
-                  type="text"
-                  required
-                  value={newCatName}
-                  onChange={(e) => setNewCatName(e.target.value)}
-                  placeholder="e.g. Calligraphy Art"
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2 text-xs font-medium text-[#0f3d44]"
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="font-bold text-slate-700 block mb-1">Category Icon / Emoji</label>
-                  <input
-                    type="text"
-                    value={newCatIcon}
-                    onChange={(e) => setNewCatIcon(e.target.value)}
-                    placeholder="e.g. 🕌 or 🌿"
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-center font-bold text-[#0f3d44]"
-                  />
+        <div className="space-y-6">
+          {activeTab === 'categories' && (
+            <div className="bg-gradient-to-r from-teal-900 via-slate-900 to-[#0f3d44] p-6 rounded-3xl text-white shadow-xl flex flex-col md:flex-row md:items-center justify-between gap-4">
+              <div className="space-y-1 max-w-2xl">
+                <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 text-xs font-bold">
+                  <Database className="w-3.5 h-3.5" />
+                  <span>Supabase Live Categories Sync</span>
                 </div>
-
-                <div>
-                  <label className="font-bold text-slate-700 block mb-1">URL Slug</label>
-                  <input
-                    type="text"
-                    value={newCatSlug}
-                    onChange={(e) => setNewCatSlug(e.target.value)}
-                    placeholder="calligraphy-art"
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-mono text-[#0f3d44]"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="font-bold text-slate-700 block mb-1">Category Image URL (ক্যাটাগরি ছবি লিঙ্ক)</label>
-                <input
-                  type="url"
-                  value={newCatImg}
-                  onChange={(e) => setNewCatImg(e.target.value)}
-                  placeholder="https://images.unsplash.com/... or /images/..."
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2 text-xs text-[#0f3d44]"
-                />
+                <h2 className="text-xl sm:text-2xl font-black">ক্যাটাগরি ম্যানেজমেন্ট (Category Management)</h2>
+                <p className="text-xs text-slate-300">
+                  নতুন ক্যাটাগরি তৈরি করুন, নাম ও আইকন পরিবর্তন করুন অথবা ডিলিট করুন। প্রতিটি অ্যাকশন সরাসরি Supabase ডেটাবেজ ও সাইটের ক্যাটাগরি বারে তাৎক্ষণিক আপডেট হয়।
+                </p>
               </div>
 
               <button
-                type="submit"
-                className="w-full py-3 rounded-xl text-xs font-bold text-white bg-[#0f3d44] hover:bg-indigo-950 shadow-md cursor-pointer transition-all"
+                type="button"
+                onClick={handleSeedSupabase}
+                disabled={isSyncingSupabaseSeed}
+                className="px-4 py-2.5 rounded-2xl bg-amber-500 hover:bg-amber-600 disabled:opacity-50 text-slate-950 font-black text-xs flex items-center gap-2 transition-all shadow-md cursor-pointer self-start md:self-auto"
+                title="সকল ক্যাটাগরি ও প্রোডাক্ট Supabase-এ সিঙ্ক করুন"
               >
-                + Create Category
+                <RefreshCw className={`w-3.5 h-3.5 ${isSyncingSupabaseSeed ? 'animate-spin' : ''}`} />
+                <span>{isSyncingSupabaseSeed ? 'সিঙ্ক হচ্ছে...' : 'Supabase সিঙ্ক'}</span>
               </button>
-            </form>
-          </div>
+            </div>
+          )}
 
-          {/* RIGHT: CATEGORIES LIST */}
-          <div className="lg:col-span-7 bg-white p-6 rounded-2xl border border-slate-200/80 shadow-xs space-y-4">
-            <h3 className="font-extrabold text-base text-[#0f3d44] flex items-center justify-between">
-              <span>Existing Categories ({categories.length})</span>
-            </h3>
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+            {/* LEFT: CREATE CATEGORY FORM */}
+            <div className="lg:col-span-5 bg-white p-6 rounded-2xl border border-slate-200/80 shadow-xs space-y-4">
+              <h3 className="font-extrabold text-base text-[#0f3d44]">Add New Category (নতুন ক্যাটাগরি যোগ করুন)</h3>
+              <form onSubmit={handleCreateCategory} className="space-y-4 text-xs">
+                <div>
+                  <label className="font-bold text-slate-700 block mb-1">Category Name *</label>
+                  <input
+                    type="text"
+                    required
+                    value={newCatName}
+                    onChange={(e) => setNewCatName(e.target.value)}
+                    placeholder="e.g. Calligraphy Art"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2 text-xs font-medium text-[#0f3d44]"
+                  />
+                </div>
 
-            <div className="space-y-3">
-              {categories.map((c) => (
-                <div key={c.id} className="p-4 bg-slate-50 rounded-2xl border border-slate-200 flex items-center justify-between hover:bg-slate-100/60 transition-colors">
-                  <div className="flex items-center gap-3">
-                    {c.image_url ? (
-                      <img
-                        src={c.image_url}
-                        alt=""
-                        className="w-12 h-12 object-contain rounded-xl bg-white border border-slate-200 p-1"
-                      />
-                    ) : (
-                      <span className="text-3xl">{c.icon}</span>
-                    )}
-                    <div>
-                      <h4 className="font-extrabold text-sm text-[#0f3d44]">{c.name}</h4>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="font-bold text-slate-700 block mb-1">Category Icon / Emoji</label>
+                    <input
+                      type="text"
+                      value={newCatIcon}
+                      onChange={(e) => setNewCatIcon(e.target.value)}
+                      placeholder="e.g. 🕌 or 🌿"
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-center font-bold text-[#0f3d44]"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="font-bold text-slate-700 block mb-1">URL Slug</label>
+                    <input
+                      type="text"
+                      value={newCatSlug}
+                      onChange={(e) => setNewCatSlug(e.target.value)}
+                      placeholder="calligraphy-art"
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-mono text-[#0f3d44]"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="font-bold text-slate-700 block mb-1">Category Image URL (ক্যাটাগরি ছবি লিঙ্ক)</label>
+                  <input
+                    type="url"
+                    value={newCatImg}
+                    onChange={(e) => setNewCatImg(e.target.value)}
+                    placeholder="https://images.unsplash.com/... or /images/..."
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2 text-xs text-[#0f3d44]"
+                  />
+                </div>
+
+                <button
+                  type="submit"
+                  className="w-full py-3 rounded-xl text-xs font-bold text-white bg-[#0f3d44] hover:bg-indigo-950 shadow-md cursor-pointer transition-all"
+                >
+                  + Create Category
+                </button>
+              </form>
+            </div>
+
+            {/* RIGHT: CATEGORIES LIST */}
+            <div className="lg:col-span-7 bg-white p-6 rounded-2xl border border-slate-200/80 shadow-xs space-y-4">
+              <h3 className="font-extrabold text-base text-[#0f3d44] flex items-center justify-between">
+                <span>Existing Categories ({categories.length})</span>
+              </h3>
+
+              <div className="space-y-3">
+                {categories.map((c) => {
+                  const catProdCount = products.filter(p => p.category_id === c.id).length;
+                  return (
+                    <div key={c.id} className="p-4 bg-slate-50 rounded-2xl border border-slate-200 flex items-center justify-between hover:bg-slate-100/60 transition-colors">
+                      <div className="flex items-center gap-3">
+                        {c.image_url ? (
+                          <img
+                            src={c.image_url}
+                            alt=""
+                            className="w-12 h-12 object-contain rounded-xl bg-white border border-slate-200 p-1"
+                          />
+                        ) : (
+                          <span className="text-3xl">{c.icon}</span>
+                        )}
+                        <div>
+                          <h4 className="font-extrabold text-sm text-[#0f3d44]">{c.name}</h4>
+                          <div className="text-[11px] text-slate-400 font-mono flex items-center gap-2">
+                            <span>Slug: {c.slug}</span>
+                            <span>•</span>
+                            <span className="text-teal-700 font-bold bg-teal-50 px-1.5 py-0.2 rounded">
+                              {catProdCount} টি প্রোডাক্ট
+                            </span>
+                          </div>
+                        </div>
+                      </div>
                       <span className="text-[11px] text-slate-400 font-mono">Slug: {c.slug}</span>
                     </div>
                   </div>
@@ -2561,6 +3034,14 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate, initialTab = '
                               <Printer className="w-3.5 h-3.5 text-slate-500" />
                               <span>ইনভয়েস</span>
                             </button>
+                            <button
+                              onClick={() => handleDeleteOrder(o.id, o.order_number)}
+                              className="px-2.5 py-1.5 rounded-xl border border-rose-200 bg-rose-50 hover:bg-rose-100 text-rose-700 text-xs font-bold flex items-center gap-1 cursor-pointer transition-colors"
+                              title="অর্ডারটি মুছে ফেলুন (Supabase ও লোকাল ডাটাবেজ থেকে)"
+                            >
+                              <Trash2 className="w-3.5 h-3.5 text-rose-600" />
+                              <span className="hidden sm:inline">মুছুন</span>
+                            </button>
                           </div>
                         </div>
 
@@ -2658,6 +3139,12 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate, initialTab = '
                                 <option value="delivered">🎉 Delivered (ডেলিভারি সম্পন্ন)</option>
                                 <option value="cancelled">❌ Cancelled (বাতিল)</option>
                               </select>
+                            </div>
+                            <div className="flex items-center justify-between text-[10px] text-teal-700 font-medium pt-1 border-t border-slate-200/60">
+                              <span className="flex items-center gap-1">
+                                <Database className="w-3 h-3 text-teal-600" /> Supabase লাইভ সিঙ্ক
+                              </span>
+                              <span className="text-emerald-700 font-bold">● Active</span>
                             </div>
                           </div>
                         </div>

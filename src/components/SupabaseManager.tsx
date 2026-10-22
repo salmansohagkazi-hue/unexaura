@@ -4,7 +4,8 @@ import {
   ConnectionTestResult,
   SUPABASE_PROJECT_ID,
   SUPABASE_URL,
-  SUPABASE_ANON_KEY
+  SUPABASE_ANON_KEY,
+  saveOrderToSupabase
 } from '../lib/supabase';
 import {
   Database,
@@ -19,7 +20,9 @@ import {
   ExternalLink,
   Code2,
   Table,
-  Lock
+  Lock,
+  Send,
+  Zap
 } from 'lucide-react';
 
 export const SupabaseManager: React.FC = () => {
@@ -27,6 +30,8 @@ export const SupabaseManager: React.FC = () => {
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
   const [activeSchemaTab, setActiveSchemaTab] = useState<'orders' | 'products' | 'categories' | 'all'>('all');
+  const [isSendingTestOrder, setIsSendingTestOrder] = useState<boolean>(false);
+  const [testOrderResult, setTestOrderResult] = useState<{ success: boolean; message: string; error?: string } | null>(null);
 
   const runConnectionTest = async () => {
     setIsLoading(true);
@@ -43,6 +48,57 @@ export const SupabaseManager: React.FC = () => {
       });
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const handleSendTestOrder = async () => {
+    setIsSendingTestOrder(true);
+    setTestOrderResult(null);
+    try {
+      const mockOrder = {
+        order_number: 'TEST-' + Math.floor(1000 + Math.random() * 9000),
+        user_name: 'Salman Shohag (Test)',
+        user_phone: '01711223344',
+        shipping_address: 'House 14, Road 5, Gulshan 1, Dhaka',
+        city: 'Dhaka',
+        delivery_zone: 'dhaka',
+        delivery_charge: 70,
+        subtotal_amount: 1500,
+        total_amount: 1570,
+        payment_method: 'cod',
+        status: 'pending',
+        order_notes: 'Automated Supabase Connection Test',
+        items: [
+          {
+            product_id: 1,
+            product_name: 'Ayatul Kursi Laser-Cut Wall Art',
+            price: 1500,
+            quantity: 1
+          }
+        ]
+      };
+
+      const res = await saveOrderToSupabase(mockOrder);
+      if (res.success) {
+        setTestOrderResult({
+          success: true,
+          message: `টেস্ট অর্ডার #${mockOrder.order_number} সফলভাবে Supabase-এ সংরক্ষণ হয়েছে!`
+        });
+      } else {
+        setTestOrderResult({
+          success: false,
+          message: 'অর্ডার সেভ করার সময় ত্রুটি দেখা গেছে:',
+          error: res.error
+        });
+      }
+    } catch (err: any) {
+      setTestOrderResult({
+        success: false,
+        message: 'ব্যতিক্রম ত্রুটি:',
+        error: err.message
+      });
+    } finally {
+      setIsSendingTestOrder(false);
     }
   };
 
@@ -319,6 +375,66 @@ USING (auth.uid() = user_id OR user_id IS NULL);
               </span>
             </div>
           </div>
+        </div>
+
+        {/* LIVE ORDER SYNC TEST CARD */}
+        <div className="bg-slate-50 p-5 rounded-2xl border border-slate-200/90 space-y-3">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div>
+              <h4 className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                <Zap className="w-4 h-4 text-emerald-600" />
+                <span>লাইভ টেস্ট: Supabase-এ ডামি অর্ডার সেভ পরীক্ষা (Live Order Sync Test)</span>
+              </h4>
+              <p className="text-[11px] text-slate-500 mt-0.5">
+                একটি ডামি টেস্ট অর্ডার পাঠিয়ে যাচাই করুন Supabase `orders` টেবিলে ডাটা সফলভাবে রাইট হচ্ছে কি না।
+              </p>
+            </div>
+            <button
+              type="button"
+              disabled={isSendingTestOrder}
+              onClick={handleSendTestOrder}
+              className="px-4 py-2.5 rounded-xl text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs transition flex items-center gap-2 cursor-pointer disabled:opacity-50 shrink-0"
+            >
+              <Send className={`w-3.5 h-3.5 ${isSendingTestOrder ? 'animate-pulse' : ''}`} />
+              <span>{isSendingTestOrder ? 'টেস্ট অর্ডার পাঠানো হচ্ছে...' : 'টেস্ট অর্ডার পাঠান'}</span>
+            </button>
+          </div>
+
+          {/* Test Order Feedback */}
+          {testOrderResult && (
+            <div
+              className={`p-3.5 rounded-xl text-xs border ${
+                testOrderResult.success
+                  ? 'bg-emerald-50 border-emerald-200 text-emerald-900'
+                  : 'bg-rose-50 border-rose-200 text-rose-900'
+              }`}
+            >
+              <div className="flex items-center gap-2 font-bold">
+                {testOrderResult.success ? (
+                  <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                ) : (
+                  <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0" />
+                )}
+                <span>{testOrderResult.message}</span>
+              </div>
+              {testOrderResult.error && (
+                <div className="mt-2 space-y-1">
+                  <p className="font-mono text-[11px] bg-white/70 p-2 rounded-lg border border-rose-200">
+                    {testOrderResult.error}
+                  </p>
+                  {testOrderResult.error.includes('row-level security') && (
+                    <div className="mt-2 text-[11px] bg-amber-50 p-2.5 rounded-lg border border-amber-200 text-amber-900 space-y-1.5">
+                      <p className="font-bold">💡 RLS সমাধান (১ ক্লিকে রান করুন):</p>
+                      <p>Supabase ড্যাশবোর্ডের SQL Editor-এ নিচের কমান্ডটি রান করলেই যেকোনো কাস্টমার অর্ডার করতে পারবেন:</p>
+                      <code className="block bg-slate-900 text-emerald-400 p-2 rounded-md font-mono text-[10px]">
+                        CREATE POLICY "Allow public guest checkout insert" ON public.orders FOR INSERT TO anon, authenticated WITH CHECK (true);
+                      </code>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
         </div>
 
         {/* SECURITY & RLS POLICIES NOTICE */}

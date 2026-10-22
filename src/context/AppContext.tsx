@@ -5,6 +5,16 @@ import { calculateDeliveryFee, DeliveryFeeDetails, isAyatulKursiProduct } from '
 import { getAccessToken } from '../lib/firebase';
 import { appendOrdersToSheet } from '../lib/googleSheets';
 import { trackAddToCart, trackPurchase } from '../utils/analytics';
+import {
+  saveOrderToSupabase,
+  updateOrderStatusInSupabase,
+  deleteOrderFromSupabase,
+  saveProductToSupabase,
+  deleteProductFromSupabase,
+  updateProductStockInSupabase,
+  saveCategoryToSupabase,
+  deleteCategoryFromSupabase
+} from '../lib/supabase';
 
 interface AppContextType {
   products: Product[];
@@ -48,6 +58,7 @@ interface AppContextType {
   restoreOrders: (ordersList: Order[]) => Promise<boolean>;
   addOrder: (orderPayload: any) => Promise<Order>;
   updateOrderStatus: (orderId: number, status: string, paymentStatus?: string) => Promise<boolean>;
+  deleteOrder: (id: number | string) => Promise<boolean>;
   updateSettings: (newSettings: Partial<StoreSettings>) => Promise<void>;
 
   toggleWishlist: (productId: number) => void;
@@ -59,6 +70,7 @@ interface AppContextType {
   addProduct: (product: any) => Promise<Product>;
   updateProduct: (product: Product) => Promise<boolean>;
   deleteProduct: (id: number) => Promise<boolean>;
+  updateProductStock: (id: number, stock: number) => Promise<boolean>;
 
   // Coupon Management
   applyCoupon: (code: string) => { success: boolean; message: string };
@@ -501,6 +513,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
     }
 
+    // Save to Supabase Cloud Database in background (Realtime sync)
+    if (createdOrder) {
+      saveOrderToSupabase(createdOrder).catch(e => {
+        console.warn('Supabase order auto-sync notification:', e);
+      });
+    }
+
     // Trigger GA4 & Meta Pixel Purchase event
     if (createdOrder) {
       trackPurchase(createdOrder);
@@ -524,11 +543,39 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ status, payment_status: paymentStatus })
       });
-      return true;
     } catch (e) {
       console.warn('Order status update on server failed, updated locally:', e);
-      return false;
     }
+
+    // Direct client sync to Supabase orders table
+    updateOrderStatusInSupabase(orderId, status, paymentStatus).catch(e => {
+      console.warn('Supabase order status sync warning:', e);
+    });
+
+    return true;
+  };
+
+  const deleteOrder = async (orderId: number | string): Promise<boolean> => {
+    setOrders(prev => {
+      const updated = prev.filter(o => String(o.id) !== String(orderId) && String(o.order_number) !== String(orderId));
+      try {
+        localStorage.setItem('unex_placed_orders', JSON.stringify(updated));
+      } catch {}
+      return updated;
+    });
+
+    try {
+      await fetch(`/api/orders/${orderId}`, { method: 'DELETE' });
+    } catch (e) {
+      console.warn('Order delete on server failed, deleted locally:', e);
+    }
+
+    // Direct client sync to Supabase orders table
+    deleteOrderFromSupabase(orderId).catch(e => {
+      console.warn('Supabase order delete warning:', e);
+    });
+
+    return true;
   };
 
   // Fetch products, categories & orders on mount
@@ -812,6 +859,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       console.warn('Product saved locally:', e);
     }
 
+    // Direct sync to Supabase products table
+    saveProductToSupabase(newProd).catch(e => console.warn('Supabase addProduct note:', e));
+
     return newProd;
   };
 
@@ -834,6 +884,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       console.warn('Product updated locally:', e);
     }
 
+    // Direct sync to Supabase products table
+    saveProductToSupabase(productToUpdate).catch(e => console.warn('Supabase updateProduct note:', e));
+
     return true;
   };
 
@@ -850,6 +903,34 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       await fetch(`/api/products/${id}`, { method: 'DELETE' });
     } catch {}
 
+    // Direct sync to Supabase products table
+    deleteProductFromSupabase(id).catch(e => console.warn('Supabase deleteProduct note:', e));
+
+    return true;
+  };
+
+  const updateProductStock = async (id: number, stock: number): Promise<boolean> => {
+    const safeStock = Math.max(0, Number(stock || 0));
+    setProducts(prev => {
+      const updated = prev.map(p => p.id === id ? { ...p, stock: safeStock } : p);
+      try {
+        localStorage.setItem('unex_products', JSON.stringify(updated));
+      } catch {}
+      return updated;
+    });
+
+    try {
+      await fetch(`/api/products/${id}/stock`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ stock: safeStock })
+      });
+    } catch (e) {
+      console.warn('Product stock updated locally:', e);
+    }
+
+    // Direct sync to Supabase products table
+    updateProductStockInSupabase(id, safeStock).catch(e => console.warn('Supabase stock update note:', e));
     return true;
   };
 
@@ -912,6 +993,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(newCat)
     }).catch(() => {});
+
+    // Direct sync to Supabase categories table
+    saveCategoryToSupabase(newCat).catch(e => console.warn('Supabase addCategory note:', e));
+
     showToast(`ক্যাটাগরি "${newCat.name}" তৈরি করা হয়েছে!`);
   };
 
@@ -928,6 +1013,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ id, ...catData })
     }).catch(() => {});
+
+    // Direct sync to Supabase categories table
+    saveCategoryToSupabase({ id, ...catData }).catch(e => console.warn('Supabase updateCategory note:', e));
+
     showToast('ক্যাটাগরি আপডেট করা হয়েছে!');
   };
 
@@ -945,6 +1034,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ action: 'delete', id })
     }).catch(() => {});
+
+    // Direct sync to Supabase categories table
+    deleteCategoryFromSupabase(id).catch(e => console.warn('Supabase deleteCategory note:', e));
+
     showToast('ক্যাটাগরি মুছে ফেলা হয়েছে');
   };
 
@@ -1065,10 +1158,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       restoreOrders,
       addOrder,
       updateOrderStatus,
+      deleteOrder,
       updateSettings,
       addProduct,
       updateProduct,
       deleteProduct,
+      updateProductStock,
       toggleWishlist,
       isInWishlist,
       getWishlistCount,

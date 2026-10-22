@@ -307,6 +307,107 @@ function calculateDeliveryCharge(weightGrams: number, zone: 'dhaka' | 'outside_d
   return baseCharge + extraCharge;
 }
 
+// Supabase Configuration for Server-Side Persistence
+const SUPABASE_URL = process.env.VITE_SUPABASE_URL || 'https://vweyqbvhvuwiprtnygbj.supabase.co';
+const SUPABASE_KEY = process.env.VITE_SUPABASE_ANON_KEY || 'sb_publishable_bUXfOrljoYtQB_3w7F3ARg_3oJwUb6T';
+
+// Helper to fetch orders from Supabase
+async function fetchSupabaseOrders(): Promise<any[]> {
+  try {
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/orders?select=*&order=created_at.desc`, {
+      headers: { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}` }
+    });
+    if (!res.ok) return [];
+    const data = await res.json();
+    if (!Array.isArray(data)) return [];
+    return data.map((row: any) => ({
+      id: Number(row.id) || Date.now(),
+      order_number: row.order_id || `UA-${row.id}`,
+      user_name: row.customer_name || 'Customer',
+      user_phone: row.customer_phone || '',
+      shipping_address: row.customer_address || '',
+      city: row.district || 'Dhaka',
+      delivery_zone: (row.delivery_zone || 'dhaka') as any,
+      total_weight_grams: 1000,
+      delivery_charge: Number(row.delivery_charge || 0),
+      subtotal_amount: Number(row.subtotal || 0),
+      discount_amount: Number(row.discount || 0),
+      total_amount: Number(row.total_price || 0),
+      payment_method: row.payment_method || 'cod',
+      payment_status: row.payment_method === 'stripe' ? 'paid' : 'unpaid',
+      status: row.status || 'pending',
+      created_at: row.created_at || new Date().toISOString(),
+      order_notes: row.notes || '',
+      items: Array.isArray(row.items) ? row.items : []
+    }));
+  } catch (err: any) {
+    console.warn('[Supabase fetchSupabaseOrders error]:', err.message);
+    return [];
+  }
+}
+
+// Helper to fetch products from Supabase
+async function fetchSupabaseProducts(): Promise<any[]> {
+  try {
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/products?select=*&order=id.asc`, {
+      headers: { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}` }
+    });
+    if (!res.ok) return [];
+    const data = await res.json();
+    if (!Array.isArray(data) || data.length === 0) return [];
+    return data.map((row: any) => ({
+      id: Number(row.id),
+      category_id: Number(row.category_id || 1),
+      category_name: row.category_name || 'Wall Decor',
+      name: row.name,
+      slug: row.slug,
+      price: Number(row.price || 0),
+      old_price: row.old_price ? Number(row.old_price) : undefined,
+      weight_grams: Number(row.weight_grams || 1200),
+      stock: Number(row.stock !== undefined ? row.stock : 15),
+      badge: row.badge || '',
+      featured: Boolean(row.featured),
+      image_url: row.image_url,
+      material: row.material || 'Surgical Stainless Steel',
+      thickness: row.thickness || '0.6 mm',
+      size_dimensions: row.size_dimensions || '75cm × 40cm',
+      description: row.description || '',
+      bangla_short_desc: row.bangla_short_desc || '',
+      qualities: Array.isArray(row.qualities) ? row.qualities : [],
+      sizes: Array.isArray(row.sizes) ? row.sizes : [],
+      room_images: row.room_images || {},
+      rating: Number(row.rating || 5.0),
+      review_count: Number(row.review_count || 0)
+    }));
+  } catch (err: any) {
+    console.warn('[Supabase fetchSupabaseProducts error]:', err.message);
+    return [];
+  }
+}
+
+// Helper to fetch categories from Supabase
+async function fetchSupabaseCategories(): Promise<any[]> {
+  try {
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/categories?select=*&order=sort_order.asc`, {
+      headers: { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}` }
+    });
+    if (!res.ok) return [];
+    const data = await res.json();
+    if (!Array.isArray(data) || data.length === 0) return [];
+    return data.map((row: any) => ({
+      id: Number(row.id),
+      name: row.name,
+      slug: row.slug,
+      icon: row.icon || '🕌',
+      image_url: row.image_url || '',
+      sort_order: Number(row.sort_order || 0)
+    }));
+  } catch (err: any) {
+    console.warn('[Supabase fetchSupabaseCategories error]:', err.message);
+    return [];
+  }
+}
+
 // API ROUTES
 
 // Health check
@@ -315,8 +416,16 @@ app.get('/api/health', (req, res) => {
 });
 
 // GET products
-app.get('/api/products', (req, res) => {
+app.get('/api/products', async (req, res) => {
   const { cat, search, sort, badge, min_price, max_price } = req.query;
+
+  // Check Supabase products first
+  const supabaseProds = await fetchSupabaseProducts();
+  if (supabaseProds.length > 0) {
+    products = supabaseProds;
+    saveProducts(products);
+  }
+
   let filtered = [...products];
 
   if (cat) {
@@ -432,6 +541,44 @@ app.post('/api/products', (req, res) => {
         placements: placements !== undefined ? placements : products[index].placements,
       };
       saveProducts(products);
+
+      // Dual-sync update to Supabase products table in background
+      try {
+        const prodId = Number(id);
+        fetch(`${SUPABASE_URL}/rest/v1/products?id=eq.${prodId}`, {
+          method: 'PATCH',
+          headers: {
+            apikey: SUPABASE_KEY,
+            Authorization: `Bearer ${SUPABASE_KEY}`,
+            'Content-Type': 'application/json',
+            Prefer: 'return=minimal'
+          },
+          body: JSON.stringify({
+            name: products[index].name,
+            slug: products[index].slug,
+            category_id: products[index].category_id,
+            category_name: products[index].category_name,
+            price: products[index].price,
+            old_price: products[index].old_price || null,
+            weight_grams: products[index].weight_grams,
+            size_dimensions: products[index].size_dimensions,
+            material: products[index].material,
+            stock: products[index].stock,
+            badge: products[index].badge || null,
+            featured: products[index].featured,
+            image_url: products[index].image_url,
+            description: products[index].description,
+            bangla_short_desc: products[index].bangla_short_desc,
+            qualities: products[index].qualities,
+            sizes: products[index].sizes,
+            room_images: products[index].room_images,
+            updated_at: new Date().toISOString()
+          })
+        }).catch(e => console.warn('[Supabase Product Update Note]:', e.message));
+      } catch (err: any) {
+        console.warn('[Supabase Product Update Exception]:', err.message);
+      }
+
       return res.json({ success: true, message: 'Product updated successfully', product: products[index] });
     }
   }
@@ -467,6 +614,42 @@ app.post('/api/products', (req, res) => {
 
   products.push(newProduct);
   saveProducts(products);
+
+  // Dual-sync insert to Supabase products table in background
+  try {
+    fetch(`${SUPABASE_URL}/rest/v1/products`, {
+      method: 'POST',
+      headers: {
+        apikey: SUPABASE_KEY,
+        Authorization: `Bearer ${SUPABASE_KEY}`,
+        'Content-Type': 'application/json',
+        Prefer: 'return=minimal'
+      },
+      body: JSON.stringify({
+        category_id: newProduct.category_id,
+        category_name: newProduct.category_name,
+        name: newProduct.name,
+        slug: newProduct.slug,
+        price: newProduct.price,
+        old_price: newProduct.old_price || null,
+        weight_grams: newProduct.weight_grams,
+        size_dimensions: newProduct.size_dimensions,
+        material: newProduct.material,
+        stock: newProduct.stock,
+        badge: newProduct.badge || null,
+        featured: newProduct.featured,
+        image_url: newProduct.image_url,
+        description: newProduct.description,
+        bangla_short_desc: newProduct.bangla_short_desc,
+        qualities: newProduct.qualities,
+        sizes: newProduct.sizes,
+        created_at: new Date().toISOString()
+      })
+    }).catch(e => console.warn('[Supabase Product Insert Note]:', e.message));
+  } catch (err: any) {
+    console.warn('[Supabase Product Insert Exception]:', err.message);
+  }
+
   res.json({ success: true, message: 'Product created successfully', product: newProduct });
 });
 
@@ -475,11 +658,55 @@ app.delete('/api/products/:id', (req, res) => {
   const id = Number(req.params.id);
   products = products.filter(p => p.id !== id);
   saveProducts(products);
+
+  // Dual-sync delete from Supabase in background
+  try {
+    fetch(`${SUPABASE_URL}/rest/v1/products?id=eq.${id}`, {
+      method: 'DELETE',
+      headers: { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}` }
+    }).catch(e => console.warn('[Supabase Product Delete Note]:', e.message));
+  } catch {}
+
   res.json({ success: true, message: 'Product deleted' });
 });
 
+// PATCH update single product stock
+app.patch('/api/products/:id/stock', (req, res) => {
+  const id = Number(req.params.id);
+  const newStock = Math.max(0, Number(req.body.stock || 0));
+
+  const idx = products.findIndex(p => p.id === id);
+  if (idx !== -1) {
+    products[idx].stock = newStock;
+    saveProducts(products);
+  }
+
+  // Dual-sync stock update to Supabase in background
+  try {
+    fetch(`${SUPABASE_URL}/rest/v1/products?id=eq.${id}`, {
+      method: 'PATCH',
+      headers: {
+        apikey: SUPABASE_KEY,
+        Authorization: `Bearer ${SUPABASE_KEY}`,
+        'Content-Type': 'application/json',
+        Prefer: 'return=minimal'
+      },
+      body: JSON.stringify({ stock: newStock, updated_at: new Date().toISOString() })
+    }).catch(e => console.warn('[Supabase Stock Update Note]:', e.message));
+  } catch {}
+
+  res.json({ success: true, message: 'Stock updated successfully', id, stock: newStock });
+});
+
 // GET Categories
-app.get('/api/categories', (req, res) => {
+app.get('/api/categories', async (req, res) => {
+  // Check Supabase categories first
+  const supabaseCats = await fetchSupabaseCategories();
+  if (supabaseCats.length > 0) {
+    categories = supabaseCats;
+    saveCategories(categories);
+  }
+
   // calculate item count per category dynamically
   const catsWithCount = categories.map(cat => ({
     ...cat,
@@ -502,6 +729,15 @@ app.post('/api/categories', (req, res) => {
     }
     categories = categories.filter(c => c.id !== Number(id));
     saveCategories(categories);
+
+    // Delete from Supabase
+    try {
+      fetch(`${SUPABASE_URL}/rest/v1/categories?id=eq.${Number(id)}`, {
+        method: 'DELETE',
+        headers: { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}` }
+      }).catch(e => console.warn('[Supabase Category Delete Note]:', e.message));
+    } catch {}
+
     return res.json({ success: true, message: 'Category deleted successfully' });
   }
 
@@ -517,6 +753,26 @@ app.post('/api/categories', (req, res) => {
         sort_order: Number(sort_order) || categories[idx].sort_order
       };
       saveCategories(categories);
+
+      // Update in Supabase
+      try {
+        fetch(`${SUPABASE_URL}/rest/v1/categories?id=eq.${Number(id)}`, {
+          method: 'PATCH',
+          headers: {
+            apikey: SUPABASE_KEY,
+            Authorization: `Bearer ${SUPABASE_KEY}`,
+            'Content-Type': 'application/json',
+            Prefer: 'return=minimal'
+          },
+          body: JSON.stringify({
+            name: categories[idx].name,
+            slug: categories[idx].slug,
+            icon: categories[idx].icon,
+            sort_order: categories[idx].sort_order
+          })
+        }).catch(e => console.warn('[Supabase Category Update Note]:', e.message));
+      } catch {}
+
       return res.json({ success: true, message: 'Category updated', category: categories[idx] });
     }
   }
@@ -532,6 +788,27 @@ app.post('/api/categories', (req, res) => {
   };
   categories.push(newCat);
   saveCategories(categories);
+
+  // Insert in Supabase
+  try {
+    fetch(`${SUPABASE_URL}/rest/v1/categories`, {
+      method: 'POST',
+      headers: {
+        apikey: SUPABASE_KEY,
+        Authorization: `Bearer ${SUPABASE_KEY}`,
+        'Content-Type': 'application/json',
+        Prefer: 'return=minimal'
+      },
+      body: JSON.stringify({
+        name: newCat.name,
+        slug: newCat.slug,
+        icon: newCat.icon,
+        sort_order: newCat.sort_order,
+        created_at: new Date().toISOString()
+      })
+    }).catch(e => console.warn('[Supabase Category Insert Note]:', e.message));
+  } catch {}
+
   res.json({ success: true, message: 'New category created successfully', category: newCat });
 });
 
@@ -547,6 +824,15 @@ app.delete('/api/categories/:id', (req, res) => {
   }
   categories = categories.filter(c => c.id !== id);
   saveCategories(categories);
+
+  // Delete from Supabase
+  try {
+    fetch(`${SUPABASE_URL}/rest/v1/categories?id=eq.${id}`, {
+      method: 'DELETE',
+      headers: { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}` }
+    }).catch(e => console.warn('[Supabase Category Delete Note]:', e.message));
+  } catch {}
+
   res.json({ success: true, message: 'Category deleted successfully' });
 });
 
@@ -1091,6 +1377,46 @@ app.post('/api/orders', (req, res) => {
     console.error('[Background Meta CAPI Error]:', err);
   });
 
+  // Dual Redundancy: Dispatch order to Supabase backend in background
+  try {
+    const supabaseUrl = process.env.VITE_SUPABASE_URL || 'https://vweyqbvhvuwiprtnygbj.supabase.co';
+    const supabaseKey = process.env.VITE_SUPABASE_ANON_KEY || 'sb_publishable_bUXfOrljoYtQB_3w7F3ARg_3oJwUb6T';
+    fetch(`${supabaseUrl}/rest/v1/orders`, {
+      method: 'POST',
+      headers: {
+        apikey: supabaseKey,
+        Authorization: `Bearer ${supabaseKey}`,
+        'Content-Type': 'application/json',
+        Prefer: 'return=minimal'
+      },
+      body: JSON.stringify({
+        order_id: newOrder.order_number,
+        customer_name: newOrder.user_name || 'Customer',
+        customer_phone: newOrder.user_phone || '',
+        customer_address: newOrder.shipping_address || '',
+        district: newOrder.city || 'Dhaka',
+        delivery_zone: newOrder.delivery_zone || 'dhaka',
+        items: newOrder.items || [],
+        subtotal: newOrder.subtotal_amount || 0,
+        delivery_charge: newOrder.delivery_charge || 0,
+        discount: (newOrder as any).discount_amount || 0,
+        total_price: newOrder.total_amount || 0,
+        payment_method: newOrder.payment_method || 'cod',
+        status: newOrder.status || 'pending',
+        notes: newOrder.order_notes || '',
+        created_at: new Date().toISOString()
+      })
+    }).then(res => {
+      if (!res.ok) {
+        res.text().then(t => console.warn('[Supabase Server Order Note]:', res.status, t));
+      } else {
+        console.log(`[Supabase Server Sync]: Order #${newOrder.order_number} saved to Supabase.`);
+      }
+    }).catch(err => console.warn('[Supabase Server Sync Catch]:', err.message));
+  } catch (err: any) {
+    console.warn('[Supabase Server Sync Exception]:', err.message);
+  }
+
   // Automatically decrease product stock for each ordered item
   orderItems.forEach((item: any) => {
     const prodIndex = products.findIndex(p => p.id === Number(item.product_id));
@@ -1457,8 +1783,30 @@ app.all('/api/inventory/pull-from-sheet', async (req, res) => {
 });
 
 // GET Orders
-app.get('/api/orders', (req, res) => {
+app.get('/api/orders', async (req, res) => {
   orders = loadOrders();
+  const supabaseOrders = await fetchSupabaseOrders();
+
+  const map = new Map();
+  orders.forEach(o => { if (o && o.order_number) map.set(String(o.order_number), o); });
+  supabaseOrders.forEach(so => {
+    if (so && so.order_number) {
+      if (map.has(String(so.order_number))) {
+        map.set(String(so.order_number), { ...map.get(String(so.order_number)), ...so });
+      } else {
+        map.set(String(so.order_number), so);
+      }
+    }
+  });
+
+  const merged = Array.from(map.values()).sort((a: any, b: any) => {
+    const numA = parseInt(String(a.order_number || '').replace(/\D/g, ''), 10) || 0;
+    const numB = parseInt(String(b.order_number || '').replace(/\D/g, ''), 10) || 0;
+    return numB - numA;
+  });
+
+  orders = merged;
+  saveOrders(orders);
   res.json({ success: true, count: orders.length, orders });
 });
 
@@ -1504,7 +1852,7 @@ app.post('/api/orders/restore', (req, res) => {
 // UPDATE Order Status or Details (supports PUT /api/orders/:id, PATCH /api/orders/:id, PATCH /api/orders/:id/status)
 const updateOrderHandler = (req: any, res: any) => {
   orders = loadOrders();
-  const id = Number(req.params.id) || req.params.id;
+  const id = req.params.id;
   const { status, payment_status, courier_name, tracking_number } = req.body;
 
   const orderIndex = orders.findIndex(o => String(o.id) === String(id) || String(o.order_number) === String(id));
@@ -1519,12 +1867,139 @@ const updateOrderHandler = (req: any, res: any) => {
 
   saveOrders(orders);
 
+  // Dual-sync update to Supabase orders table in background
+  try {
+    const targetOrderNum = orders[orderIndex].order_number;
+    const filter = `or=(order_id.eq.${targetOrderNum},id.eq.${orders[orderIndex].id || 0})`;
+    fetch(`${SUPABASE_URL}/rest/v1/orders?${filter}`, {
+      method: 'PATCH',
+      headers: {
+        apikey: SUPABASE_KEY,
+        Authorization: `Bearer ${SUPABASE_KEY}`,
+        'Content-Type': 'application/json',
+        Prefer: 'return=minimal'
+      },
+      body: JSON.stringify({
+        status: orders[orderIndex].status,
+        updated_at: new Date().toISOString()
+      })
+    }).catch(e => console.warn('[Supabase Order Update Warning]:', e.message));
+  } catch (e: any) {
+    console.warn('[Supabase Order Update Exception]:', e.message);
+  }
+
   res.json({ success: true, message: 'Order updated successfully', order: orders[orderIndex] });
 };
 
 app.patch('/api/orders/:id/status', updateOrderHandler);
 app.patch('/api/orders/:id', updateOrderHandler);
 app.put('/api/orders/:id', updateOrderHandler);
+
+// DELETE Order
+app.delete('/api/orders/:id', (req, res) => {
+  const id = req.params.id;
+  orders = loadOrders();
+  const target = orders.find(o => String(o.id) === String(id) || String(o.order_number) === String(id));
+  orders = orders.filter(o => String(o.id) !== String(id) && String(o.order_number) !== String(id));
+  saveOrders(orders);
+
+  // Dual-sync delete from Supabase
+  try {
+    const orderNum = target ? target.order_number : id;
+    fetch(`${SUPABASE_URL}/rest/v1/orders?order_id=eq.${orderNum}`, {
+      method: 'DELETE',
+      headers: { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}` }
+    }).catch(e => console.warn('[Supabase Order Delete Note]:', e.message));
+  } catch {}
+
+  res.json({ success: true, message: 'Order deleted successfully' });
+});
+
+// POST 1-Click Initial Sync: Seed local products & categories to Supabase
+app.post('/api/admin/supabase-seed', async (req, res) => {
+  try {
+    products = loadProducts();
+    categories = loadCategories();
+    let catCount = 0;
+    let prodCount = 0;
+    const errors: string[] = [];
+
+    // Seed categories
+    for (const c of categories) {
+      try {
+        const catRes = await fetch(`${SUPABASE_URL}/rest/v1/categories`, {
+          method: 'POST',
+          headers: {
+            apikey: SUPABASE_KEY,
+            Authorization: `Bearer ${SUPABASE_KEY}`,
+            'Content-Type': 'application/json',
+            Prefer: 'return=minimal'
+          },
+          body: JSON.stringify({
+            name: c.name,
+            slug: c.slug,
+            icon: c.icon || '🕌',
+            image_url: c.image_url || '',
+            sort_order: Number(c.sort_order || 0),
+            created_at: new Date().toISOString()
+          })
+        });
+        if (catRes.ok) catCount++;
+        else errors.push(`Category "${c.name}": ${await catRes.text()}`);
+      } catch (err: any) {
+        errors.push(`Category "${c.name}": ${err.message}`);
+      }
+    }
+
+    // Seed products
+    for (const p of products) {
+      try {
+        const prodRes = await fetch(`${SUPABASE_URL}/rest/v1/products`, {
+          method: 'POST',
+          headers: {
+            apikey: SUPABASE_KEY,
+            Authorization: `Bearer ${SUPABASE_KEY}`,
+            'Content-Type': 'application/json',
+            Prefer: 'return=minimal'
+          },
+          body: JSON.stringify({
+            category_id: p.category_id,
+            category_name: p.category_name,
+            name: p.name,
+            slug: p.slug,
+            price: p.price,
+            old_price: p.old_price || null,
+            weight_grams: p.weight_grams,
+            size_dimensions: p.size_dimensions,
+            material: p.material,
+            stock: p.stock,
+            badge: p.badge || null,
+            featured: p.featured,
+            image_url: p.image_url,
+            description: p.description,
+            bangla_short_desc: p.bangla_short_desc,
+            qualities: p.qualities,
+            sizes: p.sizes,
+            created_at: new Date().toISOString()
+          })
+        });
+        if (prodRes.ok) prodCount++;
+        else errors.push(`Product "${p.name}": ${await prodRes.text()}`);
+      } catch (err: any) {
+        errors.push(`Product "${p.name}": ${err.message}`);
+      }
+    }
+
+    res.json({
+      success: errors.length === 0,
+      categories_synced: catCount,
+      products_synced: prodCount,
+      errors
+    });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
 
 // EXPORT ENDPOINT FOR MYSQL / WORDPRESS INTEGRATION
 app.get('/api/export/sql', (req, res) => {

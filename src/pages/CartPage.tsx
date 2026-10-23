@@ -243,13 +243,6 @@ export const CartPage: React.FC<CartPageProps> = ({ onNavigate }) => {
                   <span>
                     Delivery Charge ({deliveryZone === 'none' ? 'জোন নির্বাচন করুন' : deliveryZone === 'dhaka' ? 'ঢাকার ভেতরে' : 'ঢাকার বাইরে'}):
                   </span>
-                  {deliveryDetails.isAyatulKursiFreeOffer && (
-                    <span className="text-[10px] text-emerald-600 font-bold">
-                      {deliveryDetails.hasOtherProducts
-                        ? '✨ আয়াতুল কুরসি ডেলিভারি চার্জ ফ্রি'
-                        : '✨ আয়াতুল কুরসি স্পেশাল ফ্রি ডেলিভারি'}
-                    </span>
-                  )}
                   {deliveryZone !== 'none' && deliveryDetails.slabDescription && (
                     <span className="text-[10px] text-slate-500 font-medium">
                       {deliveryDetails.slabDescription}

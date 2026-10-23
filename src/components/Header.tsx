@@ -184,7 +184,7 @@ export const Header: React.FC<HeaderProps> = ({
           ✨ Premium Laser-Cut Stainless &amp; MS Steel Wall Decor
         </div>
         <div className="mx-auto sm:mx-0 flex items-center gap-3">
-          <span>🎉 আয়াতুল কুরসিতে স্পেশাল ফ্রি হোম ডেলিভারি অফার!</span>
+          <span>🚚 সারা দেশে দ্রুত হোম ডেলিভারি ও ক্যাশ অন ডেলিভারি সুবিধা!</span>
           <span className="opacity-60 hidden md:inline">|</span>
           <span className="hidden md:inline">🛡️ Lifetime Rust-Proof Guarantee</span>
         </div>

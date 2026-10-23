@@ -519,8 +519,8 @@ export const HomePage: React.FC<HomePageProps> = ({ onNavigate, onOpenWallModal,
               <Truck className="w-6 h-6" />
             </div>
             <div>
-              <h4 className="text-xs font-bold text-[#0f3d44]">Free Delivery / ফ্রি ডেলিভারি</h4>
-              <p className="text-[11px] text-slate-500">আয়াতুল কুরসি অর্ডারে ফ্রি ডেলিভারি</p>
+              <h4 className="text-xs font-bold text-[#0f3d44]">Fast Delivery / দ্রুত ডেলিভারি</h4>
+              <p className="text-[11px] text-slate-500">সারা দেশে ক্যাশ অন ডেলিভারি</p>
             </div>
           </div>
 

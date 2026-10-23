@@ -10,7 +10,6 @@ import {
   CreditCard,
   ShoppingBag
 } from 'lucide-react';
-import { isAyatulKursiProduct } from '../utils/delivery';
 
 interface CartDrawerProps {
   isOpen: boolean;
@@ -123,10 +122,9 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({ isOpen, onClose, onNavig
           ) : (
             cart.map((item, idx) => {
               const product = item.product;
-              const isAyatul = isAyatulKursiProduct(product);
               const unitPrice = item.selectedSize ? item.selectedSize.price : product.price;
-              const oldPrice = isAyatul ? undefined : (item.selectedSize?.old_price || product.old_price);
-              const discountPercent = !isAyatul && oldPrice && oldPrice > unitPrice
+              const oldPrice = item.selectedSize?.old_price || product.old_price;
+              const discountPercent = oldPrice && oldPrice > unitPrice
                 ? Math.round(((oldPrice - unitPrice) / oldPrice) * 100)
                 : null;
 

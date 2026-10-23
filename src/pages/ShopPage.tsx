@@ -3,7 +3,7 @@ import { useApp } from '../context/AppContext';
 import { ProductCard } from '../components/ProductCard';
 import { Product } from '../types';
 import { useSEO } from '../hooks/useSEO';
-import { Search, Filter, SlidersHorizontal, RotateCcw, Eye, Sparkles, Copy, Check, Share2, Link as LinkIcon } from 'lucide-react';
+import { Search, SlidersHorizontal, RotateCcw, Copy, Check, Filter, X } from 'lucide-react';
 
 interface ShopPageProps {
   onNavigate: (page: string, params?: any) => void;
@@ -32,6 +32,7 @@ export const ShopPage: React.FC<ShopPageProps> = ({
   const [sortBy, setSortBy] = useState<string>('newest');
   const [localSearch, setLocalSearch] = useState<string>(searchQuery || initialSearch || '');
   const [copyFeedback, setCopyFeedback] = useState<string | null>(null);
+  const [showFilterDrawer, setShowFilterDrawer] = useState<boolean>(false);
 
   useEffect(() => {
     if (initialCatId !== undefined) {
@@ -140,9 +141,10 @@ export const ShopPage: React.FC<ShopPageProps> = ({
   };
 
   const activeCategoryObj = categories.find((c) => c.id === selectedCatId);
+  const hasActiveExtraFilters = selectedBadge !== 'all' || maxPrice < 10000 || Boolean(localSearch.trim());
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6">
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-5 sm:py-7 space-y-4">
       {/* TOAST FEEDBACK NOTIFICATION */}
       {copyFeedback && (
         <div className="fixed bottom-6 right-6 z-50 bg-slate-900 text-white px-4 py-3 rounded-2xl shadow-2xl border border-teal-500/40 flex items-center gap-2.5 animate-bounce">
@@ -169,201 +171,212 @@ export const ShopPage: React.FC<ShopPageProps> = ({
         )}
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
-        {/* SIDEBAR FILTERS (260px approx -> 3 col on lg) */}
-        <div className="lg:col-span-3 bg-white p-5 rounded-2xl border border-slate-200/80 shadow-xs space-y-6 lg:sticky lg:top-24">
-          <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-            <h3 className="font-bold text-sm text-[#0f3d44] flex items-center gap-2">
-              <SlidersHorizontal className="w-4 h-4 text-teal-600" />
-              <span>Filter Wall Art</span>
-            </h3>
-
-            {(selectedCatId !== 'all' || selectedBadge !== 'all' || maxPrice < 10000 || localSearch) && (
-              <button
-                onClick={resetFilters}
-                className="text-[11px] text-red-600 hover:underline font-semibold flex items-center gap-1 cursor-pointer"
-              >
-                <RotateCcw className="w-3 h-3" />
-                <span>Clear All</span>
-              </button>
-            )}
-          </div>
-
-          {/* CATEGORIES RADIO LIST */}
-          <div className="space-y-2">
-            <div className="flex items-center justify-between">
-              <label className="text-xs font-bold text-slate-700 block">Product Categories (5)</label>
-              <span className="text-[10px] text-slate-400 font-medium">Direct Linkable</span>
-            </div>
-            <div className="space-y-1">
-              <div className="relative group/all">
-                <button
-                  onClick={() => handleSelectCategory('all')}
-                  className={`w-full text-left px-3 py-2 rounded-xl text-xs font-semibold flex items-center justify-between transition-all cursor-pointer ${
-                    selectedCatId === 'all'
-                      ? 'bg-gradient-to-r from-teal-50 to-indigo-50 text-[#4f46e5] font-bold border border-teal-200'
-                      : 'text-slate-600 hover:bg-slate-50'
-                  }`}
-                >
-                  <span>All Categories</span>
-                  <span className="text-[10px] text-slate-400 font-normal">({products.length})</span>
-                </button>
-              </div>
-
-              {categories.map((cat) => {
-                const count = products.filter((p) => p.category_id === cat.id).length;
-                const isSelected = selectedCatId === cat.id;
-                return (
-                  <div key={cat.id} className="relative group/cat flex items-center">
-                    <button
-                      onClick={() => handleSelectCategory(cat.id)}
-                      className={`flex-1 text-left px-3 py-2 rounded-xl text-xs font-semibold flex items-center justify-between transition-all cursor-pointer pr-8 ${
-                        isSelected
-                          ? 'bg-gradient-to-r from-teal-50 to-indigo-50 text-[#4f46e5] font-bold border border-teal-200'
-                          : 'text-slate-600 hover:bg-slate-50'
-                      }`}
-                    >
-                      <span className="truncate flex items-center gap-1.5">
-                        <span>{cat.icon}</span>
-                        <span>{cat.name}</span>
-                      </span>
-                      <span className="text-[10px] text-slate-400 font-normal shrink-0">({count})</span>
-                    </button>
-
-                    {/* Quick copy link icon */}
-                    <button
-                      type="button"
-                      onClick={(e) => handleCopyCategoryLink(cat.id, cat.name, e)}
-                      title={`"${cat.name}" ক্যাটাগরি লিংক কপি করুন`}
-                      className="absolute right-1.5 p-1 rounded-lg text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 transition-colors opacity-70 group-hover/cat:opacity-100 cursor-pointer"
-                    >
-                      <Copy className="w-3.5 h-3.5" />
-                    </button>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-
-          {/* PRICE SLIDER */}
-          <div className="space-y-2 pt-4 border-t border-slate-100">
-            <div className="flex items-center justify-between text-xs">
-              <label className="font-bold text-slate-700">Max Price</label>
-              <span className="font-extrabold text-[#0f3d44]">{formatPrice(maxPrice)}</span>
-            </div>
-            <input
-              type="range"
-              min="500"
-              max="10000"
-              step="100"
-              value={maxPrice}
-              onChange={(e) => setMaxPrice(Number(e.target.value))}
-              className="w-full accent-indigo-600 cursor-pointer"
-            />
-            <div className="flex justify-between text-[10px] text-slate-400 font-mono">
-              <span>৳500</span>
-              <span>৳10,000</span>
-            </div>
-          </div>
-
-          {/* BADGE FILTER */}
-          <div className="space-y-2 pt-4 border-t border-slate-100">
-            <label className="text-xs font-bold text-slate-700 block">Collection Tag</label>
-            <div className="flex flex-wrap gap-1.5">
-              {['all', 'HOT', 'NEW', 'SALE'].map((b) => (
-                <button
-                  key={b}
-                  onClick={() => setSelectedBadge(b)}
-                  className={`px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                    selectedBadge === b
-                      ? 'bg-slate-900 text-white'
-                      : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                  }`}
-                >
-                  {b === 'all' ? 'All Tags' : b}
-                </button>
-              ))}
-            </div>
-          </div>
+      {/* HORIZONTAL CATEGORY BAR (PASHA PASHI - SIDE BY SIDE) */}
+      <div className="bg-white p-2.5 sm:p-3 rounded-2xl border border-slate-200/90 shadow-2xs space-y-2">
+        <div className="flex items-center justify-between text-xs px-0.5">
+          <span className="font-extrabold text-[#0f3d44] flex items-center gap-1.5">
+            <SlidersHorizontal className="w-3.5 h-3.5 text-teal-600" />
+            <span>ক্যাটাগরি নির্বাচন করুন (Categories)</span>
+          </span>
+          <span className="text-[11px] text-slate-400 font-medium">
+            পাশাপাশি স্ক্রল করে ব্রাউজ করুন
+          </span>
         </div>
 
-        {/* MAIN CONTENT AREA */}
-        <div className="lg:col-span-9 space-y-6">
-          {/* CATALOG HEADER & SORTING & SHARE LINK */}
-          <div className="bg-white p-4 sm:p-5 rounded-2xl border border-slate-200/80 shadow-xs flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-            <div className="space-y-1">
-              <div className="flex flex-wrap items-center gap-2.5">
-                <h1 className="font-extrabold text-lg sm:text-xl text-[#0f3d44]">
-                  {activeCategoryObj ? `${activeCategoryObj.icon || '🕌'} ${activeCategoryObj.name}` : 'All Wall Decor Designs'}
-                </h1>
+        {/* HORIZONTAL SCROLLABLE ROW OF CATEGORIES */}
+        <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none">
+          <button
+            onClick={() => handleSelectCategory('all')}
+            className={`px-3.5 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all flex items-center gap-1.5 shrink-0 cursor-pointer ${
+              selectedCatId === 'all'
+                ? 'bg-[#0f3d44] text-white shadow-xs'
+                : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+            }`}
+          >
+            <span>All Categories</span>
+            <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-mono ${selectedCatId === 'all' ? 'bg-white/20 text-white' : 'bg-white text-slate-600'}`}>
+              {products.length}
+            </span>
+          </button>
 
-                {/* 1-CLICK CATEGORY LINK COPY BUTTON */}
-                {activeCategoryObj && (
+          {categories.map((cat) => {
+            const count = products.filter((p) => p.category_id === cat.id).length;
+            const isSelected = selectedCatId === cat.id;
+            return (
+              <div key={cat.id} className="relative shrink-0 flex items-center">
+                <button
+                  onClick={() => handleSelectCategory(cat.id)}
+                  className={`px-3.5 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all flex items-center gap-1.5 cursor-pointer ${
+                    isSelected
+                      ? 'bg-[#0f3d44] text-white shadow-xs pr-7'
+                      : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                  }`}
+                >
+                  <span>{cat.icon}</span>
+                  <span>{cat.name}</span>
+                  <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-mono ${isSelected ? 'bg-white/20 text-white' : 'bg-white text-slate-600'}`}>
+                    {count}
+                  </span>
+                </button>
+                {isSelected && (
                   <button
-                    onClick={(e) => handleCopyCategoryLink(activeCategoryObj.id, activeCategoryObj.name, e)}
-                    className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200/80 transition-all cursor-pointer shadow-2xs active:scale-95"
-                    title="এই ক্যাটাগরির ডিরেক্ট লিংক কপি করুন"
+                    type="button"
+                    onClick={(e) => handleCopyCategoryLink(cat.id, cat.name, e)}
+                    title={`"${cat.name}" ক্যাটাগরি লিংক কপি করুন`}
+                    className="absolute right-1.5 p-1 rounded-md text-teal-200 hover:text-white cursor-pointer"
                   >
-                    <Copy className="w-3.5 h-3.5" />
-                    <span>Copy Category Link</span>
+                    <Copy className="w-3 h-3" />
                   </button>
                 )}
               </div>
-              <p className="text-xs text-slate-500">
-                Showing {filteredProducts.length} of {products.length} stainless steel designs
-                {activeCategoryObj && ` in "${activeCategoryObj.name}"`}
-              </p>
-            </div>
-
-            <div className="flex items-center gap-2 w-full sm:w-auto justify-between sm:justify-end">
-              <span className="text-xs text-slate-500 font-medium shrink-0">Sort By:</span>
-              <select
-                value={sortBy}
-                onChange={(e) => setSortBy(e.target.value)}
-                className="bg-slate-100 border border-slate-200 text-xs text-[#0f3d44] font-bold rounded-xl px-3 py-2 outline-none cursor-pointer"
-              >
-                <option value="newest">Newest Designs</option>
-                <option value="price_low">Price: Low to High</option>
-                <option value="price_high">Price: High to Low</option>
-                <option value="popular">Most Popular</option>
-                <option value="rating">Top Rated</option>
-              </select>
-            </div>
-          </div>
-
-          {/* PRODUCT GRID */}
-          {filteredProducts.length > 0 ? (
-            <div className="grid grid-cols-2 sm:grid-cols-2 xl:grid-cols-3 gap-3 sm:gap-6">
-              {filteredProducts.map((p) => (
-                <ProductCard
-                  key={p.id}
-                  product={p}
-                  onSelectProduct={(prod) => onNavigate('product', { slug: prod.slug })}
-                  onOpenWallModal={onOpenWallModal}
-                  onQuickOrder={onQuickOrder}
-                />
-              ))}
-            </div>
-          ) : (
-            /* EMPTY STATE */
-            <div className="bg-white p-12 rounded-3xl border border-slate-200 text-center space-y-4 max-w-md mx-auto my-8">
-              <div className="w-16 h-16 rounded-full bg-indigo-50 text-indigo-600 flex items-center justify-center mx-auto text-2xl">
-                🔍
-              </div>
-              <h3 className="font-extrabold text-lg text-[#0f3d44]">কোনো ডিজাইন পাওয়া যায়নি</h3>
-              <p className="text-xs text-slate-500">
-                এই ক্যাটাগরিতে খুব শীঘ্রই নতুন প্রিমিয়াম ডিজাইন যুক্ত করা হবে। সকল ওয়াল আর্ট ডিজাইন দেখতে নিচের বাটনে ক্লিক করুন।
-              </p>
-              <button
-                onClick={resetFilters}
-                className="px-6 py-2.5 rounded-xl text-xs font-bold text-white bg-gradient-to-r from-teal-600 to-indigo-600 hover:opacity-95 shadow-md cursor-pointer"
-              >
-                সব ডিজাইন দেখুন (View All)
-              </button>
-            </div>
-          )}
+            );
+          })}
         </div>
       </div>
+
+      {/* CATALOG HEADER & FILTER TOGGLE */}
+      <div className="bg-white p-3.5 sm:p-4 rounded-2xl border border-slate-200/80 shadow-2xs space-y-3">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+          <div>
+            <h1 className="font-extrabold text-base sm:text-lg text-[#0f3d44] flex items-center gap-2">
+              <span>{activeCategoryObj ? `${activeCategoryObj.icon || '🕌'} ${activeCategoryObj.name}` : 'All Wall Decor Designs'}</span>
+              {activeCategoryObj && (
+                <button
+                  onClick={(e) => handleCopyCategoryLink(activeCategoryObj.id, activeCategoryObj.name, e)}
+                  className="inline-flex items-center gap-1 text-[11px] font-bold text-teal-700 bg-teal-50 hover:bg-teal-100 border border-teal-200 px-2 py-0.5 rounded-full cursor-pointer transition-all"
+                  title="ক্যাটাগরি লিংক কপি করুন"
+                >
+                  <Copy className="w-3 h-3" />
+                  <span>কপি লিংক</span>
+                </button>
+              )}
+            </h1>
+            <p className="text-[11px] text-slate-500 mt-0.5">
+              মোট {filteredProducts.length}টি প্রিমিয়াম ওয়াল আর্ট ডিজাইন প্রদর্শিত হচ্ছে
+            </p>
+          </div>
+
+          <div className="flex items-center gap-2 w-full sm:w-auto justify-between sm:justify-end">
+            {/* Filter Toggle Button */}
+            <button
+              type="button"
+              onClick={() => setShowFilterDrawer(!showFilterDrawer)}
+              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
+                showFilterDrawer || hasActiveExtraFilters
+                  ? 'bg-teal-50 text-teal-800 border border-teal-300'
+                  : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+              }`}
+            >
+              <Filter className="w-3.5 h-3.5 text-teal-600" />
+              <span>ফিল্টার</span>
+              {hasActiveExtraFilters && (
+                <span className="w-2 h-2 rounded-full bg-teal-600"></span>
+              )}
+            </button>
+
+            {/* Sort Dropdown */}
+            <select
+              value={sortBy}
+              onChange={(e) => setSortBy(e.target.value)}
+              className="bg-slate-100 border border-slate-200 text-xs text-[#0f3d44] font-bold rounded-xl px-3 py-1.5 outline-none cursor-pointer"
+            >
+              <option value="newest">Newest Designs</option>
+              <option value="price_low">Price: Low to High</option>
+              <option value="price_high">Price: High to Low</option>
+              <option value="popular">Most Popular</option>
+              <option value="rating">Top Rated</option>
+            </select>
+          </div>
+        </div>
+
+        {/* COLLAPSIBLE SECONDARY FILTERS (PRICE RANGE & COLLECTION TAGS) */}
+        {showFilterDrawer && (
+          <div className="pt-3 border-t border-slate-100 grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs animate-fadeIn">
+            {/* Price slider */}
+            <div className="space-y-1.5">
+              <div className="flex items-center justify-between font-bold text-slate-700">
+                <span>সর্বোচ্চ মূল্য (Max Price):</span>
+                <span className="text-teal-800 font-black">{formatPrice(maxPrice)}</span>
+              </div>
+              <input
+                type="range"
+                min="500"
+                max="10000"
+                step="100"
+                value={maxPrice}
+                onChange={(e) => setMaxPrice(Number(e.target.value))}
+                className="w-full accent-teal-700 cursor-pointer"
+              />
+              <div className="flex justify-between text-[10px] text-slate-400 font-mono">
+                <span>৳500</span>
+                <span>৳10,000</span>
+              </div>
+            </div>
+
+            {/* Tags and reset */}
+            <div className="space-y-1.5">
+              <div className="flex items-center justify-between font-bold text-slate-700">
+                <span>কালেকশন ট্যাগ:</span>
+                {hasActiveExtraFilters && (
+                  <button
+                    onClick={resetFilters}
+                    className="text-[11px] text-red-600 hover:underline flex items-center gap-1 cursor-pointer"
+                  >
+                    <RotateCcw className="w-3 h-3" /> রিসেট
+                  </button>
+                )}
+              </div>
+              <div className="flex flex-wrap gap-1.5 pt-0.5">
+                {['all', 'HOT', 'NEW', 'SALE'].map((b) => (
+                  <button
+                    key={b}
+                    onClick={() => setSelectedBadge(b)}
+                    className={`px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                      selectedBadge === b
+                        ? 'bg-slate-900 text-white'
+                        : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                    }`}
+                  >
+                    {b === 'all' ? 'সব ট্যাগ' : b}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* PRODUCTS GRID (IMMEDIATELY VISIBLE WITHOUT VERTICAL SCROLL DELAY) */}
+      {filteredProducts.length > 0 ? (
+        <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-5">
+          {filteredProducts.map((p) => (
+            <ProductCard
+              key={p.id}
+              product={p}
+              onSelectProduct={(prod) => onNavigate('product', { slug: prod.slug })}
+              onOpenWallModal={onOpenWallModal}
+              onQuickOrder={onQuickOrder}
+            />
+          ))}
+        </div>
+      ) : (
+        /* EMPTY STATE */
+        <div className="bg-white p-10 rounded-3xl border border-slate-200 text-center space-y-3 max-w-md mx-auto my-6">
+          <div className="w-14 h-14 rounded-full bg-teal-50 text-teal-700 flex items-center justify-center mx-auto text-xl font-bold">
+            🔍
+          </div>
+          <h3 className="font-extrabold text-base text-[#0f3d44]">কোনো ডিজাইন পাওয়া যায়নি</h3>
+          <p className="text-xs text-slate-500">
+            এই ক্যাটাগরিতে খুব শীঘ্রই নতুন ডিজাইন যুক্ত করা হবে।
+          </p>
+          <button
+            onClick={resetFilters}
+            className="px-5 py-2 rounded-xl text-xs font-bold text-white bg-[#0f3d44] hover:bg-teal-900 shadow-md cursor-pointer"
+          >
+            সব ডিজাইন দেখুন (View All)
+          </button>
+        </div>
+      )}
     </div>
   );
 };

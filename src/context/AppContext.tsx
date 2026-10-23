@@ -646,30 +646,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (match) setCurrency(match);
   }, [settings.active_currency]);
 
-  // Calculate weight-based delivery charge & COD fee whenever cart or zone changes
-  // Policy: Only Ayatul Kursi has 100% Free Delivery. Other products pay weight-based courier charges.
-  // If Ayatul Kursi is in cart with other products, Ayatul Kursi weight is waived (0g) and remaining products pay according to their weight.
+  // Calculate weight-based delivery charge:
+  // Products <= 1 kg (1000g): Inside Dhaka 80 BDT, Outside Dhaka 130 BDT
+  // Weight > 1 kg: Increases according to courier weight ratio
   useEffect(() => {
-    let ayatulKursiWeight = 0;
-    let otherProductsWeight = 0;
-    let hasAyatulKursi = false;
-    let hasOtherProducts = false;
-
-    cart.forEach(item => {
-      const isAyatul = isAyatulKursiProduct(item);
+    const totalWeight = cart.reduce((sum, item) => {
       const w = (item.selectedSize ? item.selectedSize.weight_grams : item.product.weight_grams) || 0;
-      const totalItemWeight = w * item.quantity;
-      if (isAyatul) {
-        hasAyatulKursi = true;
-        ayatulKursiWeight += totalItemWeight;
-      } else {
-        hasOtherProducts = true;
-        otherProductsWeight += totalItemWeight;
-      }
-    });
-
-    const totalWeight = ayatulKursiWeight + otherProductsWeight;
-    const billableWeight = hasAyatulKursi ? otherProductsWeight : totalWeight;
+      return sum + (w * item.quantity);
+    }, 0);
 
     const subtotal = cart.reduce((sum, item) => {
       const p = item.selectedSize ? item.selectedSize.price : item.product.price;
@@ -677,17 +661,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }, 0);
 
     const details = calculateDeliveryFee(
-      billableWeight,
+      totalWeight,
       deliveryZone,
       subtotal,
-      settings.free_shipping_threshold_dhaka,
-      {
-        isAyatulKursiOnly: hasAyatulKursi && !hasOtherProducts,
-        hasAyatulKursi,
-        hasOtherProducts,
-        ayatulKursiWeight,
-        totalWeight
-      }
+      settings.free_shipping_threshold_dhaka
     );
 
     setDeliveryDetails(details);

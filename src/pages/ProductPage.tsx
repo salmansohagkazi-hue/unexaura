@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
 import { ProductCard } from '../components/ProductCard';
 import { Product, ProductSize } from '../types';
-import { calculateDeliveryFee, isAyatulKursiProduct } from '../utils/delivery';
+import { calculateDeliveryFee } from '../utils/delivery';
 import { useSEO } from '../hooks/useSEO';
 import { trackViewItem } from '../utils/analytics';
 import {
@@ -78,14 +78,11 @@ export const ProductPage: React.FC<ProductPageProps> = ({ slug, onNavigate, onOp
     }
   ];
 
-  const isAyatul = isAyatulKursiProduct(product);
-
-  // Standard golden sizes (Medium & Large) - Guarantee no old_price for Ayatul Kursi
-  const rawSizes: ProductSize[] = product.sizes && product.sizes.length >= 2 ? product.sizes : [
+  // Standard golden sizes (Medium & Large)
+  const standardSizes: ProductSize[] = product.sizes && product.sizes.length >= 2 ? product.sizes : [
     { id: 's1', name: 'Medium (75cm × 40cm)', price: product.price, old_price: product.old_price, weight_grams: product.weight_grams || 1400, size_dimensions: product.size_dimensions || '75cm × 40cm' },
     { id: 's2', name: 'Large (120cm × 60cm)', price: Math.round(product.price * 1.36), old_price: product.old_price ? Math.round(product.old_price * 1.36) : undefined, weight_grams: Math.round((product.weight_grams || 1400) * 1.57), size_dimensions: '120cm × 60cm' }
   ];
-  const standardSizes = rawSizes.map(s => isAyatul ? { ...s, old_price: undefined } : s);
 
   const [selectedSizeIdx, setSelectedSizeIdx] = useState<number>(0);
   const activeSize = standardSizes[selectedSizeIdx] || standardSizes[0];
@@ -335,23 +332,16 @@ export const ProductPage: React.FC<ProductPageProps> = ({ slug, onNavigate, onOp
               <span className="text-3xl font-black text-[#0f3d44]">
                 {formatPrice(currentPrice)}
               </span>
-              {!isAyatul && activeSize.old_price && activeSize.old_price > currentPrice && (
+              {activeSize.old_price && activeSize.old_price > currentPrice && (
                 <span className="text-sm text-slate-400 line-through">
                   {formatPrice(activeSize.old_price)}
                 </span>
               )}
             </div>
 
-            {!isAyatul && activeSize.old_price && activeSize.old_price > currentPrice && (
+            {activeSize.old_price && activeSize.old_price > currentPrice && (
               <span className="text-xs text-teal-800 font-bold bg-teal-100/80 px-2.5 py-1 rounded-full">
                 Save {formatPrice(activeSize.old_price - currentPrice)}
-              </span>
-            )}
-
-            {isAyatul && (
-              <span className="text-xs text-emerald-800 font-extrabold bg-emerald-100 px-3 py-1 rounded-full border border-emerald-300 flex items-center gap-1 shadow-xs">
-                <Truck className="w-3.5 h-3.5 text-emerald-600" />
-                <span>ফ্রি হোম ডেলিভারি</span>
               </span>
             )}
           </div>
@@ -471,11 +461,7 @@ export const ProductPage: React.FC<ProductPageProps> = ({ slug, onNavigate, onOp
               {/* Delivery Note */}
               <div className="pt-2 border-t border-slate-100 flex items-center gap-2 text-xs text-slate-600">
                 <Truck className="w-4 h-4 text-teal-600 shrink-0" />
-                <span>
-                  {isAyatul
-                    ? '🎉 আয়াতুল কুরসিতে পাচ্ছেন সারা দেশে ১০০% ফ্রি হোম ডেলিভারি!'
-                    : '📦 সারা দেশে হোম ডেলিভারি সুবিধা (পণ্য হাতে পেয়ে চেক করে টাকা দিন)।'}
-                </span>
+                <span>📦 সারা দেশে দ্রুত হোম ডেলিভারি সুবিধা (পণ্য হাতে পেয়ে চেক করে টাকা দিন)।</span>
               </div>
             </div>
           </div>

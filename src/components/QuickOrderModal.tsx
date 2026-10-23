@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Product } from '../types';
 import { useApp } from '../context/AppContext';
+import { calculateDeliveryFee } from '../utils/delivery';
 import { X, Truck, Phone, MapPin, User, CheckCircle2, ShieldCheck, ShoppingBag } from 'lucide-react';
 
 interface QuickOrderModalProps {
@@ -22,8 +23,9 @@ export const QuickOrderModal: React.FC<QuickOrderModalProps> = ({ product, onClo
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const price = product.price;
-  const isAyatul = product.name?.toLowerCase().includes('ayatul') || product.name?.includes('আয়াতুল');
-  const deliveryCharge = isAyatul ? 0 : (zone === 'dhaka' ? (settings.base_charge_dhaka || 70) : (settings.base_charge_outside || 130));
+  const weight = (product.weight_grams || 800) * quantity;
+  const feeCalc = calculateDeliveryFee(weight, zone, price * quantity);
+  const deliveryCharge = feeCalc.totalCharge;
   const subtotal = price * quantity;
   const total = subtotal + deliveryCharge;
 
@@ -156,7 +158,7 @@ export const QuickOrderModal: React.FC<QuickOrderModalProps> = ({ product, onClo
               >
                 <div className="text-xs font-black">ঢাকার ভেতরে</div>
                 <div className="text-[11px] text-teal-700 font-bold">
-                  {isAyatul ? 'ফ্রি ডেলিভারি (৳০)' : 'চার্জ: ৳৭০'}
+                  চার্জ: ৳{calculateDeliveryFee(weight, 'dhaka', subtotal).totalCharge}
                 </div>
               </button>
 
@@ -174,7 +176,7 @@ export const QuickOrderModal: React.FC<QuickOrderModalProps> = ({ product, onClo
               >
                 <div className="text-xs font-black">ঢাকার বাইরে</div>
                 <div className="text-[11px] text-teal-700 font-bold">
-                  {isAyatul ? 'ফ্রি ডেলিভারি (৳০)' : 'চার্জ: ৳১৩০'}
+                  চার্জ: ৳{calculateDeliveryFee(weight, 'outside_dhaka', subtotal).totalCharge}
                 </div>
               </button>
             </div>

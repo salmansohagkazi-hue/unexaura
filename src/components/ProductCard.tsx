@@ -1,8 +1,7 @@
 import React from 'react';
 import { Product } from '../types';
 import { useApp } from '../context/AppContext';
-import { Eye, ShoppingCart, Zap, Heart, Truck } from 'lucide-react';
-import { isAyatulKursiProduct } from '../utils/delivery';
+import { Eye, ShoppingCart, Zap, Heart } from 'lucide-react';
 
 interface ProductCardProps {
   product: Product;
@@ -19,9 +18,8 @@ export const ProductCard: React.FC<ProductCardProps> = ({
 }) => {
   const { addToCart, formatPrice, toggleWishlist, isInWishlist, openCartDrawer } = useApp();
   const isWishlisted = isInWishlist(product.id);
-  const isAyatul = isAyatulKursiProduct(product);
 
-  const discountPercent = !isAyatul && product.old_price && product.old_price > product.price
+  const discountPercent = product.old_price && product.old_price > product.price
     ? Math.round(((product.old_price - product.price) / product.old_price) * 100)
     : null;
 
@@ -33,12 +31,11 @@ export const ProductCard: React.FC<ProductCardProps> = ({
 
   const handleOrderNow = (e: React.MouseEvent) => {
     e.stopPropagation();
+    addToCart(product, 1);
     if (onQuickOrder) {
       onQuickOrder(product);
-    } else {
-      addToCart(product, 1);
-      window.dispatchEvent(new CustomEvent('unex_navigate', { detail: { page: 'checkout' } }));
     }
+    window.dispatchEvent(new CustomEvent('unex_navigate', { detail: { page: 'checkout' } }));
   };
 
   return (
@@ -59,12 +56,6 @@ export const ProductCard: React.FC<ProductCardProps> = ({
               'bg-amber-600'
             }`}>
               {product.badge}
-            </span>
-          )}
-          {isAyatul && (
-            <span className="text-[10px] font-bold px-2 py-0.5 rounded-md text-emerald-900 bg-emerald-100/95 border border-emerald-300/80 flex items-center gap-1 shadow-xs">
-              <Truck className="w-3 h-3 text-emerald-700" />
-              <span>ফ্রি ডেলিভারি</span>
             </span>
           )}
         </div>
@@ -124,9 +115,9 @@ export const ProductCard: React.FC<ProductCardProps> = ({
             {product.name}
           </h3>
 
-          {/* PRICING & DISCOUNT (NO DISCOUNT FOR AYATUL KURSI) */}
+          {/* PRICING & DISCOUNT */}
           <div className="pt-0.5 space-y-0.5">
-            {!isAyatul && product.old_price && product.old_price > product.price ? (
+            {product.old_price && product.old_price > product.price ? (
               <div className="text-xs text-slate-400 line-through font-medium">
                 {formatPrice(product.old_price)}
               </div>
@@ -139,7 +130,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({
                 {formatPrice(product.price)}
               </span>
 
-              {!isAyatul && discountPercent && (
+              {discountPercent && (
                 <span className="text-[11px] font-bold text-slate-600 bg-slate-100 border border-slate-200 px-1.5 py-0.5 rounded-md">
                   -{discountPercent}%
                 </span>

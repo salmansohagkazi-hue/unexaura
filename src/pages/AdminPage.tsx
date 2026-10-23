@@ -2566,37 +2566,36 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate, initialTab = '
                           </div>
                         </div>
                       </div>
-                      <span className="text-[11px] text-slate-400 font-mono">Slug: {c.slug}</span>
-                    </div>
-                  </div>
 
-                  <div className="flex items-center gap-2">
-                    <button
-                      onClick={() => setEditingCategory(c)}
-                      className="p-2 text-slate-500 hover:text-teal-600 hover:bg-teal-50 rounded-xl transition-all cursor-pointer"
-                      title="Edit Category Details & Image Link"
-                    >
-                      <Edit className="w-4 h-4" />
-                    </button>
-                    <button
-                      onClick={() => {
-                        const count = products.filter(p => p.category_id === c.id).length;
-                        if (count > 0) {
-                          alert(`এই ক্যাটাগরিতে ${count}টি প্রোডাক্ট রয়েছে। আগে প্রোডাক্ট পরিবর্তন করুন।`);
-                          return;
-                        }
-                        if (confirm(`Delete category ${c.name}?`)) {
-                          deleteCategory(c.id);
-                        }
-                      }}
-                      className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition-all cursor-pointer"
-                      title="Delete Category"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                  </div>
-                </div>
-              ))}
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => setEditingCategory(c)}
+                          className="p-2 text-slate-500 hover:text-teal-600 hover:bg-teal-50 rounded-xl transition-all cursor-pointer"
+                          title="Edit Category Details & Image Link"
+                        >
+                          <Edit className="w-4 h-4" />
+                        </button>
+                        <button
+                          onClick={() => {
+                            const count = products.filter(p => p.category_id === c.id).length;
+                            if (count > 0) {
+                              alert(`এই ক্যাটাগরিতে ${count}টি প্রোডাক্ট রয়েছে। আগে প্রোডাক্ট পরিবর্তন করুন।`);
+                              return;
+                            }
+                            if (confirm(`Delete category ${c.name}?`)) {
+                              deleteCategory(c.id);
+                            }
+                          }}
+                          className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition-all cursor-pointer"
+                          title="Delete Category"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
             </div>
           </div>
         </div>

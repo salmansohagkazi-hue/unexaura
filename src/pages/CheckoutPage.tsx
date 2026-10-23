@@ -2,23 +2,21 @@ import React, { useState, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
 import { useSEO } from '../hooks/useSEO';
 import { trackBeginCheckout } from '../utils/analytics';
-import { isAyatulKursiProduct, calculateDeliveryFee } from '../utils/delivery';
+import { calculateDeliveryFee } from '../utils/delivery';
 import {
-  ShieldCheck,
-  Lock,
-  Check,
-  MapPin,
-  User,
-  Phone,
-  FileText,
   Truck,
-  Banknote,
-  Sparkles,
+  CreditCard,
+  Check,
   ShoppingBag,
-  ArrowLeft,
+  Home,
+  ChevronRight,
+  ChevronDown,
   Trash2,
   Plus,
-  Minus
+  Minus,
+  Banknote,
+  ShieldCheck,
+  Lock
 } from 'lucide-react';
 
 interface CheckoutPageProps {
@@ -27,8 +25,8 @@ interface CheckoutPageProps {
 
 export const CheckoutPage: React.FC<CheckoutPageProps> = ({ onNavigate }) => {
   useSEO({
-    title: 'অর্ডার কনফার্ম ও চেকআউট',
-    description: 'সহজ ও নিরাপদ চেকআউট - UNEX AURA প্রিমিয়াম ওয়াল ডেকোর ক্যাশ অন ডেলিভারিতে অর্ডার করুন।'
+    title: 'Checkout - UNEX AURA',
+    description: 'Complete your order with Cash on Delivery. Fast nationwide delivery across Bangladesh.'
   });
 
   const {
@@ -37,7 +35,6 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({ onNavigate }) => {
     deliveryZone,
     setDeliveryZone,
     deliveryCharge,
-    deliveryDetails,
     getCartSubtotal,
     getCartWeight,
     formatPrice,
@@ -45,8 +42,7 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({ onNavigate }) => {
     removeFromCart,
     clearCart,
     showToast,
-    addOrder,
-    settings
+    addOrder
   } = useApp();
 
   const [fullName, setFullName] = useState(
@@ -57,7 +53,7 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({ onNavigate }) => {
   const [orderNotes, setOrderNotes] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Auto-select 'dhaka' if not already selected so checkout is 1-tap ready
+  // Auto-select 'dhaka' if not already selected so checkout is ready
   useEffect(() => {
     if (deliveryZone === 'none') {
       setDeliveryZone('dhaka');
@@ -75,54 +71,9 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({ onNavigate }) => {
     }
   }, []);
 
-  // Compute weight details for delivery options display
-  let hasAyatulKursi = false;
-  let ayatulKursiWeight = 0;
-  let otherProductsWeight = 0;
-  let hasOtherProducts = false;
-
-  cart.forEach((item) => {
-    const isAyatul = isAyatulKursiProduct(item);
-    const w = (item.selectedSize ? item.selectedSize.weight_grams : item.product.weight_grams) || 0;
-    const totalItemWeight = w * item.quantity;
-    if (isAyatul) {
-      hasAyatulKursi = true;
-      ayatulKursiWeight += totalItemWeight;
-    } else {
-      hasOtherProducts = true;
-      otherProductsWeight += totalItemWeight;
-    }
-  });
-
-  const billableWeight = hasAyatulKursi ? otherProductsWeight : totalWeight;
-
-  const dhakaFeeDetails = calculateDeliveryFee(
-    billableWeight,
-    'dhaka',
-    subtotal,
-    settings.free_shipping_threshold_dhaka,
-    {
-      isAyatulKursiOnly: hasAyatulKursi && !hasOtherProducts,
-      hasAyatulKursi,
-      hasOtherProducts,
-      ayatulKursiWeight,
-      totalWeight
-    }
-  );
-
-  const outsideDhakaFeeDetails = calculateDeliveryFee(
-    billableWeight,
-    'outside_dhaka',
-    subtotal,
-    settings.free_shipping_threshold_dhaka,
-    {
-      isAyatulKursiOnly: hasAyatulKursi && !hasOtherProducts,
-      hasAyatulKursi,
-      hasOtherProducts,
-      ayatulKursiWeight,
-      totalWeight
-    }
-  );
+  // Standard delivery fee calculations for display
+  const dhakaFee = calculateDeliveryFee(totalWeight, 'dhaka', subtotal);
+  const outsideDhakaFee = calculateDeliveryFee(totalWeight, 'outside_dhaka', subtotal);
 
   const handleSubmitOrder = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -184,295 +135,223 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({ onNavigate }) => {
 
   if (cart.length === 0) {
     return (
-      <div className="max-w-xl mx-auto px-4 py-16 text-center space-y-4">
+      <div className="max-w-md mx-auto px-4 py-16 text-center space-y-4">
         <div className="w-16 h-16 rounded-full bg-slate-100 mx-auto flex items-center justify-center text-slate-400">
           <ShoppingBag className="w-8 h-8" />
         </div>
-        <h2 className="text-xl font-black text-[#0f3d44]">আপনার কার্ট বর্তমানে খালি</h2>
+        <h2 className="text-xl font-bold text-slate-800">আপনার কার্ট বর্তমানে খালি</h2>
         <p className="text-xs text-slate-500">
-          অর্ডার সম্পন্ন করতে প্রথমে পছন্দের পণ্যটি কার্টে যোগ করুন।
+          অর্ডার সম্পন্ন করতে প্রথমে পছন্দের পণ্যটি সিলেক্ট করুন।
         </p>
         <button
           onClick={() => onNavigate('shop')}
-          className="mt-3 px-6 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs transition-colors cursor-pointer"
+          className="mt-3 px-6 py-2.5 rounded-xl bg-purple-600 hover:bg-purple-700 text-white font-bold text-xs transition-colors cursor-pointer"
         >
-          কালেকশন দেখুন
+          কালেকশন দেখুন (Browse Products)
         </button>
       </div>
     );
   }
 
   return (
-    <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-5">
-      {/* SIMPLE BREADCRUMB */}
-      <div className="flex items-center justify-between">
-        <button
-          onClick={() => onNavigate('shop')}
-          className="inline-flex items-center gap-1.5 text-xs font-bold text-slate-500 hover:text-indigo-600 cursor-pointer transition-colors"
-        >
-          <ArrowLeft className="w-3.5 h-3.5" />
-          <span>শপে ফিরে যান (Back to Shop)</span>
-        </button>
-        <div className="text-xs font-bold text-emerald-700 bg-emerald-50 px-3 py-1 rounded-full border border-emerald-200 flex items-center gap-1.5">
-          <ShieldCheck className="w-4 h-4 text-emerald-600" />
-          <span>ক্যাশ অন ডেলিভারি (পণ্য হাতে পেয়ে টাকা দিন)</span>
-        </div>
-      </div>
+    <div className="min-h-screen bg-slate-50/60 pb-16">
+      <div className="max-w-2xl mx-auto px-4 sm:px-6 pt-5 space-y-4">
+        {/* BREADCRUMB: Home > Checkout */}
+        <nav className="flex items-center gap-1.5 text-xs text-slate-500 font-medium select-none">
+          <button
+            onClick={() => onNavigate('home')}
+            className="flex items-center gap-1 hover:text-purple-600 transition-colors cursor-pointer"
+          >
+            <Home className="w-3.5 h-3.5" />
+            <span>Home</span>
+          </button>
+          <ChevronRight className="w-3 h-3 text-slate-400" />
+          <span className="text-slate-800 font-semibold">Checkout</span>
+        </nav>
 
-      <form onSubmit={handleSubmitOrder} className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-        {/* CUSTOMER FRIENDLY SIMPLIFIED FORM (7 cols) */}
-        <div className="lg:col-span-7 space-y-4">
-          <div className="bg-white p-5 sm:p-6 rounded-3xl border border-slate-200/90 shadow-sm space-y-5">
-            {/* CLEAN FORM HEADER */}
-            <div className="border-b border-slate-100 pb-3 flex items-center justify-between">
-              <div>
-                <h2 className="font-black text-base sm:text-lg text-[#0f3d44]">
-                  অর্ডার ও ডেলিভারি তথ্য
-                </h2>
-                <p className="text-xs text-slate-500 mt-0.5">
-                  পণ্যটি ডেলিভারি পেতে নিচের তথ্যগুলো পূরণ করুন
-                </p>
-              </div>
-              <span className="text-[11px] font-bold text-indigo-700 bg-indigo-50 px-2.5 py-1 rounded-full border border-indigo-100">
-                সহজ অর্ডার
-              </span>
+        <form onSubmit={handleSubmitOrder} className="space-y-4">
+          {/* CARD 1: SHIPPING INFORMATION */}
+          <div className="bg-white rounded-2xl p-5 sm:p-6 border border-slate-200/80 shadow-xs space-y-4">
+            <div className="flex items-center gap-2 text-slate-900">
+              <Truck className="w-5 h-5 text-purple-600" />
+              <h2 className="text-base sm:text-lg font-bold">Shipping Information</h2>
             </div>
 
-            {/* FORM INPUTS */}
-            <div className="space-y-4 text-xs sm:text-sm">
+            <div className="space-y-3.5 text-xs sm:text-sm">
               {/* FULL NAME */}
               <div>
-                <label className="font-bold text-slate-700 block mb-1 flex items-center gap-1.5">
-                  <User className="w-3.5 h-3.5 text-indigo-600" />
-                  <span>আপনার নাম <span className="text-red-500">*</span></span>
+                <label className="block text-slate-700 font-medium mb-1.5 text-xs">
+                  Full Name <span className="text-red-500">*</span>
                 </label>
                 <input
                   type="text"
                   required
                   value={fullName}
                   onChange={(e) => setFullName(e.target.value)}
-                  placeholder="যেমন: তানভীর হোসেন"
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs sm:text-sm text-[#0f3d44] focus:outline-none focus:bg-white focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 transition-all font-medium"
+                  placeholder="Enter your full name"
+                  className="w-full bg-white border border-slate-200 rounded-xl px-3.5 py-2.5 text-slate-800 placeholder:text-slate-400 focus:outline-none focus:border-purple-600 focus:ring-1 focus:ring-purple-600 transition-all font-normal"
                 />
               </div>
 
-              {/* MOBILE NUMBER */}
+              {/* PHONE NUMBER */}
               <div>
-                <label className="font-bold text-slate-700 block mb-1 flex items-center gap-1.5">
-                  <Phone className="w-3.5 h-3.5 text-teal-600" />
-                  <span>মোবাইল নম্বর <span className="text-red-500">*</span></span>
+                <label className="block text-slate-700 font-medium mb-1.5 text-xs">
+                  Phone Number <span className="text-red-500">*</span>
                 </label>
-                <input
-                  type="tel"
-                  required
-                  value={phone}
-                  onChange={(e) => setPhone(e.target.value)}
-                  placeholder="01XXXXXXXXX (১১ ডিজিটের মোবাইল নম্বর)"
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs sm:text-sm text-[#0f3d44] focus:outline-none focus:bg-white focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 transition-all font-medium font-mono"
-                />
+                <div className="flex rounded-xl border border-slate-200 overflow-hidden focus-within:border-purple-600 focus-within:ring-1 focus-within:ring-purple-600 transition-all bg-white">
+                  <div className="flex items-center gap-1.5 px-3 py-2.5 bg-slate-50 border-r border-slate-200 text-slate-700 select-none text-xs sm:text-sm font-medium">
+                    <span className="text-sm">🇧🇩</span>
+                    <span>+88</span>
+                    <ChevronDown className="w-3 h-3 text-slate-400 ml-0.5" />
+                  </div>
+                  <input
+                    type="tel"
+                    required
+                    value={phone}
+                    onChange={(e) => setPhone(e.target.value)}
+                    placeholder="01712345678"
+                    className="flex-1 px-3 py-2.5 text-slate-800 placeholder:text-slate-400 focus:outline-none font-mono text-xs sm:text-sm"
+                  />
+                </div>
               </div>
 
               {/* FULL ADDRESS */}
               <div>
-                <label className="font-bold text-slate-700 block mb-1 flex items-center gap-1.5">
-                  <MapPin className="w-3.5 h-3.5 text-pink-600" />
-                  <span>সম্পূর্ণ ঠিকানা <span className="text-red-500">*</span></span>
+                <label className="block text-slate-700 font-medium mb-1.5 text-xs">
+                  Full Address <span className="text-red-500">*</span>
                 </label>
-                <input
-                  type="text"
+                <textarea
                   required
+                  rows={2}
                   value={address}
                   onChange={(e) => setAddress(e.target.value)}
-                  placeholder="বাসা/ফ্ল্যাট নং, রোড নং, এলাকা, থানা/উপজেলা ও জেলা"
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs sm:text-sm text-[#0f3d44] focus:outline-none focus:bg-white focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 transition-all font-medium"
+                  placeholder="Enter your full address (e.g. House, Road, Area, Thana/District)"
+                  className="w-full bg-white border border-slate-200 rounded-xl px-3.5 py-2 text-slate-800 placeholder:text-slate-400 focus:outline-none focus:border-purple-600 focus:ring-1 focus:ring-purple-600 transition-all resize-y text-xs sm:text-sm"
                 />
               </div>
 
-              {/* DELIVERY LOCATION SELECTOR (FRIENDLY 2-CARD BUTTONS INSTEAD OF CLUNKY DROPDOWN) */}
+              {/* CITY, ZONE & AREA */}
               <div>
-                <label className="font-bold text-slate-700 block mb-1.5 flex items-center justify-between">
-                  <span className="flex items-center gap-1.5">
-                    <Truck className="w-3.5 h-3.5 text-indigo-600" />
-                    <span>ডেলিভারি এলাকা নির্বাচন করুন <span className="text-red-500">*</span></span>
-                  </span>
-                  {hasAyatulKursi && (
-                    <span className="text-[10px] font-extrabold text-emerald-700 bg-emerald-100/80 px-2 py-0.5 rounded-full border border-emerald-200 flex items-center gap-1">
-                      <Sparkles className="w-2.5 h-2.5" />
-                      <span>আয়াতুল কুরসি ফ্রি ডেলিভারি</span>
-                    </span>
-                  )}
+                <label className="block text-slate-700 font-medium mb-1.5 text-xs">
+                  City, Zone & Area <span className="text-red-500">*</span>
                 </label>
-
-                <div className="grid grid-cols-2 gap-3">
-                  {/* Inside Dhaka Option Card */}
-                  <div
+                <div className="grid grid-cols-2 gap-2.5">
+                  <button
+                    type="button"
                     onClick={() => setDeliveryZone('dhaka')}
-                    className={`p-3 rounded-2xl border-2 transition-all cursor-pointer select-none flex flex-col justify-between ${
+                    className={`p-3 rounded-xl border text-left cursor-pointer transition-all flex flex-col justify-between ${
                       deliveryZone === 'dhaka'
-                        ? 'border-indigo-600 bg-indigo-50/50 shadow-xs ring-1 ring-indigo-500'
-                        : 'border-slate-200 bg-slate-50 hover:bg-slate-100/70 hover:border-slate-300'
+                        ? 'border-purple-600 bg-purple-50/40 ring-1 ring-purple-600 shadow-xs'
+                        : 'border-slate-200 bg-white hover:border-slate-300'
                     }`}
                   >
-                    <div className="flex items-center justify-between mb-1.5">
-                      <span className="font-extrabold text-[#0f3d44] text-xs sm:text-sm flex items-center gap-1">
-                        <span>📍 ঢাকার ভেতরে</span>
+                    <div className="flex items-center justify-between">
+                      <span className="font-semibold text-slate-800 text-xs sm:text-sm">
+                        Inside Dhaka
                       </span>
                       <div
                         className={`w-4 h-4 rounded-full flex items-center justify-center border ${
                           deliveryZone === 'dhaka'
-                            ? 'bg-indigo-600 border-indigo-600 text-white'
+                            ? 'bg-purple-600 border-purple-600 text-white'
                             : 'border-slate-300 bg-white'
                         }`}
                       >
-                        {deliveryZone === 'dhaka' && <Check className="w-3 h-3" />}
+                        {deliveryZone === 'dhaka' && <Check className="w-2.5 h-2.5" />}
                       </div>
                     </div>
+                    <span className="text-[11px] font-bold text-purple-700 mt-1">
+                      ডেলিভারি চার্জ: {formatPrice(dhakaFee.totalCharge)}
+                    </span>
+                  </button>
 
-                    <div className="text-[11px] font-bold">
-                      {dhakaFeeDetails.totalCharge === 0 ? (
-                        <span className="text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded font-black">
-                          FREE / ফ্রি (৳০)
-                        </span>
-                      ) : (
-                        <span className="text-indigo-700">
-                          ডেলিভারি চার্জ: {formatPrice(dhakaFeeDetails.totalCharge)}
-                        </span>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Outside Dhaka Option Card */}
-                  <div
+                  <button
+                    type="button"
                     onClick={() => setDeliveryZone('outside_dhaka')}
-                    className={`p-3 rounded-2xl border-2 transition-all cursor-pointer select-none flex flex-col justify-between ${
+                    className={`p-3 rounded-xl border text-left cursor-pointer transition-all flex flex-col justify-between ${
                       deliveryZone === 'outside_dhaka'
-                        ? 'border-indigo-600 bg-indigo-50/50 shadow-xs ring-1 ring-indigo-500'
-                        : 'border-slate-200 bg-slate-50 hover:bg-slate-100/70 hover:border-slate-300'
+                        ? 'border-purple-600 bg-purple-50/40 ring-1 ring-purple-600 shadow-xs'
+                        : 'border-slate-200 bg-white hover:border-slate-300'
                     }`}
                   >
-                    <div className="flex items-center justify-between mb-1.5">
-                      <span className="font-extrabold text-[#0f3d44] text-xs sm:text-sm flex items-center gap-1">
-                        <span>🚚 ঢাকার বাইরে</span>
+                    <div className="flex items-center justify-between">
+                      <span className="font-semibold text-slate-800 text-xs sm:text-sm">
+                        Outside Dhaka
                       </span>
                       <div
                         className={`w-4 h-4 rounded-full flex items-center justify-center border ${
                           deliveryZone === 'outside_dhaka'
-                            ? 'bg-indigo-600 border-indigo-600 text-white'
+                            ? 'bg-purple-600 border-purple-600 text-white'
                             : 'border-slate-300 bg-white'
                         }`}
                       >
-                        {deliveryZone === 'outside_dhaka' && <Check className="w-3 h-3" />}
+                        {deliveryZone === 'outside_dhaka' && <Check className="w-2.5 h-2.5" />}
                       </div>
                     </div>
-
-                    <div className="text-[11px] font-bold">
-                      {outsideDhakaFeeDetails.totalCharge === 0 ? (
-                        <span className="text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded font-black">
-                          FREE / ফ্রি (৳০)
-                        </span>
-                      ) : (
-                        <span className="text-indigo-700">
-                          ডেলিভারি চার্জ: {formatPrice(outsideDhakaFeeDetails.totalCharge)}
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                </div>
-
-                {/* Weight Slab note */}
-                <div className="mt-2 text-[11px] text-slate-500 flex items-center justify-between">
-                  <span>
-                    মোট ওজন:{' '}
-                    <strong className="text-slate-700 font-mono">
-                      {totalWeight >= 1000 ? `${(totalWeight / 1000).toFixed(1)} কেজি` : `${totalWeight} গ্রাম`}
-                    </strong>
-                  </span>
-                  <span className="font-semibold text-indigo-700">
-                    {deliveryDetails.slabDescription}
-                  </span>
-                </div>
-              </div>
-
-              {/* ORDER NOTE (OPTIONAL) */}
-              <div>
-                <label className="font-bold text-slate-700 block mb-1 flex items-center gap-1.5">
-                  <FileText className="w-3.5 h-3.5 text-slate-400" />
-                  <span>অর্ডার নোট (ঐচ্ছিক)</span>
-                </label>
-                <input
-                  type="text"
-                  value={orderNotes}
-                  onChange={(e) => setOrderNotes(e.target.value)}
-                  placeholder="ডেলিভারি সম্পর্কিত বিশেষ কোনো কথা থাকলে লিখুন..."
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2 text-xs sm:text-sm text-[#0f3d44] focus:outline-none focus:bg-white focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 transition-all font-medium"
-                />
-              </div>
-
-              {/* PAYMENT METHOD (CASH ON DELIVERY) */}
-              <div className="pt-2">
-                <div className="p-3.5 rounded-2xl border-2 border-emerald-500 bg-emerald-50/30 flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 rounded-xl bg-emerald-100 text-emerald-800 flex items-center justify-center shrink-0">
-                      <Banknote className="w-4 h-4" />
-                    </div>
-                    <div>
-                      <div className="font-extrabold text-[#0f3d44] text-xs sm:text-sm flex items-center gap-2">
-                        <span>ক্যাশ অন ডেলিভারি (Cash on Delivery)</span>
-                        <span className="text-[10px] font-bold bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded-full">
-                          ০৳ অগ্রিম
-                        </span>
-                      </div>
-                      <p className="text-[11px] text-slate-600 mt-0.5">
-                        পণ্য হাতে পেয়ে দেখে ডেলিভারিম্যানকে টাকা দিন
-                      </p>
-                    </div>
-                  </div>
-                  <div className="w-5 h-5 rounded-full bg-emerald-600 text-white flex items-center justify-center shrink-0">
-                    <Check className="w-3.5 h-3.5" />
-                  </div>
+                    <span className="text-[11px] font-bold text-purple-700 mt-1">
+                      ডেলিভারি চার্জ: {formatPrice(outsideDhakaFee.totalCharge)}
+                    </span>
+                  </button>
                 </div>
               </div>
             </div>
           </div>
-        </div>
 
-        {/* RIGHT SIDEBAR: CLEAN ORDER SUMMARY (5 cols) */}
-        <div className="lg:col-span-5 space-y-4 lg:sticky lg:top-24">
-          <div className="bg-white p-5 sm:p-6 rounded-3xl border border-slate-200/90 shadow-md space-y-4">
-            <h3 className="font-extrabold text-sm sm:text-base text-[#0f3d44] pb-2.5 border-b border-slate-100 flex items-center justify-between">
-              <span>অর্ডার বিবরণী (Order Summary)</span>
-              <span className="text-xs text-slate-500 font-bold bg-slate-100 px-2.5 py-0.5 rounded-full">
-                {cart.length} টি পণ্য
+          {/* CARD 2: PAYMENT METHOD */}
+          <div className="bg-white rounded-2xl p-5 sm:p-6 border border-slate-200/80 shadow-xs space-y-3.5">
+            <div className="flex items-center gap-2 text-slate-900">
+              <CreditCard className="w-5 h-5 text-purple-600" />
+              <h2 className="text-base sm:text-lg font-bold">Payment Method</h2>
+            </div>
+
+            {/* CASH ON DELIVERY CARD (MATCHING SCREENSHOT) */}
+            <div className="p-3.5 rounded-xl border-2 border-purple-600 bg-purple-50/20 flex items-center justify-between cursor-pointer">
+              <div className="flex items-center gap-3">
+                <div className="w-5 h-5 rounded-full border-2 border-purple-600 flex items-center justify-center">
+                  <div className="w-2.5 h-2.5 rounded-full bg-purple-600" />
+                </div>
+                <div className="flex items-center gap-2 font-semibold text-slate-800 text-xs sm:text-sm">
+                  <Banknote className="w-5 h-5 text-emerald-600" />
+                  <span>Cash On Delivery</span>
+                </div>
+              </div>
+              <Check className="w-4 h-4 text-purple-600 font-bold" />
+            </div>
+          </div>
+
+          {/* CARD 3: ORDER SUMMARY & SUBMIT */}
+          <div className="bg-white rounded-2xl p-5 sm:p-6 border border-slate-200/80 shadow-xs space-y-4">
+            <h3 className="font-bold text-sm sm:text-base text-slate-800 pb-2 border-b border-slate-100 flex items-center justify-between">
+              <span>Order Summary</span>
+              <span className="text-xs text-slate-500 font-normal">
+                {cart.length} item{cart.length > 1 ? 's' : ''}
               </span>
             </h3>
 
-            {/* PRODUCT MINI LIST WITH QUANTITY & REMOVE CONTROLS */}
-            <div className="space-y-3 max-h-64 overflow-y-auto pr-1 divide-y divide-slate-100">
+            {/* ITEMS LIST */}
+            <div className="space-y-3 divide-y divide-slate-100">
               {cart.map(({ product, quantity, selectedSize }) => {
                 const itemPrice = selectedSize ? selectedSize.price : product.price;
                 const itemKey = `${product.id}-${selectedSize?.id || 'default'}`;
 
                 return (
-                  <div key={itemKey} className="pt-2.5 flex items-center gap-2.5">
+                  <div key={itemKey} className="pt-3 first:pt-0 flex items-center gap-3">
                     <img
                       src={product.image_url}
-                      alt=""
+                      alt={product.name}
                       referrerPolicy="no-referrer"
-                      className="w-12 h-12 object-cover rounded-xl border border-slate-200 shrink-0"
+                      className="w-14 h-14 object-cover rounded-xl border border-slate-200 shrink-0"
                     />
                     <div className="flex-1 min-w-0">
-                      <h4 className="text-xs font-bold text-[#0f3d44] truncate">{product.name}</h4>
-                      <div className="text-[11px] text-slate-500 font-medium">
+                      <h4 className="text-xs font-bold text-slate-800 truncate">{product.name}</h4>
+                      <p className="text-[11px] text-slate-500 mt-0.5">
                         {selectedSize ? selectedSize.name : formatPrice(itemPrice)}
-                      </div>
-                      {/* QUANTITY CONTROLS */}
+                      </p>
                       <div className="flex items-center gap-2 mt-1">
                         <div className="flex items-center border border-slate-200 rounded-lg bg-slate-50 overflow-hidden text-xs">
                           <button
                             type="button"
                             onClick={() => updateCartQty(product.id, Math.max(1, quantity - 1), selectedSize?.id)}
-                            className="px-2 py-0.5 text-slate-600 hover:bg-slate-200 transition-colors font-bold cursor-pointer"
-                            title="Decrease quantity"
+                            className="px-2 py-0.5 text-slate-600 hover:bg-slate-200 cursor-pointer"
                           >
                             <Minus className="w-3 h-3" />
                           </button>
@@ -482,8 +361,7 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({ onNavigate }) => {
                           <button
                             type="button"
                             onClick={() => updateCartQty(product.id, quantity + 1, selectedSize?.id)}
-                            className="px-2 py-0.5 text-slate-600 hover:bg-slate-200 transition-colors font-bold cursor-pointer"
-                            title="Increase quantity"
+                            className="px-2 py-0.5 text-slate-600 hover:bg-slate-200 cursor-pointer"
                           >
                             <Plus className="w-3 h-3" />
                           </button>
@@ -491,14 +369,13 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({ onNavigate }) => {
                         <button
                           type="button"
                           onClick={() => removeFromCart(product.id, selectedSize?.id)}
-                          className="p-1 text-slate-400 hover:text-red-500 transition-colors cursor-pointer"
-                          title="Remove item"
+                          className="p-1 text-slate-400 hover:text-red-500 cursor-pointer"
                         >
                           <Trash2 className="w-3.5 h-3.5" />
                         </button>
                       </div>
                     </div>
-                    <span className="text-xs font-black text-[#0f3d44] shrink-0">
+                    <span className="text-xs sm:text-sm font-bold text-slate-800 shrink-0">
                       {formatPrice(itemPrice * quantity)}
                     </span>
                   </div>
@@ -507,63 +384,43 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({ onNavigate }) => {
             </div>
 
             {/* BILLING BREAKDOWN */}
-            <div className="space-y-2 pt-3 border-t border-slate-100 text-xs text-slate-600">
+            <div className="space-y-2 pt-3 border-t border-slate-100 text-xs sm:text-sm text-slate-600">
               <div className="flex justify-between">
-                <span>পণ্যের মোট মূল্য (Subtotal):</span>
-                <span className="font-bold text-[#0f3d44]">{formatPrice(subtotal)}</span>
+                <span>Subtotal</span>
+                <span className="font-semibold text-slate-800">{formatPrice(subtotal)}</span>
               </div>
-
-              <div className="flex justify-between items-center">
-                <span>
-                  ডেলিভারি চার্জ ({deliveryZone === 'dhaka' ? 'ঢাকার ভেতরে' : 'ঢাকার বাইরে'}):
-                </span>
-                <span className="font-bold text-[#0f3d44]">
-                  {deliveryCharge === 0 ? (
-                    <span className="text-emerald-600 font-black bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
-                      FREE / ফ্রি
-                    </span>
-                  ) : (
-                    formatPrice(deliveryCharge)
-                  )}
-                </span>
+              <div className="flex justify-between">
+                <span>Delivery Charge ({deliveryZone === 'dhaka' ? 'Inside Dhaka' : 'Outside Dhaka'})</span>
+                <span className="font-semibold text-slate-800">{formatPrice(deliveryCharge)}</span>
               </div>
-
-              <div className="pt-3 border-t border-slate-200 flex justify-between items-baseline">
-                <span className="text-sm sm:text-base font-extrabold text-[#0f3d44]">সর্বমোট (Total):</span>
-                <span className="text-xl sm:text-2xl font-black text-indigo-700">
+              <div className="pt-2.5 border-t border-slate-200 flex justify-between items-baseline">
+                <span className="font-bold text-slate-900 text-sm sm:text-base">Total</span>
+                <span className="text-lg sm:text-xl font-black text-purple-700">
                   {formatPrice(grandTotal)}
                 </span>
               </div>
             </div>
 
-            {/* CONFIRM ORDER SUBMIT CTA */}
+            {/* SUBMIT BUTTON */}
             <button
               type="submit"
               disabled={isSubmitting}
-              className="w-full py-3.5 px-4 rounded-2xl text-xs sm:text-sm font-black text-white bg-gradient-to-r from-emerald-600 via-teal-600 to-indigo-600 hover:opacity-95 shadow-lg shadow-teal-600/25 transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 select-none active:scale-98"
+              className="w-full py-3.5 px-4 rounded-xl text-sm font-bold text-white bg-purple-600 hover:bg-purple-700 shadow-md shadow-purple-600/20 transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 select-none active:scale-98"
             >
               <Lock className="w-4 h-4" />
               <span>
-                {isSubmitting
-                  ? 'অর্ডার প্রসেস হচ্ছে...'
-                  : `অর্ডার নিশ্চিত করুন (Cash on Delivery) • ${formatPrice(grandTotal)}`}
+                {isSubmitting ? 'অর্ডার প্রসেস হচ্ছে...' : `অর্ডার নিশ্চিত করুন • ${formatPrice(grandTotal)}`}
               </span>
             </button>
 
-            {/* TRUST GUARANTEES */}
-            <div className="pt-2 border-t border-slate-100 grid grid-cols-2 gap-2 text-[10px] text-slate-500 text-center">
-              <div className="p-2 rounded-xl bg-slate-50 border border-slate-100 flex items-center justify-center gap-1">
-                <Check className="w-3 h-3 text-emerald-600 shrink-0" />
-                <span>পণ্য দেখে মূল্য দিন</span>
-              </div>
-              <div className="p-2 rounded-xl bg-slate-50 border border-slate-100 flex items-center justify-center gap-1">
-                <ShieldCheck className="w-3 h-3 text-indigo-600 shrink-0" />
-                <span>দ্রুত হোম ডেলিভারি</span>
-              </div>
+            {/* ASSURANCE NOTE */}
+            <div className="text-center text-[11px] text-slate-500 flex items-center justify-center gap-1.5 pt-1">
+              <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
+              <span>ক্যাশ অন ডেলিভারি — পণ্য হাতে পেয়ে দেখে টাকা দিন</span>
             </div>
           </div>
-        </div>
-      </form>
+        </form>
+      </div>
     </div>
   );
 };

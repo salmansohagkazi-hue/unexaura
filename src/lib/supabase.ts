@@ -239,8 +239,49 @@ export async function updateOrderStatusInSupabase(
 }
 
 /**
- * Deletes an order from Supabase
+ * Updates order fields (price, discount, status, notes, courier info) in Supabase orders table
  */
+export async function updateOrderInSupabase(
+  orderNumberOrId: string | number,
+  updates: Record<string, any>
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    const isNumeric = typeof orderNumberOrId === 'number' || /^\d+$/.test(String(orderNumberOrId));
+    
+    // Map application order fields to Supabase column names
+    const mappedUpdates: Record<string, any> = {
+      updated_at: new Date().toISOString()
+    };
+    if (updates.status !== undefined) mappedUpdates.status = updates.status;
+    if (updates.total_amount !== undefined) mappedUpdates.total_price = Number(updates.total_amount);
+    if (updates.subtotal_amount !== undefined) mappedUpdates.subtotal = Number(updates.subtotal_amount);
+    if (updates.discount_amount !== undefined) mappedUpdates.discount = Number(updates.discount_amount);
+    if (updates.delivery_charge !== undefined) mappedUpdates.delivery_charge = Number(updates.delivery_charge);
+    if (updates.order_notes !== undefined) mappedUpdates.notes = updates.order_notes;
+    if (updates.payment_status !== undefined) mappedUpdates.payment_status = updates.payment_status;
+    if (updates.tracking_number !== undefined) mappedUpdates.tracking_number = updates.tracking_number;
+    if (updates.courier_name !== undefined) mappedUpdates.courier_name = updates.courier_name;
+
+    let query = supabase.from('orders').update(mappedUpdates);
+
+    if (isNumeric) {
+      query = query.or(`id.eq.${orderNumberOrId},order_id.eq.${orderNumberOrId},order_id.eq.UA-${orderNumberOrId}`);
+    } else {
+      query = query.eq('order_id', String(orderNumberOrId));
+    }
+
+    const { error } = await query;
+    if (error) {
+      console.warn('[Supabase updateOrder Error]:', error.message);
+      return { success: false, error: error.message };
+    }
+    return { success: true };
+  } catch (err: any) {
+    console.warn('[Supabase updateOrder Exception]:', err.message);
+    return { success: false, error: err.message };
+  }
+}
+
 export async function deleteOrderFromSupabase(
   orderNumberOrId: string | number
 ): Promise<{ success: boolean; error?: string }> {

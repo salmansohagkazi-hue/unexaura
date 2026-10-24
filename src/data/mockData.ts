@@ -36,7 +36,10 @@ export const INITIAL_SETTINGS: StoreSettings = {
   meta_pixel_id: '1814759089902668',
   meta_capi_access_token: 'EAAZANzZCMuiTQBSfzYNFbRElGX8mX0VuvcT5yuKHRXJp7ZAoanGZAthXhX9tGLsNfoFWa7y7u5X0Fz4bSkbaaI1mdxP7DtbMrRD9pg7WCkUZAkhQAVulCLfF2jisjy6qnY03uiKJa50ngojWfW7wuKAf3A3dPIJLMHpUZCnmr6uNpjtO26178qje22IUFiKLgw2AZDZD',
   meta_capi_enabled: true,
-  meta_test_event_code: ''
+  meta_test_event_code: '',
+  steadfast_api_key: 'mjhiiwurrcir7uqf1kaxi5t8quc4ql4t',
+  steadfast_secret_key: '3vtq7ghmlmjk1y7ormoqot6l',
+  steadfast_enabled: true
 };
 
 export const INITIAL_COUPONS: Coupon[] = [

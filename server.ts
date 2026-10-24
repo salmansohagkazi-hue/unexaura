@@ -262,19 +262,28 @@ function saveCategories(list: any[]) {
 
 // Helper functions to load & save settings
 function loadSettings(): any {
+  let loaded: any = {};
   try {
     if (fs.existsSync(SETTINGS_FILE_PATH)) {
       const data = JSON.parse(fs.readFileSync(SETTINGS_FILE_PATH, 'utf-8'));
-      if (data && typeof data === 'object') return { ...INITIAL_SETTINGS, ...data };
+      if (data && typeof data === 'object') loaded = data;
     }
   } catch {}
-  try {
-    if (fs.existsSync(BACKUP_SETTINGS_FILE_PATH)) {
-      const data = JSON.parse(fs.readFileSync(BACKUP_SETTINGS_FILE_PATH, 'utf-8'));
-      if (data && typeof data === 'object') return { ...INITIAL_SETTINGS, ...data };
-    }
-  } catch {}
-  return { ...INITIAL_SETTINGS };
+  if (!Object.keys(loaded).length) {
+    try {
+      if (fs.existsSync(BACKUP_SETTINGS_FILE_PATH)) {
+        const data = JSON.parse(fs.readFileSync(BACKUP_SETTINGS_FILE_PATH, 'utf-8'));
+        if (data && typeof data === 'object') loaded = data;
+      }
+    } catch {}
+  }
+  return {
+    ...INITIAL_SETTINGS,
+    ...loaded,
+    steadfast_api_key: (loaded.steadfast_api_key && loaded.steadfast_api_key.trim()) ? loaded.steadfast_api_key : INITIAL_SETTINGS.steadfast_api_key,
+    steadfast_secret_key: (loaded.steadfast_secret_key && loaded.steadfast_secret_key.trim()) ? loaded.steadfast_secret_key : INITIAL_SETTINGS.steadfast_secret_key,
+    steadfast_enabled: true
+  };
 }
 
 function saveSettings(obj: any) {
@@ -1543,6 +1552,136 @@ app.post('/api/google-sheets/sync-all', async (req, res) => {
   }
 });
 
+// ==========================================
+// STEADFAST COURIER INTEGRATION API ENDPOINTS
+// ==========================================
+app.post('/api/courier/steadfast/create-order', async (req, res) => {
+  try {
+    const { order_id, invoice, recipient_name, recipient_phone, recipient_address, cod_amount, note, api_key, secret_key } = req.body;
+    
+    // Retrieve credentials from body or store settings
+    const activeApiKey = api_key || settings.steadfast_api_key || process.env.STEADFAST_API_KEY || INITIAL_SETTINGS.steadfast_api_key || 'mjhiiwurrcir7uqf1kaxi5t8quc4ql4t';
+    const activeSecretKey = secret_key || settings.steadfast_secret_key || process.env.STEADFAST_SECRET_KEY || INITIAL_SETTINGS.steadfast_secret_key || '3vtq7ghmlmjk1y7ormoqot6l';
+
+    if (!activeApiKey || !activeSecretKey) {
+      return res.status(400).json({
+        success: false,
+        message: 'Steadfast API Key or Secret Key is not configured. Please add them in Admin Settings.'
+      });
+    }
+
+    if (!recipient_name || !recipient_phone || !recipient_address) {
+      return res.status(400).json({
+        success: false,
+        message: 'Recipient name, phone, and address are required to create a Steadfast parcel.'
+      });
+    }
+
+    const payload = {
+      invoice: String(invoice || order_id || `UA-${Date.now()}`),
+      recipient_name: String(recipient_name).trim(),
+      recipient_phone: String(recipient_phone).trim(),
+      recipient_address: String(recipient_address).trim(),
+      cod_amount: Number(cod_amount || 0),
+      note: String(note || 'Handle with care - Laser cut metal wall art').trim()
+    };
+
+    const sfRes = await fetch('https://portal.steadfast.com.bd/api/v1/create_order', {
+      method: 'POST',
+      headers: {
+        'Api-Key': activeApiKey,
+        'Secret-Key': activeSecretKey,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(payload)
+    });
+
+    const sfData: any = await sfRes.json().catch(() => null);
+
+    if (!sfRes.ok || (sfData && sfData.status !== 200 && sfData.status !== 201)) {
+      return res.status(sfRes.status || 400).json({
+        success: false,
+        message: sfData?.message || (sfData?.errors ? JSON.stringify(sfData?.errors) : 'Failed to create parcel on Steadfast Courier'),
+        raw: sfData
+      });
+    }
+
+    const consignment = sfData.consignment || sfData;
+    const trackingCode = consignment?.tracking_code || sfData?.tracking_code || '';
+    const consignmentId = consignment?.consignment_id || sfData?.consignment_id || '';
+
+    // Update local order and Supabase with tracking information
+    orders = loadOrders();
+    const orderIndex = orders.findIndex(o => String(o.id) === String(order_id) || String(o.order_number) === String(order_id));
+    if (orderIndex > -1) {
+      orders[orderIndex].tracking_number = trackingCode;
+      orders[orderIndex].courier_name = 'Steadfast Courier';
+      orders[orderIndex].steadfast_consignment_id = consignmentId;
+      orders[orderIndex].steadfast_tracking_code = trackingCode;
+      orders[orderIndex].steadfast_status = 'in_review';
+      orders[orderIndex].status = 'shipped';
+      saveOrders(orders);
+
+      // Dual-sync to Supabase
+      try {
+        const orderNum = orders[orderIndex].order_number;
+        fetch(`${SUPABASE_URL}/rest/v1/orders?order_id=eq.${orderNum}`, {
+          method: 'PATCH',
+          headers: {
+            apikey: SUPABASE_KEY,
+            Authorization: `Bearer ${SUPABASE_KEY}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            tracking_number: trackingCode,
+            courier_name: 'Steadfast Courier',
+            status: 'shipped',
+            updated_at: new Date().toISOString()
+          })
+        }).catch(e => console.warn('[Supabase Courier Sync Warning]:', e.message));
+      } catch {}
+    }
+
+    return res.json({
+      success: true,
+      message: 'পণ্যটি সফলভাবে স্টেডফাস্ট কুরিয়ারে বুক করা হয়েছে!',
+      consignment,
+      tracking_code: trackingCode,
+      consignment_id: consignmentId
+    });
+  } catch (err: any) {
+    return res.status(500).json({
+      success: false,
+      message: err.message || 'Internal error creating Steadfast order'
+    });
+  }
+});
+
+app.get('/api/courier/steadfast/status/:tracking_code', async (req, res) => {
+  try {
+    const trackingCode = req.params.tracking_code;
+    const apiKey = (req.query.api_key as string) || settings.steadfast_api_key || INITIAL_SETTINGS.steadfast_api_key || 'mjhiiwurrcir7uqf1kaxi5t8quc4ql4t';
+    const secretKey = (req.query.secret_key as string) || settings.steadfast_secret_key || INITIAL_SETTINGS.steadfast_secret_key || '3vtq7ghmlmjk1y7ormoqot6l';
+
+    if (!apiKey || !secretKey) {
+      return res.status(400).json({ success: false, message: 'Steadfast keys not configured' });
+    }
+
+    const sfRes = await fetch(`https://portal.steadfast.com.bd/api/v1/status_by_trackingcode/${encodeURIComponent(trackingCode)}`, {
+      method: 'GET',
+      headers: {
+        'Api-Key': apiKey,
+        'Secret-Key': secretKey
+      }
+    });
+
+    const data = await sfRes.json().catch(() => null);
+    res.json({ success: sfRes.ok, data });
+  } catch (err: any) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
 // POST Bulk Sync Client-side Local Orders to Database
 app.post('/api/orders/sync', (req, res) => {
   orders = loadOrders();
@@ -1853,17 +1992,40 @@ app.post('/api/orders/restore', (req, res) => {
 const updateOrderHandler = (req: any, res: any) => {
   orders = loadOrders();
   const id = req.params.id;
-  const { status, payment_status, courier_name, tracking_number } = req.body;
+  const {
+    status,
+    payment_status,
+    courier_name,
+    tracking_number,
+    total_amount,
+    subtotal_amount,
+    discount_amount,
+    delivery_charge,
+    order_notes,
+    items,
+    steadfast_consignment_id,
+    steadfast_tracking_code,
+    steadfast_status
+  } = req.body;
 
   const orderIndex = orders.findIndex(o => String(o.id) === String(id) || String(o.order_number) === String(id));
   if (orderIndex === -1) {
     return res.status(404).json({ success: false, message: 'Order not found' });
   }
 
-  if (status) orders[orderIndex].status = status;
-  if (payment_status) orders[orderIndex].payment_status = payment_status;
-  if (courier_name) orders[orderIndex].courier_name = courier_name;
-  if (tracking_number) orders[orderIndex].tracking_number = tracking_number;
+  if (status !== undefined) orders[orderIndex].status = status;
+  if (payment_status !== undefined) orders[orderIndex].payment_status = payment_status;
+  if (courier_name !== undefined) orders[orderIndex].courier_name = courier_name;
+  if (tracking_number !== undefined) orders[orderIndex].tracking_number = tracking_number;
+  if (total_amount !== undefined) orders[orderIndex].total_amount = Number(total_amount);
+  if (subtotal_amount !== undefined) orders[orderIndex].subtotal_amount = Number(subtotal_amount);
+  if (discount_amount !== undefined) orders[orderIndex].discount_amount = Number(discount_amount);
+  if (delivery_charge !== undefined) orders[orderIndex].delivery_charge = Number(delivery_charge);
+  if (order_notes !== undefined) orders[orderIndex].order_notes = order_notes;
+  if (Array.isArray(items)) orders[orderIndex].items = items;
+  if (steadfast_consignment_id !== undefined) orders[orderIndex].steadfast_consignment_id = steadfast_consignment_id;
+  if (steadfast_tracking_code !== undefined) orders[orderIndex].steadfast_tracking_code = steadfast_tracking_code;
+  if (steadfast_status !== undefined) orders[orderIndex].steadfast_status = steadfast_status;
 
   saveOrders(orders);
 
@@ -1871,6 +2033,19 @@ const updateOrderHandler = (req: any, res: any) => {
   try {
     const targetOrderNum = orders[orderIndex].order_number;
     const filter = `or=(order_id.eq.${targetOrderNum},id.eq.${orders[orderIndex].id || 0})`;
+    const sbPayload: any = {
+      updated_at: new Date().toISOString()
+    };
+    if (status !== undefined) sbPayload.status = status;
+    if (payment_status !== undefined) sbPayload.payment_status = payment_status;
+    if (total_amount !== undefined) sbPayload.total_price = Number(total_amount);
+    if (subtotal_amount !== undefined) sbPayload.subtotal = Number(subtotal_amount);
+    if (discount_amount !== undefined) sbPayload.discount = Number(discount_amount);
+    if (delivery_charge !== undefined) sbPayload.delivery_charge = Number(delivery_charge);
+    if (order_notes !== undefined) sbPayload.notes = order_notes;
+    if (tracking_number !== undefined) sbPayload.tracking_number = tracking_number;
+    if (courier_name !== undefined) sbPayload.courier_name = courier_name;
+
     fetch(`${SUPABASE_URL}/rest/v1/orders?${filter}`, {
       method: 'PATCH',
       headers: {
@@ -1879,10 +2054,7 @@ const updateOrderHandler = (req: any, res: any) => {
         'Content-Type': 'application/json',
         Prefer: 'return=minimal'
       },
-      body: JSON.stringify({
-        status: orders[orderIndex].status,
-        updated_at: new Date().toISOString()
-      })
+      body: JSON.stringify(sbPayload)
     }).catch(e => console.warn('[Supabase Order Update Warning]:', e.message));
   } catch (e: any) {
     console.warn('[Supabase Order Update Exception]:', e.message);

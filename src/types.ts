@@ -139,7 +139,7 @@ export interface Order {
   payment_method: 'cod' | 'bkash' | 'nagad' | 'stripe';
   payment_status: 'unpaid' | 'paid' | 'refunded';
   stripe_session_id?: string;
-  status: 'pending' | 'processing' | 'shipped' | 'delivered' | 'cancelled';
+  status: 'pending' | 'confirmed' | 'processing' | 'shipped' | 'delivered' | 'cancelled';
   created_at: string;
   items: OrderItem[];
   order_notes?: string;
@@ -148,6 +148,9 @@ export interface Order {
   courier_phone?: string;
   estimated_delivery?: string;
   tracking_history?: TrackingStage[];
+  steadfast_consignment_id?: string | number;
+  steadfast_tracking_code?: string;
+  steadfast_status?: string;
 }
 
 export interface CurrencyConfig {
@@ -177,11 +180,15 @@ export interface StoreSettings {
   google_sheet_id?: string;
   google_sheet_url?: string;
   google_sheet_autosync_enabled?: boolean;
+  google_sheet_sync_on_confirmed_only?: boolean;
   google_sheet_webhook_url?: string;
   meta_pixel_id?: string;
   meta_capi_access_token?: string;
   meta_capi_enabled?: boolean;
   meta_test_event_code?: string;
+  steadfast_api_key?: string;
+  steadfast_secret_key?: string;
+  steadfast_enabled?: boolean;
 }
 
 export interface Review {

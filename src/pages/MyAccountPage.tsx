@@ -204,7 +204,7 @@ export const MyAccountPage: React.FC<MyAccountPageProps> = ({ onNavigate, initia
 
   useEffect(() => {
     fetchUserOrders();
-    const interval = setInterval(fetchUserOrders, 4000);
+    const interval = setInterval(fetchUserOrders, 30000);
     return () => clearInterval(interval);
   }, []);
 

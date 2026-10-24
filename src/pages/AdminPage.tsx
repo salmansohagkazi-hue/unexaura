@@ -60,7 +60,7 @@ interface AdminPageProps {
 }
 
 export type AdminMainTab = 'dashboard' | 'orders' | 'products' | 'inventory' | 'categories' | 'sheets' | 'settings';
-export type AdminSettingsSubTab = 'media' | 'categories' | 'coupons' | 'shipping' | 'security' | 'meta' | 'supabase';
+export type AdminSettingsSubTab = 'media' | 'categories' | 'coupons' | 'shipping' | 'security' | 'meta' | 'supabase' | 'steadfast';
 
 export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate, initialTab = 'dashboard' }) => {
   const {
@@ -82,7 +82,10 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate, initialTab = '
     refreshOrders,
     restoreOrders,
     updateOrderStatus,
+    updateOrderPrice,
     deleteOrder,
+    syncOrderToGoogleSheet,
+    sendToSteadfastCourier,
     addProduct,
     updateProduct,
     deleteProduct,
@@ -118,6 +121,28 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate, initialTab = '
   const [orderStatusFilter, setOrderStatusFilter] = useState<'all' | 'pending' | 'confirmed' | 'processing' | 'shipped' | 'delivered' | 'cancelled'>('all');
   const [selectedOrderDetails, setSelectedOrderDetails] = useState<Order | null>(null);
   const [printInvoiceOrder, setPrintInvoiceOrder] = useState<Order | null>(null);
+
+  // Price Editing Modal States
+  const [editingOrderPrice, setEditingOrderPrice] = useState<Order | null>(null);
+  const [editPriceTotal, setEditPriceTotal] = useState<number>(0);
+  const [editPriceSubtotal, setEditPriceSubtotal] = useState<number>(0);
+  const [editPriceDiscount, setEditPriceDiscount] = useState<number>(0);
+  const [editPriceDelivery, setEditPriceDelivery] = useState<number>(0);
+  const [editPriceNotes, setEditPriceNotes] = useState<string>('');
+  const [isSavingPrice, setIsSavingPrice] = useState<boolean>(false);
+
+  // Steadfast Courier Booking Modal States
+  const [steadfastOrder, setSteadfastOrder] = useState<Order | null>(null);
+  const [steadfastNote, setSteadfastNote] = useState<string>('');
+  const [isBookingSteadfast, setIsBookingSteadfast] = useState<boolean>(false);
+
+  // Single Order Google Sheet Syncing State
+  const [syncingOrderId, setSyncingOrderId] = useState<number | string | null>(null);
+
+  // Steadfast Settings State
+  const [steadfastApiKey, setSteadfastApiKey] = useState(settings.steadfast_api_key || '');
+  const [steadfastSecretKey, setSteadfastSecretKey] = useState(settings.steadfast_secret_key || '');
+  const [isSavingSteadfast, setIsSavingSteadfast] = useState(false);
 
   // Sync activeTab when initialTab changes
   useEffect(() => {
@@ -282,6 +307,8 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate, initialTab = '
       setAdminMetaCapiEnabled(Boolean(settings.meta_capi_enabled));
     }
     if (settings.meta_test_event_code) setAdminMetaTestCode(settings.meta_test_event_code);
+    if (settings.steadfast_api_key) setSteadfastApiKey(settings.steadfast_api_key);
+    if (settings.steadfast_secret_key) setSteadfastSecretKey(settings.steadfast_secret_key);
   }, [settings]);
 
   const handleVerifyPin = (e: React.FormEvent) => {
@@ -749,6 +776,101 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate, initialTab = '
     showToast(`Order status updated to ${status.toUpperCase()}`);
     if (selectedOrderDetails && selectedOrderDetails.id === orderId) {
       setSelectedOrderDetails({ ...selectedOrderDetails, status: status as any });
+    }
+  };
+
+  const handleOpenPriceEdit = (order: Order) => {
+    setEditingOrderPrice(order);
+    setEditPriceSubtotal(order.subtotal_amount || 0);
+    setEditPriceDiscount(order.discount_amount || 0);
+    setEditPriceDelivery(order.delivery_charge || 0);
+    setEditPriceTotal(order.total_amount || 0);
+    setEditPriceNotes(order.order_notes || '');
+  };
+
+  const handleSavePriceEdit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingOrderPrice) return;
+    setIsSavingPrice(true);
+    try {
+      await updateOrderPrice(editingOrderPrice.id, {
+        total_amount: Number(editPriceTotal),
+        subtotal_amount: Number(editPriceSubtotal),
+        discount_amount: Number(editPriceDiscount),
+        delivery_charge: Number(editPriceDelivery),
+        order_notes: editPriceNotes
+      });
+      if (selectedOrderDetails && selectedOrderDetails.id === editingOrderPrice.id) {
+        setSelectedOrderDetails({
+          ...selectedOrderDetails,
+          total_amount: Number(editPriceTotal),
+          subtotal_amount: Number(editPriceSubtotal),
+          discount_amount: Number(editPriceDiscount),
+          delivery_charge: Number(editPriceDelivery),
+          order_notes: editPriceNotes
+        });
+      }
+      setEditingOrderPrice(null);
+    } catch (err) {
+      console.error(err);
+      alert('মূল্য পরিবর্তন করতে সমস্যা হয়েছে');
+    } finally {
+      setIsSavingPrice(false);
+    }
+  };
+
+  const handleManualSyncToSheet = async (order: Order) => {
+    setSyncingOrderId(order.id);
+    try {
+      await syncOrderToGoogleSheet(order);
+    } finally {
+      setSyncingOrderId(null);
+    }
+  };
+
+  const handleOpenSteadfastModal = (order: Order) => {
+    setSteadfastOrder(order);
+    setSteadfastNote(order.order_notes || 'UNEX AURA Laser Cut Metal Wall Art - Handle with care');
+  };
+
+  const handleConfirmSteadfastBooking = async () => {
+    if (!steadfastOrder) return;
+    setIsBookingSteadfast(true);
+    try {
+      const res = await sendToSteadfastCourier(steadfastOrder.id, steadfastNote);
+      if (res.success) {
+        if (selectedOrderDetails && selectedOrderDetails.id === steadfastOrder.id) {
+          setSelectedOrderDetails({
+            ...selectedOrderDetails,
+            status: 'shipped',
+            courier_name: 'Steadfast Courier',
+            tracking_number: res.tracking_code,
+            steadfast_tracking_code: res.tracking_code,
+            steadfast_consignment_id: res.consignment_id
+          });
+        }
+        setSteadfastOrder(null);
+      } else {
+        alert(res.message);
+      }
+    } finally {
+      setIsBookingSteadfast(false);
+    }
+  };
+
+  const handleSaveSteadfastSettings = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsSavingSteadfast(true);
+    try {
+      await updateSettings({
+        ...settings,
+        steadfast_api_key: steadfastApiKey.trim(),
+        steadfast_secret_key: steadfastSecretKey.trim(),
+        steadfast_enabled: Boolean(steadfastApiKey.trim() && steadfastSecretKey.trim())
+      });
+      showToast('স্টেডফাস্ট কুরিয়ার সেটিংস সফলভাবে সংরক্ষিত হয়েছে!');
+    } finally {
+      setIsSavingSteadfast(false);
     }
   };
 
@@ -2209,6 +2331,18 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate, initialTab = '
               <Database className="w-3.5 h-3.5" />
               <span>Supabase Backend</span>
             </button>
+
+            <button
+              onClick={() => setSettingsSubTab('steadfast')}
+              className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                settingsSubTab === 'steadfast'
+                  ? 'bg-indigo-600 text-white shadow-xs'
+                  : 'bg-indigo-50 text-indigo-700 hover:bg-indigo-100'
+              }`}
+            >
+              <Truck className="w-3.5 h-3.5" />
+              <span>Steadfast Courier</span>
+            </button>
           </div>
         </div>
       )}
@@ -3114,17 +3248,38 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate, initialTab = '
                           </div>
 
                           {/* Status & Financial Controls */}
-                          <div className="md:col-span-3 bg-slate-50 p-3 rounded-xl border border-slate-200/80 space-y-2">
+                          <div className="md:col-span-3 bg-slate-50 p-3 rounded-xl border border-slate-200/80 space-y-2.5">
                             <div className="flex items-center justify-between">
                               <span className="text-slate-500 text-[11px]">পেমেন্ট মেথড:</span>
                               <span className="font-bold text-slate-800 uppercase">{o.payment_method || 'COD'}</span>
                             </div>
                             <div className="flex items-center justify-between">
-                              <span className="text-slate-500 text-[11px]">মোট প্রদেয়:</span>
-                              <span className="font-black text-sm text-emerald-700">{formatPrice(o.total_amount)}</span>
+                              <span className="text-slate-500 text-[11px]">মোট বিল:</span>
+                              <div className="flex items-center gap-1.5">
+                                <span className="font-black text-sm text-emerald-700">{formatPrice(o.total_amount)}</span>
+                                <button
+                                  type="button"
+                                  onClick={() => handleOpenPriceEdit(o)}
+                                  className="p-1 rounded-md bg-amber-100 hover:bg-amber-200 text-amber-800 transition-colors cursor-pointer"
+                                  title="দাম বা ডিসকাউন্ট এডিট করুন"
+                                >
+                                  <Edit className="w-3 h-3" />
+                                </button>
+                              </div>
                             </div>
 
-                            <div className="pt-1">
+                            {/* PRICE EDIT QUICK BUTTON */}
+                            <button
+                              type="button"
+                              onClick={() => handleOpenPriceEdit(o)}
+                              className="w-full py-1 px-2 rounded-lg border border-amber-300 bg-amber-50 hover:bg-amber-100 text-amber-900 text-[11px] font-bold flex items-center justify-center gap-1 cursor-pointer transition-all"
+                            >
+                              <Edit className="w-3 h-3 text-amber-700" />
+                              <span>দাম বা ডিসকাউন্ট এডিট</span>
+                            </button>
+
+                            {/* STATUS SELECTOR */}
+                            <div className="pt-0.5">
                               <label className="text-[10px] font-bold text-slate-500 block mb-1">স্ট্যাটাস পরিবর্তন করুন:</label>
                               <select
                                 value={o.status}
@@ -3139,6 +3294,47 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate, initialTab = '
                                 <option value="cancelled">❌ Cancelled (বাতিল)</option>
                               </select>
                             </div>
+
+                            {/* GOOGLE SHEET SYNC ACTION */}
+                            <button
+                              type="button"
+                              onClick={() => handleManualSyncToSheet(o)}
+                              disabled={syncingOrderId === o.id}
+                              className="w-full py-1 px-2 rounded-lg border border-emerald-300 bg-emerald-50 hover:bg-emerald-100 text-emerald-900 text-[11px] font-bold flex items-center justify-center gap-1 cursor-pointer transition-all disabled:opacity-50"
+                              title="অর্ডারটি সরাসরি Google Sheet এ যুক্ত করুন"
+                            >
+                              <FileSpreadsheet className="w-3 h-3 text-emerald-600" />
+                              <span>{syncingOrderId === o.id ? 'শিটে যাচ্ছে...' : 'গুগল শিটে পাঠান'}</span>
+                            </button>
+
+                            {/* STEADFAST COURIER ACTION */}
+                            {o.steadfast_tracking_code || (o.tracking_number && o.courier_name?.toLowerCase().includes('steadfast')) ? (
+                              <div className="p-1.5 rounded-lg bg-indigo-50 border border-indigo-200 text-indigo-950 text-[10px] font-bold flex items-center justify-between">
+                                <span className="flex items-center gap-1 truncate">
+                                  <Truck className="w-3 h-3 text-indigo-600 shrink-0" />
+                                  <span className="truncate">SF: {o.steadfast_tracking_code || o.tracking_number}</span>
+                                </span>
+                                <a
+                                  href={`https://steadfast.com.bd/t/${o.steadfast_tracking_code || o.tracking_number}`}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className="text-indigo-700 underline shrink-0 pl-1"
+                                >
+                                  ট্র্যাক
+                                </a>
+                              </div>
+                            ) : (
+                              <button
+                                type="button"
+                                onClick={() => handleOpenSteadfastModal(o)}
+                                className="w-full py-1 px-2 rounded-lg border border-indigo-300 bg-indigo-50 hover:bg-indigo-100 text-indigo-900 text-[11px] font-bold flex items-center justify-center gap-1 cursor-pointer transition-all"
+                                title="Steadfast Merchant API দিয়ে স্বয়ংক্রিয় পার্সেল বুকিং করুন"
+                              >
+                                <Truck className="w-3 h-3 text-indigo-600" />
+                                <span>স্টেডফাস্টে পাঠান</span>
+                              </button>
+                            )}
+
                             <div className="flex items-center justify-between text-[10px] text-teal-700 font-medium pt-1 border-t border-slate-200/60">
                               <span className="flex items-center gap-1">
                                 <Database className="w-3 h-3 text-teal-600" /> Supabase লাইভ সিঙ্ক
@@ -3638,6 +3834,105 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate, initialTab = '
       {/* TAB: SUPABASE BACKEND MANAGER */}
       {(activeTab === 'settings' && settingsSubTab === 'supabase') && (
         <SupabaseManager />
+      )}
+
+      {/* TAB: STEADFAST COURIER INTEGRATION */}
+      {(activeTab === 'settings' && settingsSubTab === 'steadfast') && (
+        <div className="bg-white p-6 rounded-3xl border border-slate-200/80 shadow-xs space-y-6 max-w-2xl">
+          <div className="flex items-center justify-between border-b border-slate-100 pb-4">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-2xl bg-indigo-50 text-indigo-600 flex items-center justify-center font-black">
+                <Truck className="w-5 h-5" />
+              </div>
+              <div>
+                <h2 className="font-extrabold text-base text-[#0f3d44]">
+                  Steadfast Courier API Integration
+                </h2>
+                <p className="text-xs text-slate-500">
+                  স্টেডফাস্ট মার্চেন্ট কুরিয়ার এপিআই সেটিংস ও অটোমেটিক পার্সেল বুকিং
+                </p>
+              </div>
+            </div>
+            <span className={`px-2.5 py-1 rounded-full text-[11px] font-bold border ${
+              settings.steadfast_api_key && settings.steadfast_secret_key
+                ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
+                : 'bg-amber-50 text-amber-800 border-amber-200'
+            }`}>
+              {settings.steadfast_api_key && settings.steadfast_secret_key ? '● রেডি / Connected' : '○ কি (Keys) দিন'}
+            </span>
+          </div>
+
+          <div className="bg-gradient-to-r from-indigo-50/80 to-blue-50/80 border border-indigo-100 rounded-2xl p-4 text-xs text-indigo-950 space-y-2">
+            <div className="font-bold flex items-center gap-2">
+              <CheckCircle2 className="w-4 h-4 text-indigo-600" />
+              <span>স্টেডফাস্ট মার্চেন্ট কানেকশন কিভাবে কাজ করে:</span>
+            </div>
+            <ul className="list-disc list-inside space-y-1 text-slate-700 leading-relaxed text-[11px]">
+              <li>ওয়েবসাইটে নতুন অর্ডার আসলে তা অ্যাডমিন ড্যাশবোর্ডে <strong>পেন্ডিং</strong> হিসেবে থাকবে।</li>
+              <li>ভুল বা ফেইক অর্ডার ফিল্টার করার জন্য অর্ডারটি যাচাই বা কাস্টমারকে ফোন করে কনফার্ম করার পর এক ক্লিকেই <strong>"স্টেডফাস্টে পাঠান"</strong> বাটনে চাপলেই পার্সেল বুকিং হয়ে যাবে।</li>
+              <li>বুকিং হওয়ার সাথে সাথে <strong>Tracking Code</strong> এবং <strong>Consignment ID</strong> অর্ডারে যুক্ত হয়ে যাবে যা দিয়ে আপনি ও কাস্টমার সরাসরি Steadfast পোর্টালে পার্সেল ট্র্যাক করতে পারবেন।</li>
+              <li>কাস্টমারের পছন্দমত মূল্য পরিবর্তন বা ছাড় দিতে চাইলে আগেই <strong>"দাম এডিট"</strong> বাটনে ক্লিক করে ফাইনাল COD এমাউন্ট ঠিক করে নিতে পারবেন।</li>
+            </ul>
+          </div>
+
+          <form onSubmit={handleSaveSteadfastSettings} className="space-y-4 text-xs">
+            <div>
+              <div className="flex items-center justify-between mb-1">
+                <label className="font-bold text-slate-700 block">
+                  Steadfast API Key *
+                </label>
+                <a
+                  href="https://portal.steadfast.com.bd/"
+                  target="_blank"
+                  rel="noreferrer"
+                  className="text-[11px] text-indigo-600 hover:underline font-semibold flex items-center gap-1"
+                >
+                  <span>Steadfast Merchant Portal ওপেন করুন</span>
+                  <ExternalLink className="w-3 h-3" />
+                </a>
+              </div>
+              <input
+                type="text"
+                required
+                value={steadfastApiKey}
+                onChange={(e) => setSteadfastApiKey(e.target.value)}
+                placeholder="আপনার Steadfast Api-Key পেস্ট করুন"
+                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs text-[#0f3d44] font-mono focus:bg-white focus:border-indigo-500 focus:outline-none"
+              />
+              <p className="text-[11px] text-slate-500 mt-1">
+                Steadfast Merchant Dashboard &gt; Settings &gt; API Information থেকে <code>Api Key</code> কপি করুন।
+              </p>
+            </div>
+
+            <div>
+              <label className="font-bold text-slate-700 block mb-1">
+                Steadfast Secret Key *
+              </label>
+              <input
+                type="password"
+                required
+                value={steadfastSecretKey}
+                onChange={(e) => setSteadfastSecretKey(e.target.value)}
+                placeholder="আপনার Steadfast Secret-Key পেস্ট করুন"
+                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs text-[#0f3d44] font-mono focus:bg-white focus:border-indigo-500 focus:outline-none"
+              />
+              <p className="text-[11px] text-slate-500 mt-1">
+                Steadfast Merchant Dashboard &gt; Settings &gt; API Information থেকে <code>Secret Key</code> কপি করুন।
+              </p>
+            </div>
+
+            <div className="pt-3 border-t border-slate-100 flex items-center justify-end">
+              <button
+                type="submit"
+                disabled={isSavingSteadfast}
+                className="px-6 py-3 rounded-xl text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 shadow-md cursor-pointer transition-all flex items-center gap-2 disabled:opacity-60"
+              >
+                <Save className="w-4 h-4" />
+                <span>{isSavingSteadfast ? 'সেভ হচ্ছে...' : 'স্টেডফাস্ট সেটিংস সেভ করুন (Save Steadfast Settings)'}</span>
+              </button>
+            </div>
+          </form>
+        </div>
       )}
 
           </main>
@@ -4762,6 +5057,205 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate, initialTab = '
               <div className="border-t border-dashed border-slate-300 pt-4 text-center text-[10px] text-slate-500 space-y-1">
                 <p className="font-bold text-slate-700">UNEX AURA সাথে থাকার জন্য ধন্যবাদ!</p>
                 <p>১০০% খাঁটি সার্জিক্যাল স্টেইনলেস স্টিল ও ফ্রি ৩ডি ইনস্টলেশন স্পেসার কিট অন্তর্ভুক্ত।</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: EDIT ORDER PRICE (2D Clean Minimalist Design) */}
+      {editingOrderPrice && (
+        <div className="fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl max-w-md w-full shadow-2xl border border-slate-200 overflow-hidden">
+            <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between bg-amber-50/60">
+              <div className="flex items-center gap-2">
+                <span className="p-2 rounded-lg bg-amber-500 text-white shadow-xs">
+                  <Edit className="w-4 h-4" />
+                </span>
+                <div>
+                  <h3 className="font-black text-sm text-slate-900">অর্ডারের মূল্য এডিট / ডিসকাউন্ট</h3>
+                  <p className="text-[11px] text-slate-500 font-mono">Order #{editingOrderPrice.order_number}</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setEditingOrderPrice(null)}
+                className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-200 cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSavePriceEdit} className="p-5 space-y-4 text-xs">
+              <div>
+                <label className="font-bold text-slate-700 block mb-1">পণ্যের সাবটোটাল মূল্য (৳)</label>
+                <input
+                  type="number"
+                  min="0"
+                  value={editPriceSubtotal}
+                  onChange={(e) => {
+                    const sub = Number(e.target.value) || 0;
+                    setEditPriceSubtotal(sub);
+                    setEditPriceTotal(Math.max(0, sub + editPriceDelivery - editPriceDiscount));
+                  }}
+                  className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-sm font-bold text-slate-900 focus:outline-none focus:border-amber-500"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="font-bold text-slate-700 block mb-1">ডেলিভারি চার্জ (৳)</label>
+                  <input
+                    type="number"
+                    min="0"
+                    value={editPriceDelivery}
+                    onChange={(e) => {
+                      const del = Number(e.target.value) || 0;
+                      setEditPriceDelivery(del);
+                      setEditPriceTotal(Math.max(0, editPriceSubtotal + del - editPriceDiscount));
+                    }}
+                    className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-sm font-bold text-slate-900 focus:outline-none focus:border-amber-500"
+                  />
+                </div>
+                <div>
+                  <label className="font-bold text-slate-700 block mb-1">বিশেষ ডিসকাউন্ট (৳)</label>
+                  <input
+                    type="number"
+                    min="0"
+                    value={editPriceDiscount}
+                    onChange={(e) => {
+                      const disc = Number(e.target.value) || 0;
+                      setEditPriceDiscount(disc);
+                      setEditPriceTotal(Math.max(0, editPriceSubtotal + editPriceDelivery - disc));
+                    }}
+                    className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-sm font-bold text-slate-900 focus:outline-none focus:border-amber-500"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="font-bold text-slate-700 block mb-1">সর্বমোট প্রদেয় বিল (Total Amount ৳)</label>
+                <input
+                  type="number"
+                  min="0"
+                  value={editPriceTotal}
+                  onChange={(e) => setEditPriceTotal(Number(e.target.value) || 0)}
+                  className="w-full bg-emerald-50 border-2 border-emerald-500 rounded-xl px-3.5 py-2.5 text-base font-black text-emerald-800 focus:outline-none"
+                />
+                <span className="text-[10px] text-slate-500 mt-1 block">কাস্টমারকে ফোনে বিশেষ কোনো কমে দিলে এখানে পরিবর্তন করুন। এটিই সর্বমোট বিল হিসেবে হিসাব হবে।</span>
+              </div>
+
+              <div>
+                <label className="font-bold text-slate-700 block mb-1">নোট / কারণ (ঐচ্ছিক)</label>
+                <textarea
+                  rows={2}
+                  value={editPriceNotes}
+                  onChange={(e) => setEditPriceNotes(e.target.value)}
+                  placeholder="যেমন: ফোনে কথা বলে ২০০ টাকা ডিসকাউন্ট দেওয়া হলো..."
+                  className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-1.5 text-xs text-slate-800 resize-none focus:outline-none focus:border-amber-500"
+                />
+              </div>
+
+              <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => setEditingOrderPrice(null)}
+                  className="px-4 py-2 rounded-xl border border-slate-300 text-slate-700 font-bold hover:bg-slate-100 cursor-pointer"
+                >
+                  বাতিল
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSavingPrice}
+                  className="px-5 py-2 rounded-xl bg-amber-600 hover:bg-amber-700 text-white font-black cursor-pointer shadow-sm disabled:opacity-50"
+                >
+                  {isSavingPrice ? 'সেভ হচ্ছে...' : 'মূল্য আপডেট করুন'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: STEADFAST COURIER BOOKING CONFIRMATION */}
+      {steadfastOrder && (
+        <div className="fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl max-w-lg w-full shadow-2xl border border-slate-200 overflow-hidden">
+            <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between bg-indigo-50/50">
+              <div className="flex items-center gap-2">
+                <span className="p-2 rounded-lg bg-indigo-600 text-white shadow-xs">
+                  <Truck className="w-4 h-4" />
+                </span>
+                <div>
+                  <h3 className="font-black text-sm text-indigo-950">Steadfast Courier পার্সেল বুকিং</h3>
+                  <p className="text-[11px] text-slate-500 font-mono">Invoice #{steadfastOrder.order_number}</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSteadfastOrder(null)}
+                className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-200 cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="p-5 space-y-3.5 text-xs">
+              <div className="bg-slate-50 p-3.5 rounded-xl border border-slate-200 space-y-1.5">
+                <div className="flex justify-between">
+                  <span className="text-slate-500">প্রাপকের নাম:</span>
+                  <span className="font-bold text-slate-900">{steadfastOrder.user_name}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-slate-500">মোবাইল নম্বর:</span>
+                  <span className="font-mono font-bold text-slate-900">{steadfastOrder.user_phone}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-slate-500">ঠিকানা:</span>
+                  <span className="text-right font-medium text-slate-800 max-w-[240px] truncate">{steadfastOrder.shipping_address}, {steadfastOrder.city}</span>
+                </div>
+                <div className="flex justify-between pt-1.5 border-t border-slate-200">
+                  <span className="text-slate-500">ক্যাশ অন ডেলিভারি (COD Amount):</span>
+                  <span className="font-black text-emerald-700 text-sm">
+                    {formatPrice(steadfastOrder.payment_status === 'paid' ? 0 : steadfastOrder.total_amount)}
+                  </span>
+                </div>
+              </div>
+
+              <div>
+                <label className="font-bold text-slate-700 block mb-1">কুরিয়ার ডেলিভারি নোট / নির্দেশিকা</label>
+                <input
+                  type="text"
+                  value={steadfastNote}
+                  onChange={(e) => setSteadfastNote(e.target.value)}
+                  className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-900 focus:outline-none focus:border-indigo-500"
+                />
+              </div>
+
+              {!settings.steadfast_api_key && (
+                <div className="p-2.5 rounded-xl bg-amber-50 border border-amber-200 text-amber-800 text-[11px] space-y-1">
+                  <div className="font-bold">⚠️ আপনার স্টেডফাস্ট API Key কনফিগার করা নেই।</div>
+                  <div>Settings &gt; Steadfast Courier ট্যাবে গিয়ে API Key ও Secret Key বসিয়ে নিন। অথবা আপনি Steadfast প্যানেলে গিয়ে সরাসরি API Key পাবেন।</div>
+                </div>
+              )}
+
+              <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => setSteadfastOrder(null)}
+                  className="px-4 py-2 rounded-xl border border-slate-300 text-slate-700 font-bold hover:bg-slate-100 cursor-pointer"
+                >
+                  বাতিল
+                </button>
+                <button
+                  type="button"
+                  onClick={handleConfirmSteadfastBooking}
+                  disabled={isBookingSteadfast}
+                  className="px-5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-black cursor-pointer shadow-sm disabled:opacity-50 flex items-center gap-1.5"
+                >
+                  <Truck className="w-4 h-4" />
+                  <span>{isBookingSteadfast ? 'বুকিং হচ্ছে...' : 'স্টেডফাস্টে কনফার্ম করুন'}</span>
+                </button>
               </div>
             </div>
           </div>

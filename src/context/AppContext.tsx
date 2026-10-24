@@ -8,6 +8,7 @@ import { trackAddToCart, trackPurchase } from '../utils/analytics';
 import {
   saveOrderToSupabase,
   updateOrderStatusInSupabase,
+  updateOrderInSupabase,
   deleteOrderFromSupabase,
   saveProductToSupabase,
   deleteProductFromSupabase,
@@ -37,7 +38,8 @@ interface AppContextType {
 
   setDeliveryZone: (zone: 'none' | 'dhaka' | 'outside_dhaka') => void;
   setCurrencyCode: (code: CurrencyConfig['code']) => void;
-  addToCart: (product: Product, quantity?: number, selectedSize?: ProductSize) => void;
+  addToCart: (product: Product, quantity?: number, selectedSize?: ProductSize, openDrawer?: boolean) => void;
+  directCheckout: (product: Product, quantity?: number, selectedSize?: ProductSize) => void;
   updateCartQty: (productId: number, quantity: number, sizeId?: string) => void;
   removeFromCart: (productId: number, sizeId?: string) => void;
   clearCart: () => void;
@@ -58,7 +60,10 @@ interface AppContextType {
   restoreOrders: (ordersList: Order[]) => Promise<boolean>;
   addOrder: (orderPayload: any) => Promise<Order>;
   updateOrderStatus: (orderId: number, status: string, paymentStatus?: string) => Promise<boolean>;
+  updateOrderPrice: (orderId: number | string, updates: { total_amount?: number; subtotal_amount?: number; discount_amount?: number; delivery_charge?: number; order_notes?: string }) => Promise<boolean>;
   deleteOrder: (id: number | string) => Promise<boolean>;
+  syncOrderToGoogleSheet: (order: Order | any) => Promise<{ success: boolean; message: string }>;
+  sendToSteadfastCourier: (orderId: number | string, customNote?: string) => Promise<{ success: boolean; message: string; tracking_code?: string; consignment_id?: string | number }>;
   updateSettings: (newSettings: Partial<StoreSettings>) => Promise<void>;
 
   toggleWishlist: (productId: number) => void;
@@ -139,6 +144,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           ...INITIAL_SETTINGS,
           ...parsed,
           google_sheet_webhook_url: (parsed.google_sheet_webhook_url && parsed.google_sheet_webhook_url.trim()) ? parsed.google_sheet_webhook_url : INITIAL_SETTINGS.google_sheet_webhook_url,
+          steadfast_api_key: (parsed.steadfast_api_key && parsed.steadfast_api_key.trim()) ? parsed.steadfast_api_key : INITIAL_SETTINGS.steadfast_api_key,
+          steadfast_secret_key: (parsed.steadfast_secret_key && parsed.steadfast_secret_key.trim()) ? parsed.steadfast_secret_key : INITIAL_SETTINGS.steadfast_secret_key,
+          steadfast_enabled: true,
           promo_video_url: promoVideo,
           best_deal_product_id: parsed.best_deal_product_id || 7
         };
@@ -456,35 +464,38 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       localStorage.setItem('unex_placed_orders', JSON.stringify(updatedMerged));
     } catch {}
 
-    // Auto-sync to Google Sheets Webhook (24/7 background sync without OAuth token expiry)
-    const targetWebhook = settings.google_sheet_webhook_url || INITIAL_SETTINGS.google_sheet_webhook_url;
-    if (targetWebhook && createdOrder) {
+    // Helper to sync an order to Google Sheets
+    const syncOrderToGoogleSheet = async (order: any): Promise<{ success: boolean; message: string }> => {
+      if (!order) return { success: false, message: 'অর্ডারের তথ্য পাওয়া যায়নি' };
+      const targetWebhook = settings.google_sheet_webhook_url || INITIAL_SETTINGS.google_sheet_webhook_url;
+      if (!targetWebhook) return { success: false, message: 'Google Sheets Webhook URL কনফিগার করা নেই' };
+
       try {
-        const itemsSummary = Array.isArray(createdOrder.items)
-          ? createdOrder.items.map((it: any) => `${it.product_name || it.name || 'Product'}${it.selected_size_name ? ` (${it.selected_size_name})` : ''} x${it.quantity || 1}`).join('; ')
+        const itemsSummary = Array.isArray(order.items)
+          ? order.items.map((it: any) => `${it.product_name || it.name || 'Product'}${it.selected_size_name ? ` (${it.selected_size_name})` : ''} x${it.quantity || 1}`).join('; ')
           : 'N/A';
 
         const payload = {
-          timestamp: createdOrder.created_at || new Date().toLocaleString('en-US', { timeZone: 'Asia/Dhaka' }),
-          order_number: createdOrder.order_number,
-          customer_name: createdOrder.user_name || 'Customer',
-          customer_phone: createdOrder.user_phone || '',
-          customer_email: createdOrder.user_email || '',
-          shipping_address: createdOrder.shipping_address || '',
-          city: createdOrder.city || '',
-          delivery_zone: createdOrder.delivery_zone === 'dhaka' ? 'Inside Dhaka' : 'Outside Dhaka',
+          timestamp: order.created_at || new Date().toLocaleString('en-US', { timeZone: 'Asia/Dhaka' }),
+          order_number: order.order_number,
+          customer_name: order.user_name || order.customer_name || 'Customer',
+          customer_phone: order.user_phone || order.customer_phone || '',
+          customer_email: order.user_email || order.customer_email || '',
+          shipping_address: order.shipping_address || order.customer_address || '',
+          city: order.city || order.district || '',
+          delivery_zone: order.delivery_zone === 'dhaka' ? 'Inside Dhaka' : 'Outside Dhaka',
           items_summary: itemsSummary,
-          total_weight_grams: createdOrder.total_weight_grams || 0,
-          delivery_fee: createdOrder.delivery_charge !== undefined ? createdOrder.delivery_charge : 0,
-          subtotal: createdOrder.subtotal_amount !== undefined ? createdOrder.subtotal_amount : 0,
-          total_amount: createdOrder.total_amount || 0,
-          payment_method: createdOrder.payment_method === 'cod' ? 'ক্যাশ অন ডেলিভারি (Cash on Delivery)' : createdOrder.payment_method,
-          payment_details: (createdOrder as any).payment_details || createdOrder.payment_method || 'N/A',
-          payment_status: createdOrder.payment_status || 'Pending',
-          status: createdOrder.status || 'Pending'
+          total_weight_grams: order.total_weight_grams || 0,
+          delivery_fee: order.delivery_charge !== undefined ? order.delivery_charge : 0,
+          subtotal: order.subtotal_amount !== undefined ? order.subtotal_amount : 0,
+          total_amount: order.total_amount || 0,
+          payment_method: order.payment_method === 'cod' ? 'ক্যাশ অন ডেলিভারি (Cash on Delivery)' : order.payment_method,
+          payment_details: order.payment_details || order.payment_method || 'N/A',
+          payment_status: order.payment_status || 'Pending',
+          status: order.status || 'Confirmed'
         };
 
-        // 1. Direct browser fetch with mode: 'no-cors' (fire-and-forget direct to Google Apps Script)
+        // 1. Direct browser fetch with mode: 'no-cors'
         fetch(targetWebhook, {
           method: 'POST',
           mode: 'no-cors',
@@ -493,24 +504,32 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         }).catch(e => console.warn('Direct client webhook ping error:', e));
 
         // 2. Server-side proxy fetch (ensures server container also dispatches cleanly)
-        fetch('/api/google-sheets/sync-order', {
+        await fetch('/api/google-sheets/sync-order', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ order: createdOrder, webhook_url: targetWebhook })
+          body: JSON.stringify({ order, webhook_url: targetWebhook })
         }).catch(e => console.warn('Server sync order ping error:', e));
-      } catch (err) {
-        console.warn('Webhook auto-sync error:', err);
-      }
-    }
 
-    // Auto-sync to Google Sheets if connected via Google Drive OAuth
-    if (settings.google_sheet_id && settings.google_sheet_autosync_enabled !== false) {
-      const token = getAccessToken();
-      if (token) {
-        appendOrdersToSheet(token, settings.google_sheet_id, [createdOrder]).catch(e => {
-          console.warn('Background Google Sheets auto-sync error:', e);
-        });
+        // 3. OAuth Sheet append if configured
+        if (settings.google_sheet_id && settings.google_sheet_autosync_enabled !== false) {
+          const token = getAccessToken();
+          if (token) {
+            appendOrdersToSheet(token, settings.google_sheet_id, [order]).catch(() => {});
+          }
+        }
+
+        showToast(`অর্ডার #${order.order_number} সফলভাবে Google Sheet এ সিঙ্ক হয়েছে!`);
+        return { success: true, message: 'Google Sheet এ যুক্ত হয়েছে' };
+      } catch (err: any) {
+        console.warn('Google Sheets sync error:', err);
+        return { success: false, message: err.message || 'Sync failed' };
       }
+    };
+
+    // Auto-sync to Google Sheets:
+    // If google_sheet_sync_on_confirmed_only is false, sync immediately; otherwise wait until order is confirmed by Admin
+    if (settings.google_sheet_sync_on_confirmed_only === false && createdOrder) {
+      syncOrderToGoogleSheet(createdOrder).catch(e => console.warn('Immediate sheet sync error:', e));
     }
 
     // Save to Supabase Cloud Database in background (Realtime sync)
@@ -528,9 +547,80 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return createdOrder;
   };
 
+  const syncOrderToGoogleSheet = async (order: any): Promise<{ success: boolean; message: string }> => {
+    if (!order) return { success: false, message: 'অর্ডারের তথ্য পাওয়া যায়নি' };
+    const targetWebhook = settings.google_sheet_webhook_url || INITIAL_SETTINGS.google_sheet_webhook_url;
+    if (!targetWebhook) return { success: false, message: 'Google Sheets Webhook URL কনফিগার করা নেই' };
+
+    try {
+      const itemsSummary = Array.isArray(order.items)
+        ? order.items.map((it: any) => `${it.product_name || it.name || 'Product'}${it.selected_size_name ? ` (${it.selected_size_name})` : ''} x${it.quantity || 1}`).join('; ')
+        : 'N/A';
+
+      const payload = {
+        timestamp: order.created_at || new Date().toLocaleString('en-US', { timeZone: 'Asia/Dhaka' }),
+        order_number: order.order_number,
+        customer_name: order.user_name || order.customer_name || 'Customer',
+        customer_phone: order.user_phone || order.customer_phone || '',
+        customer_email: order.user_email || order.customer_email || '',
+        shipping_address: order.shipping_address || order.customer_address || '',
+        city: order.city || order.district || '',
+        delivery_zone: order.delivery_zone === 'dhaka' ? 'Inside Dhaka' : 'Outside Dhaka',
+        items_summary: itemsSummary,
+        total_weight_grams: order.total_weight_grams || 0,
+        delivery_fee: order.delivery_charge !== undefined ? order.delivery_charge : 0,
+        subtotal: order.subtotal_amount !== undefined ? order.subtotal_amount : 0,
+        total_amount: order.total_amount || 0,
+        payment_method: order.payment_method === 'cod' ? 'ক্যাশ অন ডেলিভারি (Cash on Delivery)' : order.payment_method,
+        payment_details: order.payment_details || order.payment_method || 'N/A',
+        payment_status: order.payment_status || 'Pending',
+        status: order.status || 'Confirmed'
+      };
+
+      fetch(targetWebhook, {
+        method: 'POST',
+        mode: 'no-cors',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      }).catch(e => console.warn('Direct client webhook ping error:', e));
+
+      await fetch('/api/google-sheets/sync-order', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ order, webhook_url: targetWebhook })
+      }).catch(e => console.warn('Server sync order ping error:', e));
+
+      if (settings.google_sheet_id && settings.google_sheet_autosync_enabled !== false) {
+        const token = getAccessToken();
+        if (token) {
+          appendOrdersToSheet(token, settings.google_sheet_id, [order]).catch(() => {});
+        }
+      }
+
+      showToast(`অর্ডার #${order.order_number} সফলভাবে Google Sheet এ সিঙ্ক হয়েছে!`);
+      return { success: true, message: 'Google Sheet এ যুক্ত হয়েছে' };
+    } catch (err: any) {
+      console.warn('Google Sheets sync error:', err);
+      return { success: false, message: err.message || 'Sync failed' };
+    }
+  };
+
   const updateOrderStatus = async (orderId: number, status: string, paymentStatus?: string): Promise<boolean> => {
+    let orderToSync: Order | undefined;
+
     setOrders(prev => {
-      const updated = prev.map(o => o.id === orderId ? { ...o, status: status as any, payment_status: paymentStatus ? (paymentStatus as any) : o.payment_status } : o);
+      const updated = prev.map(o => {
+        if (o.id === orderId || String(o.order_number) === String(orderId)) {
+          const updatedOrd = {
+            ...o,
+            status: status as any,
+            payment_status: paymentStatus ? (paymentStatus as any) : o.payment_status
+          };
+          orderToSync = updatedOrd;
+          return updatedOrd;
+        }
+        return o;
+      });
       try {
         localStorage.setItem('unex_placed_orders', JSON.stringify(updated));
       } catch {}
@@ -552,7 +642,132 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       console.warn('Supabase order status sync warning:', e);
     });
 
+    // AUTOMATIC GOOGLE SHEET SYNC ON ORDER CONFIRMATION
+    if ((status === 'confirmed' || status === 'processing') && orderToSync) {
+      syncOrderToGoogleSheet(orderToSync).catch(e => console.warn('Google Sheet auto sync error on confirm:', e));
+    }
+
     return true;
+  };
+
+  const updateOrderPrice = async (
+    orderId: number | string,
+    updates: {
+      total_amount?: number;
+      subtotal_amount?: number;
+      discount_amount?: number;
+      delivery_charge?: number;
+      order_notes?: string;
+    }
+  ): Promise<boolean> => {
+    setOrders(prev => {
+      const updated = prev.map(o => {
+        if (String(o.id) === String(orderId) || String(o.order_number) === String(orderId)) {
+          return {
+            ...o,
+            total_amount: updates.total_amount !== undefined ? Number(updates.total_amount) : o.total_amount,
+            subtotal_amount: updates.subtotal_amount !== undefined ? Number(updates.subtotal_amount) : o.subtotal_amount,
+            discount_amount: updates.discount_amount !== undefined ? Number(updates.discount_amount) : o.discount_amount,
+            delivery_charge: updates.delivery_charge !== undefined ? Number(updates.delivery_charge) : o.delivery_charge,
+            order_notes: updates.order_notes !== undefined ? updates.order_notes : o.order_notes
+          };
+        }
+        return o;
+      });
+      try {
+        localStorage.setItem('unex_placed_orders', JSON.stringify(updated));
+      } catch {}
+      return updated;
+    });
+
+    try {
+      await fetch(`/api/orders/${orderId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updates)
+      });
+    } catch (e) {
+      console.warn('Order price update on server failed, updated locally:', e);
+    }
+
+    // Direct client sync to Supabase orders table
+    updateOrderInSupabase(orderId, updates).catch(e => {
+      console.warn('Supabase order price sync warning:', e);
+    });
+
+    showToast('অর্ডারের মূল্য সফলভাবে পরিবর্তন করা হয়েছে!');
+    return true;
+  };
+
+  const sendToSteadfastCourier = async (
+    orderId: number | string,
+    customNote?: string
+  ): Promise<{ success: boolean; message: string; tracking_code?: string; consignment_id?: string | number }> => {
+    const targetOrder = orders.find(o => String(o.id) === String(orderId) || String(o.order_number) === String(orderId));
+    if (!targetOrder) {
+      return { success: false, message: 'অর্ডার পাওয়া যায়নি' };
+    }
+
+    try {
+      const res = await fetch('/api/courier/steadfast/create-order', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          order_id: targetOrder.id,
+          invoice: targetOrder.order_number,
+          recipient_name: targetOrder.user_name,
+          recipient_phone: targetOrder.user_phone,
+          recipient_address: targetOrder.shipping_address,
+          cod_amount: targetOrder.payment_status === 'paid' ? 0 : targetOrder.total_amount,
+          note: customNote || targetOrder.order_notes || 'UNEX AURA Wall Art - Handle with care'
+        })
+      });
+
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        return {
+          success: false,
+          message: data.message || 'স্টেডফাস্ট কুরিয়ারে বুকিং করতে ব্যর্থ হয়েছে'
+        };
+      }
+
+      const trackingCode = data.tracking_code || '';
+      const consignmentId = data.consignment_id || '';
+
+      setOrders(prev => {
+        const updated = prev.map(o => {
+          if (String(o.id) === String(orderId) || String(o.order_number) === String(orderId)) {
+            return {
+              ...o,
+              status: 'shipped' as const,
+              courier_name: 'Steadfast Courier',
+              tracking_number: trackingCode,
+              steadfast_tracking_code: trackingCode,
+              steadfast_consignment_id: consignmentId,
+              steadfast_status: 'in_review'
+            };
+          }
+          return o;
+        });
+        try {
+          localStorage.setItem('unex_placed_orders', JSON.stringify(updated));
+        } catch {}
+        return updated;
+      });
+
+      showToast(`সফলভাবে স্টেডফাস্ট কুরিয়ারে বুক করা হয়েছে! ট্র্যাকিং: ${trackingCode}`);
+      return {
+        success: true,
+        message: 'স্টেডফাস্ট কুরিয়ারে বুকিং সফল হয়েছে',
+        tracking_code: trackingCode,
+        consignment_id: consignmentId
+      };
+    } catch (err: any) {
+      return {
+        success: false,
+        message: err.message || 'কুরিয়ার রিকোয়েস্টে সমস্যা হয়েছে'
+      };
+    }
   };
 
   const deleteOrder = async (orderId: number | string): Promise<boolean> => {
@@ -688,7 +903,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }, 3200);
   };
 
-  const addToCart = (product: Product, quantity: number = 1, selectedSize?: ProductSize) => {
+  const addToCart = (product: Product, quantity: number = 1, selectedSize?: ProductSize, openDrawer: boolean = true) => {
     if (product.stock <= 0) {
       showToast(`দুঃখিত! "${product.name}" প্রোডাক্টটি বর্তমানে স্টক আউট (Out of Stock)।`);
       return;
@@ -722,7 +937,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (addedSuccessfully) {
       const sizeStr = sizeToUse ? ` (${sizeToUse.name})` : '';
       showToast(`Added "${product.name}"${sizeStr} to cart!`);
-      setIsCartDrawerOpen(true);
+      if (openDrawer) {
+        setIsCartDrawerOpen(true);
+      } else {
+        setIsCartDrawerOpen(false);
+      }
       trackAddToCart(
         {
           id: product.id,
@@ -735,6 +954,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         sizeToUse?.name
       );
     }
+  };
+
+  const directCheckout = (product: Product, quantity: number = 1, selectedSize?: ProductSize) => {
+    setIsCartDrawerOpen(false);
+    addToCart(product, quantity, selectedSize, false);
   };
 
   const updateCartQty = (productId: number, quantity: number, sizeId?: string) => {
@@ -1115,6 +1339,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       setDeliveryZone,
       setCurrencyCode,
       addToCart,
+      directCheckout,
       updateCartQty,
       removeFromCart,
       clearCart,
@@ -1135,7 +1360,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       restoreOrders,
       addOrder,
       updateOrderStatus,
+      updateOrderPrice,
       deleteOrder,
+      syncOrderToGoogleSheet,
+      sendToSteadfastCourier,
       updateSettings,
       addProduct,
       updateProduct,

@@ -16,7 +16,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({
   onOpenWallModal,
   onQuickOrder,
 }) => {
-  const { addToCart, formatPrice, toggleWishlist, isInWishlist, openCartDrawer } = useApp();
+  const { addToCart, directCheckout, formatPrice, toggleWishlist, isInWishlist } = useApp();
   const isWishlisted = isInWishlist(product.id);
 
   const discountPercent = product.old_price && product.old_price > product.price
@@ -25,17 +25,20 @@ export const ProductCard: React.FC<ProductCardProps> = ({
 
   const handleAddToCart = (e: React.MouseEvent) => {
     e.stopPropagation();
-    addToCart(product, 1);
-    openCartDrawer();
+    e.preventDefault();
+    addToCart(product, 1, undefined, true);
   };
 
   const handleOrderNow = (e: React.MouseEvent) => {
     e.stopPropagation();
-    addToCart(product, 1);
+    e.preventDefault();
+    // Add product cleanly to cart without opening slide drawer
+    directCheckout(product, 1);
     if (onQuickOrder) {
       onQuickOrder(product);
+    } else {
+      window.dispatchEvent(new CustomEvent('unex_navigate', { detail: { page: 'checkout' } }));
     }
-    window.dispatchEvent(new CustomEvent('unex_navigate', { detail: { page: 'checkout' } }));
   };
 
   return (

@@ -346,11 +346,8 @@ export const SeeOnWallModal: React.FC<SeeOnWallModalProps> = ({ product, onClose
 
                         <button
                           onClick={() => {
-                            addToCart(product, quantity, activeSize);
+                            addToCart(product, quantity, activeSize, true);
                             onClose();
-                            if (onNavigate) {
-                              onNavigate('checkout');
-                            }
                           }}
                           className="flex-1 w-full py-3 px-4 rounded-xl text-xs font-bold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 shadow-2xs transition-all flex items-center justify-center gap-2 cursor-pointer"
                         >
@@ -360,7 +357,7 @@ export const SeeOnWallModal: React.FC<SeeOnWallModalProps> = ({ product, onClose
 
                         <button
                           onClick={() => {
-                            addToCart(product, quantity, activeSize);
+                            addToCart(product, quantity, activeSize, false);
                             onClose();
                             if (onNavigate) {
                               onNavigate('checkout');
@@ -494,11 +491,8 @@ export const SeeOnWallModal: React.FC<SeeOnWallModalProps> = ({ product, onClose
                   </button>
                   <button
                     onClick={() => {
-                      addToCart(product, 1, activeSize);
+                      addToCart(product, 1, activeSize, true);
                       onClose();
-                      if (onNavigate) {
-                        onNavigate('checkout');
-                      }
                     }}
                     className="px-6 py-2.5 rounded-xl text-xs font-bold text-white bg-gradient-to-r from-emerald-600 via-teal-600 to-indigo-600 hover:opacity-95 shadow-md hover:scale-[1.02] transition-all flex items-center justify-center gap-2 cursor-pointer"
                   >

@@ -191,7 +191,7 @@ export const ProductPage: React.FC<ProductPageProps> = ({ slug, onNavigate, onOp
       thickness: currentThickness,
       image_url: galleryItems[activeImageIdx]?.url || product.image_url
     };
-    addToCart(itemToAdd, quantity, activeSize);
+    addToCart(itemToAdd, quantity, activeSize, !andCheckout);
     if (andCheckout) {
       onNavigate('checkout');
     } else {
@@ -518,8 +518,7 @@ export const ProductPage: React.FC<ProductPageProps> = ({ slug, onNavigate, onOp
                     onNavigate('product', { slug: p.slug });
                   }}
                   onOpenWallModal={onOpenWallModal}
-                  onQuickOrder={(p) => {
-                    addToCart(p, 1);
+                  onQuickOrder={() => {
                     onNavigate('checkout');
                   }}
                 />

@@ -30,10 +30,11 @@ function MainAppContent() {
   const [shopCategoryId, setShopCategoryId] = useState<number | 'all'>('all');
   const [adminTab, setAdminTab] = useState<'products' | 'orders' | 'categories' | 'coupons' | 'media' | 'shipping' | 'security' | 'sheets'>('orders');
 
-  const { products, categories, isCartDrawerOpen, closeCartDrawer, addToCart } = useApp();
+  const { products, categories, isCartDrawerOpen, closeCartDrawer } = useApp();
 
-  const handleDirectCheckout = (prod: Product) => {
-    addToCart(prod, 1);
+  const handleDirectCheckout = (_prod: Product) => {
+    // The item was already cleanly added by the triggering action with openDrawer=false
+    closeCartDrawer();
     handleNavigate('checkout');
   };
 

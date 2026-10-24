@@ -288,7 +288,7 @@ export const HomePage: React.FC<HomePageProps> = ({ onNavigate, onOpenWallModal,
                     loop
                     muted={isMuted}
                     playsInline
-                    preload="auto"
+                    preload="metadata"
                     poster="https://res.cloudinary.com/glq1jvyu/image/upload/v1786771553/tajbih_drawingrm.jpg.jpg"
                     onError={handleVideoError}
                     onClick={isMuted ? unmuteAudio : togglePlay}
@@ -349,17 +349,17 @@ export const HomePage: React.FC<HomePageProps> = ({ onNavigate, onOpenWallModal,
         </div>
       </section>
 
-      {/* 3. COMPACT 3D AUTO-SWIPING CATEGORY CAROUSEL */}
+      {/* 3. COMPACT MANUAL CATEGORY CAROUSEL */}
       <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center justify-between mb-3">
           <div>
             <div className="flex items-center gap-2">
-              <span className="w-2 h-2 rounded-full bg-teal-500 animate-ping"></span>
-              <h2 className="text-lg sm:text-2xl font-black text-[#0f3d44]">
+              <span className="w-2 h-2 rounded-full bg-teal-500"></span>
+              <h2 className="text-base sm:text-xl font-black text-[#0f3d44]">
                 ক্যাটাগরি কালেকশন
               </h2>
             </div>
-            <p className="text-xs text-slate-500 mt-0.5">
+            <p className="text-[11px] sm:text-xs text-slate-500 mt-0.5">
               পছন্দের ক্যাটাগরি বেছে নিন এবং সরাসরি আকর্ষণীয় ডিজাইনগুলো দেখুন
             </p>
           </div>
@@ -373,8 +373,8 @@ export const HomePage: React.FC<HomePageProps> = ({ onNavigate, onOpenWallModal,
           </button>
         </div>
 
-        {/* 3D Side Carousel with Center Zoom & Side Previews - Compact Layout */}
-        <div className="bg-slate-50/80 p-1 sm:p-2.5 rounded-2xl border border-slate-200/80 shadow-2xs">
+        {/* Compact Horizontal Category Bar */}
+        <div className="bg-slate-50/80 p-1.5 sm:p-2 rounded-2xl border border-slate-200/80">
           <CategoryCarousel
             categories={categories}
             productCountMap={categories.reduce((acc, cat) => {

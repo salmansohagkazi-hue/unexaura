@@ -62,12 +62,12 @@ export const CategoryCarousel: React.FC<CategoryCarouselProps> = ({
         )}
 
         {/* CATEGORY CARDS */}
-        {categories.map((cat) => {
+        {categories.map((cat, idx) => {
           const count = productCountMap[cat.id] ?? 0;
 
           return (
             <button
-              key={cat.id}
+              key={`cat-carousel-${cat.id}-${idx}`}
               type="button"
               onClick={() => onSelectCategory(cat.id)}
               className="shrink-0 flex items-center gap-2.5 p-1.5 pr-3 rounded-xl bg-white hover:bg-indigo-50/50 border border-slate-200/90 hover:border-indigo-400 shadow-2xs hover:shadow-xs transition-all cursor-pointer text-left group"

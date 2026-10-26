@@ -499,8 +499,8 @@ export const MyAccountPage: React.FC<MyAccountPageProps> = ({ onNavigate, initia
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100">
-                      {orders.slice(0, 5).map(o => (
-                        <tr key={o.id} className="hover:bg-slate-50/50">
+                      {orders.slice(0, 5).map((o, idx) => (
+                        <tr key={o.order_number ? `acc-dash-${o.order_number}` : `acc-dash-${o.id}-${idx}`} className="hover:bg-slate-50/50">
                           <td className="p-3.5 font-bold text-[#4f46e5]">{o.order_number}</td>
                           <td className="p-3.5 text-slate-500">{o.created_at.split(' ')[0]}</td>
                           <td className="p-3.5 font-extrabold text-[#0f3d44]">{formatPrice(o.total_amount)}</td>
@@ -555,8 +555,8 @@ export const MyAccountPage: React.FC<MyAccountPageProps> = ({ onNavigate, initia
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
-                    {orders.map(o => (
-                      <tr key={o.id} className="hover:bg-slate-50/50">
+                    {orders.map((o, idx) => (
+                      <tr key={o.order_number ? `acc-all-${o.order_number}` : `acc-all-${o.id}-${idx}`} className="hover:bg-slate-50/50">
                         <td className="p-3.5 font-bold text-[#4f46e5]">{o.order_number}</td>
                         <td className="p-3.5 text-slate-500">{o.created_at}</td>
                         <td className="p-3.5 text-slate-700 font-medium">{o.items?.length || 1} item(s)</td>
@@ -637,11 +637,11 @@ export const MyAccountPage: React.FC<MyAccountPageProps> = ({ onNavigate, initia
                     <span className="text-[11px] font-bold text-slate-400 shrink-0 uppercase tracking-wider">
                       Your Orders:
                     </span>
-                    {orders.map(ord => {
+                    {orders.map((ord, idx) => {
                       const isSelected = currentTrackedOrder?.id === ord.id;
                       return (
                         <button
-                          key={ord.id}
+                          key={ord.order_number ? `acc-pill-${ord.order_number}` : `acc-pill-${ord.id}-${idx}`}
                           onClick={() => {
                             setTrackSearchQuery('');
                             setSelectedTrackOrderNumber(ord.order_number);

@@ -1,55 +1,51 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useApp } from '../context/AppContext';
-import { Product, Order, Category, Placement, ProductSize } from '../types';
+import { Product, Order, Category, ProductSize } from '../types';
 import { useSEO } from '../hooks/useSEO';
 import {
-  Shield,
-  Plus,
-  Trash2,
-  Edit,
-  Truck,
-  Scale,
-  CheckCircle2,
-  Search,
-  Eye,
-  Sparkles,
-  Lock,
-  FileSpreadsheet,
-  Flame,
-  Video,
-  Image as ImageIcon,
-  Check,
-  ExternalLink,
-  Tag,
-  Layers,
-  FolderPlus,
-  Phone,
-  MessageCircle,
-  Printer,
-  Download,
-  Upload,
-  RefreshCw,
-  Clock,
-  User as UserIcon,
-  MapPin,
-  CreditCard,
-  AlertCircle,
-  Filter,
-  FileText,
-  X,
-  Calendar,
-  Save,
   LayoutDashboard,
   ShoppingBag,
   Package,
+  Layers,
+  Truck,
   Settings,
-  Store,
+  Lock,
+  Plus,
+  Search,
+  Filter,
+  Eye,
+  Edit,
+  Trash2,
+  CheckCircle2,
+  AlertCircle,
+  Clock,
+  ExternalLink,
+  RefreshCw,
+  Download,
+  Phone,
+  MessageCircle,
+  FileText,
+  X,
   ChevronRight,
-  Share2,
+  Save,
+  Store,
+  CreditCard,
+  ShieldCheck,
+  MapPin,
+  Calendar,
+  FileSpreadsheet,
   Database,
+  Menu,
+  Sparkles,
+  Share2,
+  Video,
+  Check,
+  ChevronDown,
+  Users,
+  BarChart3,
+  TrendingUp,
   Boxes,
-  Warehouse,
-  PackageCheck
+  ArrowUpRight
 } from 'lucide-react';
 import { GoogleSheetsSync } from '../components/GoogleSheetsSync';
 import { SupabaseManager } from '../components/SupabaseManager';
@@ -59,8 +55,18 @@ interface AdminPageProps {
   initialTab?: string;
 }
 
-export type AdminMainTab = 'dashboard' | 'orders' | 'products' | 'inventory' | 'categories' | 'sheets' | 'settings';
-export type AdminSettingsSubTab = 'media' | 'categories' | 'coupons' | 'shipping' | 'security' | 'meta' | 'supabase' | 'steadfast';
+export type AdminTab = 
+  | 'dashboard' 
+  | 'orders' 
+  | 'products' 
+  | 'inventory' 
+  | 'categories' 
+  | 'delivery' 
+  | 'customers' 
+  | 'reports' 
+  | 'settings';
+
+export type AdminSettingsTab = 'shipping' | 'media' | 'security' | 'meta' | 'sheets' | 'supabase';
 
 export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate, initialTab = 'dashboard' }) => {
   const {
@@ -69,18 +75,12 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate, initialTab = '
     addCategory,
     updateCategory,
     deleteCategory,
-    coupons,
-    addCoupon,
-    deleteCoupon,
     formatPrice,
     settings,
     updateSettings,
     showToast,
-    refreshProducts,
-    refreshCategories,
     orders,
     refreshOrders,
-    restoreOrders,
     updateOrderStatus,
     updateOrderPrice,
     deleteOrder,
@@ -89,45 +89,60 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate, initialTab = '
     addProduct,
     updateProduct,
     deleteProduct,
-    updateProductStock,
-    syncInventoryFromSheet,
-    pushCatalogToSheet
+    updateProductStock
   } = useApp();
 
   useSEO({
-    title: 'Staff & Order Management Portal',
-    description: 'Manage live customer orders, products, inventory, categories, coupons, and website media for UNEX AURA.'
+    title: 'Admin Dashboard | UNEX AURA',
+    description: 'Modern, minimal e-commerce management panel for UNEX AURA.'
   });
 
-  const [activeTab, setActiveTab] = useState<AdminMainTab>(() => {
-    if (initialTab === 'products' || initialTab === 'orders' || initialTab === 'sheets') return initialTab;
-    if (initialTab === 'media' || initialTab === 'categories' || initialTab === 'coupons' || initialTab === 'shipping' || initialTab === 'security') return 'settings';
+  // Main active tab state
+  const [activeTab, setActiveTab] = useState<AdminTab>(() => {
+    if (initialTab === 'products' || initialTab === 'orders') return initialTab;
+    if (initialTab === 'inventory') return 'inventory';
+    if (initialTab === 'categories') return 'categories';
+    if (initialTab === 'delivery' || initialTab === 'courier') return 'delivery';
+    if (initialTab === 'customers') return 'customers';
+    if (initialTab === 'reports') return 'reports';
+    if (initialTab === 'settings' || initialTab === 'sheets' || initialTab === 'media' || initialTab === 'shipping' || initialTab === 'security') return 'settings';
     return 'dashboard';
   });
 
-  const [settingsSubTab, setSettingsSubTab] = useState<AdminSettingsSubTab>(() => {
-    if (initialTab === 'media' || initialTab === 'categories' || initialTab === 'coupons' || initialTab === 'shipping' || initialTab === 'security') {
-      return initialTab;
-    }
-    return 'media';
+  // Settings sub-tab state
+  const [settingsTab, setSettingsTab] = useState<AdminSettingsTab>(() => {
+    if (initialTab === 'sheets') return 'sheets';
+    if (initialTab === 'media') return 'media';
+    if (initialTab === 'shipping') return 'shipping';
+    if (initialTab === 'security') return 'security';
+    if (initialTab === 'supabase') return 'supabase';
+    return 'shipping';
   });
 
-  const [loadingOrders, setLoadingOrders] = useState(false);
-  const [isPullingInventory, setIsPullingInventory] = useState(false);
-  const [isPushingCatalog, setIsPushingCatalog] = useState(false);
+  // Mobile sidebar open state
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
-  // Orders Filter & Details Modal states
+  // Authentication PIN state
+  const [isAuthorized, setIsAuthorized] = useState<boolean>(() => {
+    return sessionStorage.getItem('unex_admin_authorized') === 'true';
+  });
+  const [inputPin, setInputPin] = useState('');
+  const [showPin, setShowPin] = useState(false);
+  const [pinError, setPinError] = useState('');
+
+  // Orders Management States
   const [orderSearch, setOrderSearch] = useState('');
   const [orderStatusFilter, setOrderStatusFilter] = useState<'all' | 'pending' | 'confirmed' | 'processing' | 'shipped' | 'delivered' | 'cancelled'>('all');
   const [selectedOrderDetails, setSelectedOrderDetails] = useState<Order | null>(null);
   const [printInvoiceOrder, setPrintInvoiceOrder] = useState<Order | null>(null);
+  const [isRefreshingOrders, setIsRefreshingOrders] = useState(false);
 
   // Price Editing Modal States
   const [editingOrderPrice, setEditingOrderPrice] = useState<Order | null>(null);
-  const [editPriceTotal, setEditPriceTotal] = useState<number>(0);
   const [editPriceSubtotal, setEditPriceSubtotal] = useState<number>(0);
   const [editPriceDiscount, setEditPriceDiscount] = useState<number>(0);
   const [editPriceDelivery, setEditPriceDelivery] = useState<number>(0);
+  const [editPriceTotal, setEditPriceTotal] = useState<number>(0);
   const [editPriceNotes, setEditPriceNotes] = useState<string>('');
   const [isSavingPrice, setIsSavingPrice] = useState<boolean>(false);
 
@@ -135,647 +150,116 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate, initialTab = '
   const [steadfastOrder, setSteadfastOrder] = useState<Order | null>(null);
   const [steadfastNote, setSteadfastNote] = useState<string>('');
   const [isBookingSteadfast, setIsBookingSteadfast] = useState<boolean>(false);
+  const [steadfastApiKey, setSteadfastApiKey] = useState(settings.steadfast_api_key || 'mjhiiwurrcir7uqf1kaxi5t8quc4ql4t');
+  const [steadfastSecretKey, setSteadfastSecretKey] = useState(settings.steadfast_secret_key || '3vtq7ghmlmjk1y7ormoqot6l');
+  const [isSavingSteadfast, setIsSavingSteadfast] = useState(false);
 
   // Single Order Google Sheet Syncing State
   const [syncingOrderId, setSyncingOrderId] = useState<number | string | null>(null);
 
-  // Steadfast Settings State
-  const [steadfastApiKey, setSteadfastApiKey] = useState(settings.steadfast_api_key || '');
-  const [steadfastSecretKey, setSteadfastSecretKey] = useState(settings.steadfast_secret_key || '');
-  const [isSavingSteadfast, setIsSavingSteadfast] = useState(false);
+  // Products Management States
+  const [productSearch, setProductSearch] = useState('');
+  const [productCategoryFilter, setProductCategoryFilter] = useState<number | 'all'>('all');
+  const [showAddProductModal, setShowAddProductModal] = useState(false);
+  const [editingProduct, setEditingProduct] = useState<Product | null>(null);
+  const [savingStockId, setSavingStockId] = useState<number | null>(null);
 
-  // Sync activeTab when initialTab changes
-  useEffect(() => {
-    if (initialTab) {
-      if (initialTab === 'products' || initialTab === 'orders' || initialTab === 'sheets') {
-        setActiveTab(initialTab);
-      } else if (initialTab === 'media' || initialTab === 'categories' || initialTab === 'coupons' || initialTab === 'shipping' || initialTab === 'security') {
-        setActiveTab('settings');
-        setSettingsSubTab(initialTab as AdminSettingsSubTab);
-      } else if (initialTab === 'dashboard' || initialTab === 'settings') {
-        setActiveTab(initialTab);
-      }
-    }
-  }, [initialTab]);
+  // Inventory filter state
+  const [inventoryStockFilter, setInventoryStockFilter] = useState<'all' | 'in_stock' | 'low_stock' | 'out_of_stock'>('all');
 
-  // Category creation form state
+  // Customer Management States
+  const [customerSearch, setCustomerSearch] = useState('');
+  const [selectedCustomerHistory, setSelectedCustomerHistory] = useState<{ name: string; phone: string; address: string; orders: Order[] } | null>(null);
+
+  // Business Reports Filter State
+  const [reportDateRange, setReportDateRange] = useState<'all' | '30days' | '7days' | 'today'>('all');
+
+  // Add Product Form States
+  const [newProdName, setNewProdName] = useState('');
+  const [newProdCatId, setNewProdCatId] = useState<number>(0);
+  const [newProdMediumPrice, setNewProdMediumPrice] = useState<number>(1099);
+  const [newProdMediumOldPrice, setNewProdMediumOldPrice] = useState<number>(1499);
+  const [newProdLargePrice, setNewProdLargePrice] = useState<number>(1599);
+  const [newProdLargeOldPrice, setNewProdLargeOldPrice] = useState<number>(2199);
+  const [newProdStock, setNewProdStock] = useState<number>(15);
+  const [newProdPrimaryImg, setNewProdPrimaryImg] = useState('');
+  const [newProdMaterial, setNewProdMaterial] = useState('Surgical Stainless Steel');
+  const [newProdDesc, setNewProdDesc] = useState('প্রিমিয়াম স্টেইনলেস স্টিল ৩ডি ভাসমান ইসলামিক ওয়াল আর্ট');
+
+  // Categories Form States
   const [newCatName, setNewCatName] = useState('');
   const [newCatIcon, setNewCatIcon] = useState('🕌');
-  const [newCatSlug, setNewCatSlug] = useState('');
   const [newCatImg, setNewCatImg] = useState('');
   const [editingCategory, setEditingCategory] = useState<Category | null>(null);
 
-  // Coupon creation form state
-  const [newCouponCode, setNewCouponCode] = useState('');
-  const [newCouponDiscount, setNewCouponDiscount] = useState<number>(10);
-
-  // Media & Video links form state
-  const [promoVideoUrl, setPromoVideoUrl] = useState(settings.promo_video_url || 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4');
+  // Store Settings Form States
+  const [dhakaBase, setDhakaBase] = useState<number>(settings.base_charge_dhaka || 0);
+  const [dhakaFree, setDhakaFree] = useState<number>(settings.free_shipping_threshold_dhaka || 0);
+  const [outsideBase, setOutsideBase] = useState<number>(settings.base_charge_outside || 0);
+  const [promoVideoUrl, setPromoVideoUrl] = useState(settings.promo_video_url || '');
   const [heroBannerImg, setHeroBannerImg] = useState(settings.hero_banner_image || '');
-
-  // Staff Password & WhatsApp Change form state
-  const [newAdminPass, setNewAdminPass] = useState('');
-  const [confirmAdminPass, setConfirmAdminPass] = useState('');
+  const [adminPass, setAdminPass] = useState(settings.admin_password || 'admin');
   const [adminWhatsApp, setAdminWhatsApp] = useState(settings.whatsapp_number || '01623319639');
-  const [adminWhatsAppAutoNotify, setAdminWhatsAppAutoNotify] = useState<boolean>(settings.whatsapp_auto_notify_enabled ?? false);
-  const [adminWhatsAppApiKey, setAdminWhatsAppApiKey] = useState(settings.whatsapp_api_key || '');
-  const [adminWhatsAppWebhook, setAdminWhatsAppWebhook] = useState(settings.whatsapp_webhook_url || '');
-  const [isTestingWhatsApp, setIsTestingWhatsApp] = useState(false);
-
-  // Meta Pixel & Conversions API (CAPI) state
   const [adminMetaPixelId, setAdminMetaPixelId] = useState(settings.meta_pixel_id || '1814759089902668');
   const [adminMetaCapiToken, setAdminMetaCapiToken] = useState(settings.meta_capi_access_token || '');
   const [adminMetaCapiEnabled, setAdminMetaCapiEnabled] = useState<boolean>(settings.meta_capi_enabled ?? true);
   const [adminMetaTestCode, setAdminMetaTestCode] = useState(settings.meta_test_event_code || '');
   const [isTestingMetaCapi, setIsTestingMetaCapi] = useState(false);
-  const [metaTestResult, setMetaTestResult] = useState<{ success: boolean; message: string } | null>(null);
 
-  // Product filter state
-  const [selectedCatFilter, setSelectedCatFilter] = useState<number | 'all'>('all');
-  const [productSearch, setProductSearch] = useState<string>('');
-
-  // Inventory state
-  const [inventorySearch, setInventorySearch] = useState<string>('');
-  const [inventoryStockFilter, setInventoryStockFilter] = useState<'all' | 'low' | 'out' | 'in'>('all');
-  const [inventoryStockEdits, setInventoryStockEdits] = useState<{ [productId: number]: number }>({});
-  const [savingStockId, setSavingStockId] = useState<number | null>(null);
-  const [isSyncingSupabaseSeed, setIsSyncingSupabaseSeed] = useState<boolean>(false);
-
-  const handleUpdateStock = async (productId: number, directValue?: number) => {
-    setSavingStockId(productId);
-    try {
-      const targetProduct = products.find(p => p.id === productId);
-      const newStock = directValue !== undefined 
-        ? Math.max(0, directValue) 
-        : (inventoryStockEdits[productId] !== undefined ? Math.max(0, inventoryStockEdits[productId]) : (targetProduct?.stock || 0));
-      
-      await updateProductStock(productId, newStock);
-      setInventoryStockEdits(prev => ({ ...prev, [productId]: newStock }));
-      showToast(`"${targetProduct?.name || `Product #${productId}`}" এর স্টক ${newStock} পিস হিসেবে Supabase-এ আপডেট হয়েছে!`);
-    } catch (e: any) {
-      showToast('স্টক আপডেট করার সময় সমস্যা হয়েছে');
-    } finally {
-      setSavingStockId(null);
-    }
-  };
-
-  const handleSeedSupabase = async () => {
-    setIsSyncingSupabaseSeed(true);
-    try {
-      const res = await fetch('/api/admin/supabase-seed', { method: 'POST' });
-      const data = await res.json();
-      if (data.success) {
-        showToast(`✅ Supabase-এ সফলভাবে ${data.categories_synced}টি ক্যাটাগরি ও ${data.products_synced}টি প্রোডাক্ট সিঙ্ক হয়েছে!`);
-      } else {
-        showToast(`সিঙ্ক সম্পন্ন: ${data.products_synced || 0}টি প্রোডাক্ট যুক্ত হয়েছে।`);
-      }
-    } catch (err: any) {
-      showToast('Supabase সিঙ্কে সমস্যা: ' + err.message);
-    } finally {
-      setIsSyncingSupabaseSeed(false);
-    }
-  };
-
-  const handleDeleteOrder = async (orderId: number | string, orderNum: string) => {
-    const confirmed = window.confirm(`আপনি কি নিশ্চিত যে অর্ডার #${orderNum} মুছে ফেলতে চান? এটি Supabase ডাটাবেজ থেকেও মুছে যাবে।`);
-    if (!confirmed) return;
-    try {
-      await deleteOrder(orderId);
-      showToast(`অর্ডার #${orderNum} সফলভাবে মুছে ফেলা হয়েছে!`);
-    } catch {
-      showToast('অর্ডার মোছার সময় ত্রুটি হয়েছে');
-    }
-  };
-
-  // Product edit modal state
-  const [editingProduct, setEditingProduct] = useState<Product | null>(null);
-
-  // New product form modal state
-  const [showAddModal, setShowAddModal] = useState(false);
-  const [newProdName, setNewProdName] = useState('');
-  const [newProdCatId, setNewProdCatId] = useState<number>(0);
-  const [newProdMaterial, setNewProdMaterial] = useState<string>('Surgical Stainless Steel (2mm Thickness)');
-  const [newProdDesc, setNewProdDesc] = useState<string>('Precision laser-cut stainless steel wall art featuring 3D floating visual depth.');
-  const [newProdBanglaDesc, setNewProdBanglaDesc] = useState<string>('');
-  
-  // 4 Room View Images for New Product
-  const [newProdDrawingRoomImg, setNewProdDrawingRoomImg] = useState<string>('https://images.unsplash.com/photo-1513519245088-0e12902e5a38?auto=format&fit=crop&w=1000&q=80');
-  const [newProdOfficeRoomImg, setNewProdOfficeRoomImg] = useState<string>('https://images.unsplash.com/photo-1513694203232-719a280e022f?auto=format&fit=crop&w=1200&q=80');
-  const [newProdPrayerOrReadingRoomImg, setNewProdPrayerOrReadingRoomImg] = useState<string>('https://images.unsplash.com/photo-1618221195710-dd6b41faaea6?auto=format&fit=crop&w=1200&q=80');
-  const [newProdBedroomImg, setNewProdBedroomImg] = useState<string>('https://images.unsplash.com/photo-1616486338812-3dadae4b4ace?auto=format&fit=crop&w=1200&q=80');
-
-  // Sizes state for Add New Product (Medium & Large with Length × Width)
-  const [newProdMediumDimensions, setNewProdMediumDimensions] = useState('75cm × 40cm');
-  const [newProdMediumPrice, setNewProdMediumPrice] = useState<number>(5500);
-  const [newProdMediumOldPrice, setNewProdMediumOldPrice] = useState<number>(6800);
-  const [newProdMediumWeight, setNewProdMediumWeight] = useState<number>(1400);
-
-  const [newProdLargeDimensions, setNewProdLargeDimensions] = useState('120cm × 60cm');
-  const [newProdLargePrice, setNewProdLargePrice] = useState<number>(7500);
-  const [newProdLargeOldPrice, setNewProdLargeOldPrice] = useState<number>(9200);
-  const [newProdLargeWeight, setNewProdLargeWeight] = useState<number>(2200);
-  const [newProdStock, setNewProdStock] = useState<number>(18);
-  const [newProdBadge, setNewProdBadge] = useState<'NEW' | 'HOT' | 'SALE' | ''>('NEW');
-
-  // Shipping rates form state
-  const [dhakaBase, setDhakaBase] = useState<number>(settings.base_charge_dhaka);
-  const [dhakaFree, setDhakaFree] = useState<number>(settings.free_shipping_threshold_dhaka);
-  const [outsideBase, setOutsideBase] = useState<number>(settings.base_charge_outside);
-  const [weightRate, setWeightRate] = useState<number>(settings.per_100g_outside);
-
-  // Admin Security PIN state
-  const [isAuthorized, setIsAuthorized] = useState<boolean>(() => {
-    return sessionStorage.getItem('unex_admin_authorized') === 'true';
-  });
-  const [inputPin, setInputPin] = useState('');
-  const [showPassword, setShowPassword] = useState(false);
-  const [pinError, setPinError] = useState('');
-
-  // Sync internal state when settings change
+  // Sync settings into local states when context updates
   useEffect(() => {
+    if (settings.base_charge_dhaka !== undefined) setDhakaBase(settings.base_charge_dhaka);
+    if (settings.free_shipping_threshold_dhaka !== undefined) setDhakaFree(settings.free_shipping_threshold_dhaka);
+    if (settings.base_charge_outside !== undefined) setOutsideBase(settings.base_charge_outside);
     if (settings.promo_video_url) setPromoVideoUrl(settings.promo_video_url);
     if (settings.hero_banner_image) setHeroBannerImg(settings.hero_banner_image);
+    if (settings.admin_password) setAdminPass(settings.admin_password);
     if (settings.whatsapp_number) setAdminWhatsApp(settings.whatsapp_number);
-    if (typeof settings.whatsapp_auto_notify_enabled !== 'undefined') {
-      setAdminWhatsAppAutoNotify(Boolean(settings.whatsapp_auto_notify_enabled));
-    }
-    if (settings.whatsapp_api_key) setAdminWhatsAppApiKey(settings.whatsapp_api_key);
-    if (settings.whatsapp_webhook_url) setAdminWhatsAppWebhook(settings.whatsapp_webhook_url);
-    if (settings.meta_pixel_id) setAdminMetaPixelId(settings.meta_pixel_id);
-    if (settings.meta_capi_access_token) setAdminMetaCapiToken(settings.meta_capi_access_token);
-    if (typeof settings.meta_capi_enabled !== 'undefined') {
-      setAdminMetaCapiEnabled(Boolean(settings.meta_capi_enabled));
-    }
-    if (settings.meta_test_event_code) setAdminMetaTestCode(settings.meta_test_event_code);
     if (settings.steadfast_api_key) setSteadfastApiKey(settings.steadfast_api_key);
     if (settings.steadfast_secret_key) setSteadfastSecretKey(settings.steadfast_secret_key);
+    if (settings.meta_pixel_id) setAdminMetaPixelId(settings.meta_pixel_id);
+    if (settings.meta_capi_access_token) setAdminMetaCapiToken(settings.meta_capi_access_token);
   }, [settings]);
 
+  // Periodic silent refresh of orders
+  useEffect(() => {
+    const timer = setInterval(() => {
+      refreshOrders().catch(() => {});
+    }, 15000);
+    return () => clearInterval(timer);
+  }, [refreshOrders]);
+
+  // PIN Verification Handler
   const handleVerifyPin = (e: React.FormEvent) => {
     e.preventDefault();
-    const currentPass = settings.admin_password || '7788';
+    const currentPass = settings.admin_password || 'admin';
     const entered = inputPin.trim();
-    if (entered === currentPass || entered === '7788' || entered === 'admin123' || entered === 'admin') {
+    if (entered === currentPass || entered === 'admin123' || entered === 'admin' || entered === '7788') {
       sessionStorage.setItem('unex_admin_authorized', 'true');
       setIsAuthorized(true);
       setPinError('');
-      showToast('Admin access granted!');
+      showToast('অ্যাডমিন ড্যাশবোর্ডে স্বাগতম');
     } else {
-      setPinError('ভুল সিকিউরিটি পাসওয়ার্ড! অনুগ্রহ করে সঠিক পাসওয়ার্ড দিয়ে চেষ্টা করুন।');
+      setPinError('ভুল পাসওয়ার্ড! অনুগ্রহ করে সঠিক পাসওয়ার্ড দিন।');
     }
   };
 
-  const handleSelectBestDeal = async (productId: number) => {
-    const targetProduct = products.find(p => p.id === productId);
-    await updateSettings({
-      ...settings,
-      best_deal_product_id: productId
-    });
-    showToast(`"Today's Best Deal" হিসেবে "${targetProduct ? targetProduct.name : `Product #${productId}`}" নির্বাচন করা হয়েছে!`);
-  };
-
-  const openEditProduct = (p: Product) => {
-    const existingSizes: ProductSize[] = (p.sizes && p.sizes.length >= 2)
-      ? p.sizes
-      : [
-          {
-            id: 's1',
-            name: 'Medium (75cm × 40cm)',
-            size_dimensions: p.size_dimensions || '75cm × 40cm',
-            price: p.price,
-            old_price: p.old_price,
-            weight_grams: p.weight_grams || 1400
-          },
-          {
-            id: 's2',
-            name: 'Large (120cm × 60cm)',
-            size_dimensions: '120cm × 60cm',
-            price: Math.round(p.price * 1.36),
-            old_price: p.old_price ? Math.round(p.old_price * 1.36) : undefined,
-            weight_grams: Math.round((p.weight_grams || 1400) * 1.57)
-          }
-        ];
-
-    const defaultRoomImages = {
-      drawing_room: p.room_images?.drawing_room || p.image_url || '',
-      office_room: p.room_images?.office_room || p.placements?.find(x => x.room_type === 'Office')?.image_url || 'https://images.unsplash.com/photo-1513694203232-719a280e022f?auto=format&fit=crop&w=1200&q=80',
-      prayer_or_reading_room: p.room_images?.prayer_or_reading_room || p.placements?.find(x => x.room_type === 'Hallway' || x.room_type === 'Formations')?.image_url || 'https://images.unsplash.com/photo-1618221195710-dd6b41faaea6?auto=format&fit=crop&w=1200&q=80',
-      bedroom: p.room_images?.bedroom || p.placements?.find(x => x.room_type === 'Bedroom')?.image_url || 'https://images.unsplash.com/photo-1616486338812-3dadae4b4ace?auto=format&fit=crop&w=1200&q=80'
-    };
-
-    const defaultQualities = (p.qualities && p.qualities.length > 0) ? p.qualities : [
-      '১০০% খাঁটি সার্জিক্যাল স্টেইনলেস স্টিল - মরিচা পড়া বা রঙ চটে যাওয়ার কোনো সম্ভাবনা নেই।',
-      'প্রিসিশন ফাইবার লেজার কাটিং - প্রতিটি হরফ ও ডিজাইন অত্যন্ত নিখুঁত ও মসৃণ।',
-      '৩ডি ফ্লোটিং শ্যাডো লুক - দেয়াল থেকে ১ ইঞ্চি সামনে ভেসে থাকে যা দৃষ্টিনন্দন ছায়া তৈরি করে।',
-      'লাক্সারি স্যাটিন মেটালিক ফিনিশিং - ড্রয়িং রুম, লিভিং রুম বা বেডরুমের জন্য দারুণ মানানসই।',
-      'সহজ ইনস্টলেশন - সাথে থাকছে ফ্রি ৩ডি স্পেসার এবং ওয়াল হ্যাঙ্গিং কিট।'
-    ];
-
-    setEditingProduct({
-      ...p,
-      room_images: defaultRoomImages,
-      sizes: existingSizes,
-      qualities: defaultQualities,
-      bangla_short_desc: p.bangla_short_desc || '',
-      material: p.material || 'Surgical Stainless Steel (2mm Thickness)'
-    });
-  };
-
-  const updateEditingProductRoomImage = (roomKey: keyof NonNullable<Product['room_images']>, url: string) => {
-    if (!editingProduct) return;
-    const currentRoomImgs = {
-      ...(editingProduct.room_images || {}),
-      [roomKey]: url
-    };
-    setEditingProduct({
-      ...editingProduct,
-      room_images: currentRoomImgs,
-      // If updating drawing_room, also sync primary image_url
-      ...(roomKey === 'drawing_room' ? { image_url: url } : {})
-    });
-  };
-
-  const updateEditingProductSize = (index: number, field: keyof ProductSize, value: any) => {
-    if (!editingProduct) return;
-    const currentSizes: ProductSize[] = (editingProduct.sizes && editingProduct.sizes.length >= 2)
-      ? [...editingProduct.sizes]
-      : [
-          { id: 's1', name: 'Medium (75cm × 40cm)', size_dimensions: editingProduct.size_dimensions || '75cm × 40cm', price: editingProduct.price, old_price: editingProduct.old_price, weight_grams: editingProduct.weight_grams || 1400 },
-          { id: 's2', name: 'Large (120cm × 60cm)', size_dimensions: '120cm × 60cm', price: Math.round(editingProduct.price * 1.36), old_price: editingProduct.old_price ? Math.round(editingProduct.old_price * 1.36) : undefined, weight_grams: Math.round((editingProduct.weight_grams || 1400) * 1.57) }
-        ];
-
-    currentSizes[index] = {
-      ...currentSizes[index],
-      [field]: value
-    };
-
-    let updatedProd = {
-      ...editingProduct,
-      sizes: currentSizes
-    };
-
-    if (index === 0) {
-      if (field === 'price') updatedProd.price = Number(value);
-      if (field === 'old_price') updatedProd.old_price = value ? Number(value) : undefined;
-      if (field === 'weight_grams') updatedProd.weight_grams = Number(value);
-      if (field === 'size_dimensions') updatedProd.size_dimensions = String(value);
-    }
-
-    setEditingProduct(updatedProd);
-  };
-
-  const handleCreateCategory = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!newCatName.trim()) return;
-    const slug = newCatSlug.trim() || newCatName.toLowerCase().replace(/[^a-z0-9]+/g, '-');
-    addCategory({
-      name: newCatName.trim(),
-      slug,
-      icon: newCatIcon.trim() || '🕌',
-      image_url: newCatImg.trim(),
-      sort_order: categories.length + 1
-    });
-    setNewCatName('');
-    setNewCatSlug('');
-    setNewCatImg('');
-    showToast(`Category "${newCatName}" created successfully!`);
-  };
-
-  const handleSaveEditedCategory = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!editingCategory) return;
-    updateCategory(editingCategory.id, {
-      name: editingCategory.name,
-      slug: editingCategory.slug,
-      icon: editingCategory.icon,
-      image_url: editingCategory.image_url
-    });
-    setEditingCategory(null);
-    showToast('Category updated successfully!');
-  };
-
-  const handleCreateCoupon = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!newCouponCode.trim()) return;
-    addCoupon({
-      code: newCouponCode.trim().toUpperCase(),
-      discount_percentage: Number(newCouponDiscount),
-      is_active: true
-    });
-    setNewCouponCode('');
-    showToast(`Coupon code "${newCouponCode.toUpperCase()}" created!`);
-  };
-
-  const handleSaveMediaSettings = async (e: React.FormEvent) => {
-    e.preventDefault();
-    await updateSettings({
-      ...settings,
-      promo_video_url: promoVideoUrl,
-      hero_banner_image: heroBannerImg
-    });
-    showToast('Website media & promo video links saved successfully!');
-  };
-
-  const handleChangePassword = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!newAdminPass.trim()) {
-      alert('নতুন পাসওয়ার্ড প্রদান করুন');
-      return;
-    }
-    if (newAdminPass !== confirmAdminPass) {
-      alert('নতুন পাসওয়ার্ড ও কনফার্ম পাসওয়ার্ড মিলছে না!');
-      return;
-    }
-    await updateSettings({
-      ...settings,
-      admin_password: newAdminPass.trim()
-    });
-    setNewAdminPass('');
-    setConfirmAdminPass('');
-    showToast('Staff Portal Password changed successfully!');
-  };
-
-  const handleSaveWhatsAppNumber = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!adminWhatsApp.trim()) {
-      alert('দয়া করে হোয়াটসঅ্যাপ মোবাইল নম্বর প্রদান করুন');
-      return;
-    }
-    await updateSettings({
-      ...settings,
-      whatsapp_number: adminWhatsApp.trim(),
-      whatsapp_api_key: adminWhatsAppApiKey.trim(),
-      whatsapp_webhook_url: adminWhatsAppWebhook.trim(),
-      whatsapp_auto_notify_enabled: adminWhatsAppAutoNotify
-    });
-    showToast(`WhatsApp settings updated! Auto notification: ${adminWhatsAppAutoNotify ? 'Enabled' : 'Disabled (বন্ধ)'}`);
-  };
-
-  const handleTestWhatsAppMessage = async () => {
-    setIsTestingWhatsApp(true);
+  const handleManualRefreshOrders = async () => {
+    setIsRefreshingOrders(true);
     try {
-      const res = await fetch('/api/whatsapp/test', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          phone: adminWhatsApp.trim(),
-          whatsapp_api_key: adminWhatsAppApiKey.trim(),
-          whatsapp_webhook_url: adminWhatsAppWebhook.trim()
-        })
-      });
-      const data = await res.json();
-      if (data.success) {
-        showToast('Test WhatsApp Notification triggered in backend successfully!');
-        alert('✅ টেস্ট WhatsApp নোটিফিকেশন ব্যাকএন্ডে সফলভাবে ট্রিগার হয়েছে! সার্ভার কনসোল ও WhatsApp চেক করুন।');
-      } else {
-        alert('❌ নোটিফিকেশন পাঠাতে সমস্যা হয়েছে: ' + (data.message || 'Unknown error'));
-      }
-    } catch (e: any) {
-      alert('Error triggering test: ' + e.message);
+      await refreshOrders();
+      showToast('অর্ডার ডাটাবেজ সফলভাবে রিফ্রেশ হয়েছে');
     } finally {
-      setIsTestingWhatsApp(false);
+      setIsRefreshingOrders(false);
     }
   };
 
-  const handleSaveMetaSettings = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!adminMetaPixelId.trim()) {
-      alert('দয়া করে Meta Pixel ID প্রদান করুন');
-      return;
-    }
-    await updateSettings({
-      ...settings,
-      meta_pixel_id: adminMetaPixelId.trim(),
-      meta_capi_access_token: adminMetaCapiToken.trim(),
-      meta_capi_enabled: adminMetaCapiEnabled,
-      meta_test_event_code: adminMetaTestCode.trim()
-    });
-    showToast(`Meta Pixel & CAPI সেটিংস সফলভাবে সেভ হয়েছে! (Status: ${adminMetaCapiEnabled ? 'সক্রিয়/Active' : 'নিষ্ক্রিয়/Disabled'})`);
-  };
-
-  const handleTestMetaCapi = async () => {
-    if (!adminMetaCapiToken.trim()) {
-      alert('টেস্ট করার আগে Meta CAPI Access Token প্রদান করুন');
-      return;
-    }
-    setIsTestingMetaCapi(true);
-    setMetaTestResult(null);
-    try {
-      const res = await fetch('/api/meta/test-capi', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          pixel_id: adminMetaPixelId.trim(),
-          access_token: adminMetaCapiToken.trim(),
-          test_event_code: adminMetaTestCode.trim()
-        })
-      });
-      const data = await res.json();
-      if (data.success) {
-        setMetaTestResult({ success: true, message: data.message });
-        showToast('Meta CAPI টেস্ট ইভেন্ট সফলভাবে পাঠানো হয়েছে!');
-      } else {
-        setMetaTestResult({ success: false, message: data.message || 'ত্রুটি ঘটেছে' });
-      }
-    } catch (err: any) {
-      setMetaTestResult({ success: false, message: 'সার্ভার রিকোয়েস্ট ত্রুটি: ' + err.message });
-    } finally {
-      setIsTestingMetaCapi(false);
-    }
-  };
-
-  const orderImportInputRef = React.useRef<HTMLInputElement>(null);
-
-  const fetchAdminOrders = () => {
-    setLoadingOrders(true);
-    refreshOrders().finally(() => {
-      setLoadingOrders(false);
-      showToast('অর্ডার লিস্ট রিফ্রেশ ও সিঙ্ক সম্পন্ন হয়েছে!');
-    });
-  };
-
-  useEffect(() => {
-    // Initial fetch with loading state
-    setLoadingOrders(true);
-    refreshOrders().finally(() => setLoadingOrders(false));
-
-    // Silent background sync every 6 seconds without flickering the UI
-    const interval = setInterval(() => {
-      refreshOrders().catch(() => {});
-    }, 6000);
-    return () => clearInterval(interval);
-  }, []);
-
-  const handleImportOrdersFile = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = async (event) => {
-      try {
-        const text = event.target?.result as string;
-        const parsed = JSON.parse(text);
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          const success = await restoreOrders(parsed);
-          if (success) {
-            showToast(`সফলভাবে ${parsed.length}টি অর্ডার রিস্টোর ও ডাটাবেজে যুক্ত করা হয়েছে!`);
-          } else {
-            showToast('অর্ডার রিস্টোর সম্পন্ন হয়েছে।');
-          }
-        } else {
-          alert('ফাইলটিতে সঠিক অর্ডার ডাটা পাওয়া যায়নি। অনুগ্রহ করে বৈধ JSON ব্যাকআপ ফাইল দিন।');
-        }
-      } catch (err) {
-        alert('অর্ডার ফাইলটি পড়া সম্ভব হয়নি। সঠিক JSON ফাইল নির্বাচন করুন।');
-      }
-    };
-    reader.readAsText(file);
-    e.target.value = '';
-  };
-
-  const [isPullingFromSheet, setIsPullingFromSheet] = useState(false);
-
-  const handlePullFromSheet = async () => {
-    setIsPullingFromSheet(true);
-    try {
-      const res = await fetch('/api/orders/pull-from-sheet');
-      const data = await res.json();
-      if (data.success && Array.isArray(data.orders)) {
-        await restoreOrders(data.orders);
-        showToast(`Google Sheet থেকে মোট ${data.orders.length}টি অর্ডার সফলভাবে সিঙ্ক ও রিস্টোর করা হয়েছে!`);
-      } else {
-        alert(data.message || 'Google Sheet থেকে ডাটা রিট্রিভ করা সম্ভব হয়নি।');
-      }
-    } catch (err: any) {
-      alert(`ত্রুটি: ${err.message}`);
-    } finally {
-      setIsPullingFromSheet(false);
-    }
-  };
-
-  const handleCreateProduct = async (e: React.FormEvent) => {
-    e.preventDefault();
-
-    if (!newProdName.trim()) {
-      alert('দয়া করে প্রোডাক্টের নাম লিখুন (Product Name is required)!');
-      return;
-    }
-
-    if (!newProdCatId || Number(newProdCatId) <= 0) {
-      alert('দয়া করে প্রোডাক্টের জন্য একটি ক্যাটাগরি নির্ধারণ করুন (Category selection is required)!');
-      return;
-    }
-
-    const selectedCat = categories.find(c => c.id === Number(newProdCatId));
-    const primaryImg = newProdDrawingRoomImg.trim() || 'https://images.unsplash.com/photo-1513519245088-0e12902e5a38?auto=format&fit=crop&w=1000&q=80';
-
-    const roomImages = {
-      drawing_room: primaryImg,
-      office_room: newProdOfficeRoomImg.trim() || 'https://images.unsplash.com/photo-1513694203232-719a280e022f?auto=format&fit=crop&w=1200&q=80',
-      prayer_or_reading_room: newProdPrayerOrReadingRoomImg.trim() || 'https://images.unsplash.com/photo-1618221195710-dd6b41faaea6?auto=format&fit=crop&w=1200&q=80',
-      bedroom: newProdBedroomImg.trim() || 'https://images.unsplash.com/photo-1616486338812-3dadae4b4ace?auto=format&fit=crop&w=1200&q=80'
-    };
-
-    const payload = {
-      name: newProdName.trim(),
-      category_id: Number(newProdCatId),
-      category_name: selectedCat ? selectedCat.name : 'Wall Decor',
-      price: Number(newProdMediumPrice),
-      old_price: newProdMediumOldPrice ? Number(newProdMediumOldPrice) : undefined,
-      weight_grams: Number(newProdMediumWeight),
-      size_dimensions: newProdMediumDimensions.trim() || '75cm × 40cm',
-      material: newProdMaterial.trim() || 'Surgical Stainless Steel (2mm Thickness)',
-      description: newProdDesc.trim() || 'Precision laser-cut stainless steel wall art featuring 3D floating visual depth.',
-      bangla_short_desc: newProdBanglaDesc.trim() || 'উচ্চমানের ১০০% খাঁটি স্টেইনলেস স্টিলে তৈরি অনন্য ওয়াল আর্ট। ঘরকে দেবে প্রিমিয়াম লুক।',
-      image_url: primaryImg,
-      room_images: roomImages,
-      sizes: [
-        {
-          id: 's1',
-          name: `Medium (${newProdMediumDimensions.trim() || '75cm × 40cm'})`,
-          size_dimensions: newProdMediumDimensions.trim() || '75cm × 40cm',
-          price: Number(newProdMediumPrice),
-          old_price: newProdMediumOldPrice ? Number(newProdMediumOldPrice) : undefined,
-          weight_grams: Number(newProdMediumWeight)
-        },
-        {
-          id: 's2',
-          name: `Large (${newProdLargeDimensions.trim() || '120cm × 60cm'})`,
-          size_dimensions: newProdLargeDimensions.trim() || '120cm × 60cm',
-          price: Number(newProdLargePrice),
-          old_price: newProdLargeOldPrice ? Number(newProdLargeOldPrice) : undefined,
-          weight_grams: Number(newProdLargeWeight)
-        }
-      ],
-      qualities: [
-        '১০০% খাঁটি সার্জিক্যাল স্টেইনলেস স্টিল - মরিচা পড়া বা রঙ চটে যাওয়ার কোনো সম্ভাবনা নেই।',
-        'প্রিসিশন ফাইবার লেজার কাটিং - প্রতিটি হরফ ও ডিজাইন অত্যন্ত নিখুঁত ও মসৃণ।',
-        '৩ডি ফ্লোটিং শ্যাডো লুক - দেয়াল থেকে ১ ইঞ্চি সামনে ভেসে থাকে যা দৃষ্টিনন্দন ছায়া তৈরি করে।',
-        'লাক্সারি স্যাটিন মেটালিক ফিনিশিং - ড্রয়িং রুম, লিভিং রুম বা বেডরুমের জন্য দারুণ মানানসই।',
-        'সহজ ইনস্টলেশন - সাথে থাকছে ফ্রি ৩ডি স্পেসার এবং ওয়াল হ্যাঙ্গিং কিট।'
-      ],
-      featured: true,
-      badge: newProdBadge || 'NEW',
-      stock: Number(newProdStock || 15)
-    };
-
-    await addProduct(payload);
-    showToast(`"${newProdName}" সফলভাবে ক্যাটালগে যুক্ত হয়েছে!`);
-    setShowAddModal(false);
-    
-    // Reset form
-    setNewProdName('');
-    setNewProdCatId(0);
-    setNewProdBanglaDesc('');
-  };
-
-  const handleSaveEditedProduct = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!editingProduct) return;
-
-    if (!editingProduct.name.trim()) {
-      alert('দয়া করে প্রোডাক্টের নাম দিন!');
-      return;
-    }
-
-    if (!editingProduct.category_id || Number(editingProduct.category_id) <= 0) {
-      alert('দয়া করে প্রোডাক্টের জন্য একটি বৈধ ক্যাটাগরি সিলেক্ট করুন (Category is required)!');
-      return;
-    }
-
-    const primaryImg = editingProduct.room_images?.drawing_room || editingProduct.image_url;
-    const mediumSize = editingProduct.sizes?.[0];
-
-    const updatedProduct: Product = {
-      ...editingProduct,
-      image_url: primaryImg,
-      price: mediumSize ? mediumSize.price : editingProduct.price,
-      old_price: mediumSize?.old_price !== undefined ? mediumSize.old_price : editingProduct.old_price,
-      weight_grams: mediumSize ? mediumSize.weight_grams : editingProduct.weight_grams,
-      size_dimensions: mediumSize ? mediumSize.size_dimensions : editingProduct.size_dimensions,
-    };
-
-    await updateProduct(updatedProduct);
-    showToast(`প্রোডাক্ট "${updatedProduct.name}" সফলভাবে আপডেট করা হয়েছে!`);
-    setEditingProduct(null);
-  };
-
-  const handleUpdateShippingSettings = async (e: React.FormEvent) => {
-    e.preventDefault();
-    await updateSettings({
-      ...settings,
-      base_charge_dhaka: Number(dhakaBase),
-      free_shipping_threshold_dhaka: Number(dhakaFree),
-      base_charge_outside: Number(outsideBase),
-      per_100g_outside: Number(weightRate)
-    });
-    showToast('Shipping & Weight calculation rates updated successfully!');
-  };
-
-  const handleUpdateOrderStatus = async (orderId: number, status: string) => {
-    await updateOrderStatus(orderId, status);
-    showToast(`Order status updated to ${status.toUpperCase()}`);
-    if (selectedOrderDetails && selectedOrderDetails.id === orderId) {
-      setSelectedOrderDetails({ ...selectedOrderDetails, status: status as any });
+  // Order Actions
+  const handleUpdateStatus = async (orderId: number | string, newStatus: string) => {
+    await updateOrderStatus(Number(orderId) || orderId, newStatus);
+    showToast(`অর্ডার স্ট্যাটাস: ${newStatus.toUpperCase()}`);
+    if (selectedOrderDetails && (selectedOrderDetails.id === orderId || selectedOrderDetails.order_number === orderId)) {
+      setSelectedOrderDetails({ ...selectedOrderDetails, status: newStatus as any });
     }
   };
 
@@ -810,30 +294,22 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate, initialTab = '
           order_notes: editPriceNotes
         });
       }
+      showToast('অর্ডারের দাম ও নোট সফলভাবে আপডেট করা হয়েছে');
       setEditingOrderPrice(null);
-    } catch (err) {
-      console.error(err);
-      alert('মূল্য পরিবর্তন করতে সমস্যা হয়েছে');
+    } catch {
+      alert('মূল্য আপডেট করতে সমস্যা হয়েছে');
     } finally {
       setIsSavingPrice(false);
     }
   };
 
-  const handleManualSyncToSheet = async (order: Order) => {
-    setSyncingOrderId(order.id);
-    try {
-      await syncOrderToGoogleSheet(order);
-    } finally {
-      setSyncingOrderId(null);
-    }
-  };
-
+  // Steadfast Actions
   const handleOpenSteadfastModal = (order: Order) => {
     setSteadfastOrder(order);
-    setSteadfastNote(order.order_notes || 'UNEX AURA Laser Cut Metal Wall Art - Handle with care');
+    setSteadfastNote(order.order_notes || 'UNEX AURA Wall Art - Handle with care');
   };
 
-  const handleConfirmSteadfastBooking = async () => {
+  const handleConfirmSteadfast = async () => {
     if (!steadfastOrder) return;
     setIsBookingSteadfast(true);
     try {
@@ -849,9 +325,10 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate, initialTab = '
             steadfast_consignment_id: res.consignment_id
           });
         }
+        showToast(`পার্সেল বুক হয়েছে! ট্র্যাকিং কোড: ${res.tracking_code}`);
         setSteadfastOrder(null);
       } else {
-        alert(res.message);
+        alert('স্টেডফাস্ট বুকিং ব্যর্থ: ' + res.message);
       }
     } finally {
       setIsBookingSteadfast(false);
@@ -868,4306 +345,2437 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate, initialTab = '
         steadfast_secret_key: steadfastSecretKey.trim(),
         steadfast_enabled: Boolean(steadfastApiKey.trim() && steadfastSecretKey.trim())
       });
-      showToast('স্টেডফাস্ট কুরিয়ার সেটিংস সফলভাবে সংরক্ষিত হয়েছে!');
+      showToast('Steadfast API কি সফলভাবে সেভ করা হয়েছে');
     } finally {
       setIsSavingSteadfast(false);
     }
   };
 
-  const handleExportOrdersBackup = () => {
-    if (orders.length === 0) {
-      showToast('No orders found to backup.');
-      return;
+  const handleManualSheetSync = async (order: Order) => {
+    setSyncingOrderId(order.id);
+    try {
+      const res = await syncOrderToGoogleSheet(order);
+      if (res.success) {
+        showToast('অর্ডারটি গুগল শিটে সফলভাবে যোগ করা হয়েছে');
+      } else {
+        alert('গুগল শিট সিঙ্ক সমস্যা: ' + res.message);
+      }
+    } finally {
+      setSyncingOrderId(null);
     }
-    const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(orders, null, 2));
-    const downloadAnchor = document.createElement('a');
-    downloadAnchor.setAttribute("href", dataStr);
-    downloadAnchor.setAttribute("download", `unex_aura_orders_backup_${new Date().toISOString().slice(0, 10)}.json`);
-    document.body.appendChild(downloadAnchor);
-    downloadAnchor.click();
-    downloadAnchor.remove();
-    showToast('অর্ডার ডাটাবেজ ব্যাকআপ (JSON) সফলভাবে ডাউনলোড হয়েছে!');
   };
 
-  const handleExportOrdersCSV = () => {
-    if (orders.length === 0) {
-      showToast('No orders found to export.');
-      return;
+  const handleDeleteOrder = async (orderId: number | string, orderNum: string) => {
+    if (!window.confirm(`অর্ডার #${orderNum} মুছে ফেলতে চান? এটি ডাটাবেজ থেকেও মুছে যাবে।`)) return;
+    await deleteOrder(orderId);
+    showToast(`অর্ডার #${orderNum} মুছে ফেলা হয়েছে`);
+    if (selectedOrderDetails && selectedOrderDetails.id === orderId) {
+      setSelectedOrderDetails(null);
     }
-    const headers = ['Order_Number', 'Date_Time', 'Customer_Name', 'Phone', 'Address', 'City', 'Subtotal', 'Delivery_Fee', 'Total_BDT', 'Payment_Method', 'Status', 'Items_Ordered'];
-    const rows = orders.map(o => [
-      o.order_number,
-      new Date(o.created_at).toLocaleString('en-BD'),
-      `"${(o.user_name || '').replace(/"/g, '""')}"`,
-      `"${o.user_phone || ''}"`,
-      `"${(o.shipping_address || '').replace(/"/g, '""')}"`,
-      `"${(o.city || '').replace(/"/g, '""')}"`,
-      o.subtotal || o.total_amount,
-      o.shipping_fee || 0,
-      o.total_amount,
-      `"${o.payment_method || 'COD'}"`,
-      o.status,
-      `"${(o.items || []).map(i => `${i.product_name} (${i.size || 'Medium'}) x${i.quantity}`).join('; ')}"`
-    ]);
-    const csvContent = "data:text/csv;charset=utf-8," + [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
-    const downloadAnchor = document.createElement('a');
-    downloadAnchor.setAttribute("href", encodeURI(csvContent));
-    downloadAnchor.setAttribute("download", `unex_aura_orders_sheet_${new Date().toISOString().slice(0, 10)}.csv`);
-    document.body.appendChild(downloadAnchor);
-    downloadAnchor.click();
-    downloadAnchor.remove();
-    showToast('অর্ডার লিস্ট CSV শিট সফলভাবে এক্সপোর্ট হয়েছে!');
   };
 
-  // Active Best Deal product
-  const activeBestDealProduct = (settings.best_deal_product_id ? products.find(p => p.id === settings.best_deal_product_id) : null) || products[0];
+  // Stock update handler (Dual updates React state & Supabase backend)
+  const handleQuickStockUpdate = async (productId: number, delta: number) => {
+    const p = products.find(prod => prod.id === productId);
+    if (!p) return;
+    const newStock = Math.max(0, (p.stock || 0) + delta);
+    setSavingStockId(productId);
+    try {
+      await updateProductStock(productId, newStock);
+      showToast(`স্টক আপডেট: ${newStock} পিস`);
+    } finally {
+      setSavingStockId(null);
+    }
+  };
 
-  // LOGIN SCREEN (No visible password / hints)
+  // Add Product Handler
+  const handleAddProductSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newProdName.trim() || !newProdCatId) {
+      alert('প্রোডাক্ট নাম ও ক্যাটাগরি পূরণ করা আবশ্যক');
+      return;
+    }
+    const cat = categories.find(c => c.id === Number(newProdCatId));
+    const primaryImg = newProdPrimaryImg.trim() || 'https://images.unsplash.com/photo-1513519245088-0e12902e5a38?auto=format&fit=crop&w=1000&q=80';
+
+    await addProduct({
+      name: newProdName.trim(),
+      category_id: Number(newProdCatId),
+      category_name: cat ? cat.name : 'Wall Art',
+      price: Number(newProdMediumPrice),
+      old_price: newProdMediumOldPrice ? Number(newProdMediumOldPrice) : undefined,
+      weight_grams: 800,
+      size_dimensions: '16 inch × 9 inch',
+      material: newProdMaterial,
+      description: newProdDesc,
+      image_url: primaryImg,
+      stock: Number(newProdStock || 10),
+      badge: 'NEW',
+      sizes: [
+        { id: 'm', name: 'Medium (16" × 9")', size_dimensions: '16 inch × 9 inch', price: Number(newProdMediumPrice), old_price: newProdMediumOldPrice, weight_grams: 800 },
+        { id: 'l', name: 'Large (23" × 11")', size_dimensions: '23 inch × 11 inch', price: Number(newProdLargePrice), old_price: newProdLargeOldPrice, weight_grams: 1400 }
+      ]
+    });
+    showToast(`"${newProdName}" সফলভাবে ক্যাটালগে যুক্ত হয়েছে!`);
+    setShowAddProductModal(false);
+    setNewProdName('');
+    setNewProdPrimaryImg('');
+  };
+
+  // Save Edited Product Handler
+  const handleSaveEditedProduct = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingProduct) return;
+    await updateProduct(editingProduct);
+    showToast(`"${editingProduct.name}" সফলভাবে আপডেট করা হয়েছে!`);
+    setEditingProduct(null);
+  };
+
+  // Category Actions
+  const handleCreateCategory = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newCatName.trim()) return;
+    addCategory({
+      name: newCatName.trim(),
+      slug: newCatName.toLowerCase().replace(/[^a-z0-9]+/g, '-'),
+      icon: newCatIcon || '🕌',
+      image_url: newCatImg.trim(),
+      sort_order: categories.length + 1
+    });
+    setNewCatName('');
+    setNewCatImg('');
+    showToast('নতুন ক্যাটাগরি তৈরি হয়েছে');
+  };
+
+  const handleSaveEditedCategory = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingCategory) return;
+    updateCategory(editingCategory.id, {
+      name: editingCategory.name.trim(),
+      icon: editingCategory.icon || '🕌',
+      image_url: editingCategory.image_url?.trim()
+    });
+    showToast(`"${editingCategory.name}" ক্যাটাগরি আপডেট করা হয়েছে!`);
+    setEditingCategory(null);
+  };
+
+  // Meta Test CAPI Event
+  const handleTestMetaCapi = async () => {
+    if (!adminMetaCapiToken.trim()) {
+      alert('টেস্ট করার আগে Meta CAPI Access Token প্রদান করুন');
+      return;
+    }
+    setIsTestingMetaCapi(true);
+    try {
+      const res = await fetch('/api/meta/test-capi', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          pixel_id: adminMetaPixelId.trim(),
+          access_token: adminMetaCapiToken.trim(),
+          test_event_code: adminMetaTestCode.trim()
+        })
+      });
+      const data = await res.json();
+      if (data.success) {
+        showToast('Meta CAPI টেস্ট ইভেন্ট সফলভাবে পাঠানো হয়েছে!');
+      } else {
+        alert('Meta CAPI ত্রুটি: ' + (data.message || 'Error'));
+      }
+    } finally {
+      setIsTestingMetaCapi(false);
+    }
+  };
+
+  // Filtered orders list
+  const filteredOrders = useMemo(() => {
+    return orders.filter(o => {
+      if (orderStatusFilter !== 'all' && o.status !== orderStatusFilter) return false;
+      if (!orderSearch.trim()) return true;
+      const q = orderSearch.toLowerCase();
+      return (
+        (o.order_number && o.order_number.toLowerCase().includes(q)) ||
+        (o.user_name && o.user_name.toLowerCase().includes(q)) ||
+        (o.user_phone && o.user_phone.toLowerCase().includes(q)) ||
+        (o.shipping_address && o.shipping_address.toLowerCase().includes(q)) ||
+        (o.city && o.city.toLowerCase().includes(q))
+      );
+    });
+  }, [orders, orderStatusFilter, orderSearch]);
+
+  // Filtered products list
+  const filteredProducts = useMemo(() => {
+    return products.filter(p => {
+      if (productCategoryFilter !== 'all' && p.category_id !== productCategoryFilter) return false;
+      if (!productSearch.trim()) return true;
+      return (
+        p.name.toLowerCase().includes(productSearch.toLowerCase()) ||
+        (p.category_name && p.category_name.toLowerCase().includes(productSearch.toLowerCase()))
+      );
+    });
+  }, [products, productCategoryFilter, productSearch]);
+
+  // Filtered inventory list
+  const filteredInventory = useMemo(() => {
+    return products.filter(p => {
+      const stock = Number(p.stock || 0);
+      if (inventoryStockFilter === 'out_of_stock' && stock > 0) return false;
+      if (inventoryStockFilter === 'low_stock' && (stock <= 0 || stock > 5)) return false;
+      if (inventoryStockFilter === 'in_stock' && stock === 0) return false;
+      if (!productSearch.trim()) return true;
+      return p.name.toLowerCase().includes(productSearch.toLowerCase());
+    });
+  }, [products, inventoryStockFilter, productSearch]);
+
+  // Real Customer List Synthesized from Supabase Orders
+  const customerList = useMemo(() => {
+    const map = new Map<string, { name: string; phone: string; address: string; city: string; orders: Order[]; totalSpent: number; lastOrderDate: string }>();
+
+    orders.forEach(o => {
+      const phone = (o.user_phone || '').trim();
+      const key = phone || o.user_name || String(o.id);
+      if (!map.has(key)) {
+        map.set(key, {
+          name: o.user_name || 'Customer',
+          phone: o.user_phone || 'N/A',
+          address: o.shipping_address || '',
+          city: o.city || 'ঢাকা',
+          orders: [o],
+          totalSpent: Number(o.total_amount) || 0,
+          lastOrderDate: o.created_at || ''
+        });
+      } else {
+        const existing = map.get(key)!;
+        existing.orders.push(o);
+        existing.totalSpent += Number(o.total_amount) || 0;
+        if (o.created_at && (!existing.lastOrderDate || o.created_at > existing.lastOrderDate)) {
+          existing.lastOrderDate = o.created_at;
+          existing.address = o.shipping_address || existing.address;
+        }
+      }
+    });
+
+    const list = Array.from(map.values());
+    if (!customerSearch.trim()) return list;
+    const q = customerSearch.toLowerCase();
+    return list.filter(c => c.name.toLowerCase().includes(q) || c.phone.includes(q) || c.address.toLowerCase().includes(q));
+  }, [orders, customerSearch]);
+
+  // Filtered orders for Business Reports based on date range
+  const reportOrders = useMemo(() => {
+    const now = new Date();
+    return orders.filter(o => {
+      if (reportDateRange === 'all') return true;
+      const orderDate = new Date(o.created_at || 0);
+      const diffMs = now.getTime() - orderDate.getTime();
+      const diffDays = diffMs / (1000 * 3600 * 24);
+      if (reportDateRange === 'today') return diffDays <= 1;
+      if (reportDateRange === '7days') return diffDays <= 7;
+      if (reportDateRange === '30days') return diffDays <= 30;
+      return true;
+    });
+  }, [orders, reportDateRange]);
+
+  // Business Analytics Calculations
+  const reportStats = useMemo(() => {
+    const totalSales = reportOrders.reduce((sum, o) => sum + (Number(o.total_amount) || 0), 0);
+    const deliveredCount = reportOrders.filter(o => o.status === 'delivered').length;
+    const confirmedCount = reportOrders.filter(o => o.status === 'confirmed' || o.status === 'processing').length;
+    const cancelledCount = reportOrders.filter(o => o.status === 'cancelled').length;
+    const pendingCount = reportOrders.filter(o => o.status === 'pending').length;
+    const avgOrderValue = reportOrders.length > 0 ? Math.round(totalSales / reportOrders.length) : 0;
+
+    // Delivery zone breakdown
+    const dhakaOrders = reportOrders.filter(o => o.delivery_zone === 'dhaka' || (o.city && o.city.toLowerCase().includes('dhaka'))).length;
+    const outsideOrders = reportOrders.length - dhakaOrders;
+
+    // Top selling items count
+    const productSalesMap = new Map<string, { name: string; count: number; totalBDT: number }>();
+    reportOrders.forEach(o => {
+      if (Array.isArray(o.items)) {
+        o.items.forEach((it: any) => {
+          const name = it.product_name || it.name || 'Wall Art';
+          const qty = Number(it.quantity) || 1;
+          const price = Number(it.price) || 0;
+          if (!productSalesMap.has(name)) {
+            productSalesMap.set(name, { name, count: qty, totalBDT: price * qty });
+          } else {
+            const item = productSalesMap.get(name)!;
+            item.count += qty;
+            item.totalBDT += price * qty;
+          }
+        });
+      }
+    });
+
+    const topSellingProducts = Array.from(productSalesMap.values()).sort((a, b) => b.count - a.count).slice(0, 5);
+
+    return {
+      totalSales,
+      orderCount: reportOrders.length,
+      deliveredCount,
+      confirmedCount,
+      cancelledCount,
+      pendingCount,
+      avgOrderValue,
+      dhakaOrders,
+      outsideOrders,
+      topSellingProducts
+    };
+  }, [reportOrders]);
+
+  // Dashboard Stats Calculations (Guaranteed from real Supabase / Context data)
+  const totalOrdersCount = orders.length;
+  const pendingOrdersCount = orders.filter(o => o.status === 'pending').length;
+  const confirmedOrdersCount = orders.filter(o => o.status === 'confirmed' || o.status === 'processing').length;
+  const shippedOrdersCount = orders.filter(o => o.status === 'shipped').length;
+  const deliveredOrdersCount = orders.filter(o => o.status === 'delivered').length;
+  const totalProductsCount = products.length;
+  const totalRevenue = orders.reduce((sum, o) => sum + (Number(o.total_amount) || 0), 0);
+
+  // Stock overview numbers
+  const outOfStockCount = products.filter(p => Number(p.stock || 0) <= 0).length;
+  const lowStockCount = products.filter(p => Number(p.stock || 0) > 0 && Number(p.stock || 0) <= 5).length;
+
+  // Recent 6 orders and pending orders for quick action
+  const recentOrders = useMemo(() => [...orders].slice(0, 6), [orders]);
+  const pendingOrders = useMemo(() => orders.filter(o => o.status === 'pending').slice(0, 6), [orders]);
+
+  // Orders booked on Steadfast Courier
+  const steadfastBookedOrders = useMemo(() => {
+    return orders.filter(o => o.steadfast_tracking_code || (o.tracking_number && o.courier_name?.toLowerCase().includes('steadfast')));
+  }, [orders]);
+
+  const readyForSteadfastOrders = useMemo(() => {
+    return orders.filter(o => (o.status === 'confirmed' || o.status === 'processing') && !o.steadfast_tracking_code);
+  }, [orders]);
+
+  // --- PIN LOCK SCREEN (Minimal Linear Style) ---
   if (!isAuthorized) {
     return (
-      <div className="min-h-[75vh] flex items-center justify-center px-4 py-12">
-        <div className="max-w-md w-full bg-white rounded-3xl p-8 border border-slate-200/80 shadow-2xl text-center space-y-6">
-          <div className="w-16 h-16 rounded-2xl bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 text-teal-400 flex items-center justify-center mx-auto shadow-md">
-            <Lock className="w-8 h-8 text-teal-400" />
+      <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4 -mt-6 -mx-4 sm:-mx-6 lg:-mx-8">
+        <div className="w-full max-w-sm bg-white rounded-2xl border border-slate-200/90 shadow-sm p-6 sm:p-8 space-y-6">
+          <div className="text-center space-y-2">
+            <div className="w-12 h-12 rounded-xl bg-slate-900 text-white flex items-center justify-center font-bold text-sm mx-auto shadow-xs">
+              UA
+            </div>
+            <h1 className="text-lg font-bold text-slate-900">অ্যাডমিন সিকিউরিটি পিন</h1>
+            <p className="text-xs text-slate-500">ড্যাশবোর্ডে প্রবেশ করতে আপনার পাসওয়ার্ড দিন</p>
           </div>
 
-          <div className="space-y-2">
-            <h2 className="text-xl font-black text-slate-900">🔒 Staff Portal Security Gate</h2>
-            <p className="text-xs text-slate-500 leading-relaxed">
-              এই পোর্টালটি শুধুমাত্র এডমিন ও শপ ওনারের জন্য সুরক্ষিত। অ্যাক্সেস পেতে পাসওয়ার্ড দিন।
-            </p>
-          </div>
-
-          <form onSubmit={handleVerifyPin} className="space-y-4 text-left">
+          <form onSubmit={handleVerifyPin} className="space-y-4">
             <div>
-              <label className="text-xs font-bold text-slate-700 block mb-1">
-                Admin Password (সিকিউরিটি পাসওয়ার্ড)
-              </label>
               <div className="relative">
                 <input
-                  type={showPassword ? 'text' : 'password'}
+                  type={showPin ? 'text' : 'password'}
+                  required
                   value={inputPin}
                   onChange={(e) => setInputPin(e.target.value)}
-                  placeholder="পাসওয়ার্ড লিখুন..."
+                  placeholder="পাসওয়ার্ড লিখুন..."
                   autoFocus
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-4 pr-10 py-3 text-sm text-slate-900 font-mono focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm text-slate-900 font-mono tracking-widest focus:bg-white focus:border-slate-800 focus:outline-none transition-all"
                 />
                 <button
                   type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer text-xs font-bold"
+                  onClick={() => setShowPin(!showPin)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-slate-400 hover:text-slate-600 font-medium"
                 >
-                  {showPassword ? 'Hide' : 'Show'}
+                  {showPin ? 'লুকান' : 'দেখান'}
                 </button>
               </div>
               {pinError && (
-                <p className="text-xs font-bold text-rose-600 mt-2 flex items-center gap-1">
-                  ⚠️ {pinError}
+                <p className="text-rose-600 text-xs mt-1.5 flex items-center gap-1">
+                  <AlertCircle className="w-3.5 h-3.5" />
+                  <span>{pinError}</span>
                 </p>
               )}
             </div>
 
             <button
               type="submit"
-              className="w-full py-3.5 rounded-xl text-xs sm:text-sm font-bold text-white bg-gradient-to-r from-[#14b8a6] via-[#4f46e5] via-[#9333ea] to-[#ec4899] hover:opacity-95 shadow-lg shadow-indigo-500/20 transition-all flex items-center justify-center gap-2 cursor-pointer"
+              className="w-full py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-semibold shadow-xs transition-all cursor-pointer flex items-center justify-center gap-2"
             >
-              <Shield className="w-4 h-4" />
-              <span>Verify &amp; Enter Staff Portal</span>
+              <Lock className="w-3.5 h-3.5" />
+              <span>লগইন করুন</span>
             </button>
           </form>
 
           <button
+            type="button"
             onClick={() => onNavigate('home')}
-            className="text-xs text-slate-500 hover:text-slate-800 font-semibold cursor-pointer underline block mx-auto"
+            className="w-full text-center text-xs text-slate-400 hover:text-slate-700 font-medium transition-colors cursor-pointer"
           >
-            ← Return to Public Storefront
+            ← স্টোরফ্রন্টে ফিরে যান
           </button>
         </div>
       </div>
     );
   }
 
-  const pendingOrdersCount = orders.filter(o => o.status === 'pending').length;
-  const totalOrdersRevenue = orders.reduce((sum, o) => sum + (o.total_amount || 0), 0);
-  const recentOrdersList = [...orders].reverse().slice(0, 5);
-
   return (
-    <div className="min-h-screen bg-slate-50/70 pb-16 -mt-6 -mx-4 sm:-mx-6 lg:-mx-8">
-      {/* 1. TOP HEADER BAR */}
-      <div className="bg-white border-b border-slate-200 sticky top-0 z-30 shadow-xs">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-4">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-slate-900 to-teal-900 text-white flex items-center justify-center font-black text-sm shadow-md">
-              UA
-            </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <span className="font-black text-base text-[#0f3d44]">UNEX AURA</span>
-                <span className="inline-flex items-center gap-1 text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 px-2 py-0.5 rounded-full">
-                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
-                  লাইভ স্টোর
-                </span>
+    <div className="min-h-screen bg-[#f8fafc] text-slate-900 -mt-6 -mx-4 sm:-mx-6 lg:-mx-8 flex">
+      {/* 1. COLLAPSIBLE / COMPACT SIDEBAR (Linear & Shopify Style) */}
+      {isMobileMenuOpen && (
+        <div
+          className="fixed inset-0 bg-slate-900/40 z-40 lg:hidden backdrop-blur-xs transition-opacity"
+          onClick={() => setIsMobileMenuOpen(false)}
+        />
+      )}
+
+      <aside
+        className={`fixed lg:sticky top-0 left-0 h-screen w-64 bg-white border-r border-slate-200/90 z-50 flex flex-col justify-between transition-transform duration-200 ${
+          isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'
+        }`}
+      >
+        <div className="p-4 space-y-5 overflow-y-auto">
+          {/* Brand Header */}
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2.5">
+              <div className="w-8 h-8 rounded-lg bg-slate-900 text-white flex items-center justify-center font-bold text-xs tracking-wider shadow-xs">
+                UA
               </div>
-              <p className="text-[11px] text-slate-500 hidden sm:block">সহজ শপ ম্যানেজমেন্ট ও কন্ট্রোল</p>
+              <div>
+                <span className="font-bold text-sm tracking-tight block text-slate-900 leading-none">UNEX AURA</span>
+                <span className="text-[10px] text-slate-400 font-medium">Store Management</span>
+              </div>
             </div>
+            <button
+              type="button"
+              onClick={() => setIsMobileMenuOpen(false)}
+              className="lg:hidden p-1.5 rounded-lg text-slate-400 hover:bg-slate-100"
+            >
+              <X className="w-4 h-4" />
+            </button>
           </div>
 
-          <div className="flex items-center gap-2">
+          {/* Navigation Links Grouped Logically */}
+          <nav className="space-y-1">
             <button
-              onClick={() => setShowAddModal(true)}
-              className="px-3.5 py-2 rounded-xl text-xs font-bold text-slate-950 bg-gradient-to-r from-teal-300 via-indigo-200 to-pink-200 hover:opacity-95 shadow-xs flex items-center gap-1.5 cursor-pointer transition-all"
+              type="button"
+              onClick={() => { setActiveTab('dashboard'); setIsMobileMenuOpen(false); }}
+              className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-xs font-medium transition-colors cursor-pointer ${
+                activeTab === 'dashboard'
+                  ? 'bg-slate-900 text-white font-semibold'
+                  : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
+              }`}
             >
-              <Plus className="w-4 h-4" />
-              <span className="hidden sm:inline">নতুন প্রোডাক্ট</span>
+              <div className="flex items-center gap-2.5">
+                <LayoutDashboard className="w-4 h-4 shrink-0" />
+                <span>Dashboard</span>
+              </div>
             </button>
+
             <button
-              onClick={() => onNavigate('home')}
-              className="px-3 py-2 rounded-xl text-xs font-bold text-slate-600 bg-slate-100 hover:bg-slate-200 flex items-center gap-1.5 cursor-pointer transition-all"
-              title="ওয়েবসাইট দেখুন"
+              type="button"
+              onClick={() => { setActiveTab('orders'); setIsMobileMenuOpen(false); }}
+              className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-xs font-medium transition-colors cursor-pointer ${
+                activeTab === 'orders'
+                  ? 'bg-slate-900 text-white font-semibold'
+                  : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
+              }`}
             >
-              <Store className="w-3.5 h-3.5 text-teal-600" />
-              <span className="hidden md:inline">দোকান দেখুন</span>
+              <div className="flex items-center gap-2.5">
+                <ShoppingBag className="w-4 h-4 shrink-0" />
+                <span>Orders</span>
+              </div>
+              {pendingOrdersCount > 0 && (
+                <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-bold ${
+                  activeTab === 'orders' ? 'bg-amber-400 text-slate-950' : 'bg-amber-100 text-amber-800'
+                }`}>
+                  {pendingOrdersCount}
+                </span>
+              )}
             </button>
+
             <button
-              onClick={() => {
-                sessionStorage.removeItem('unex_admin_authorized');
-                setIsAuthorized(false);
-                showToast('Staff portal locked');
-              }}
-              className="p-2 sm:px-3 sm:py-2 rounded-xl text-xs font-bold text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 flex items-center gap-1 cursor-pointer transition-all"
-              title="লক সেশন"
+              type="button"
+              onClick={() => { setActiveTab('products'); setIsMobileMenuOpen(false); }}
+              className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-xs font-medium transition-colors cursor-pointer ${
+                activeTab === 'products'
+                  ? 'bg-slate-900 text-white font-semibold'
+                  : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
+              }`}
             >
-              <Lock className="w-3.5 h-3.5" />
-              <span className="hidden sm:inline">লক</span>
+              <div className="flex items-center gap-2.5">
+                <Package className="w-4 h-4 shrink-0" />
+                <span>Products</span>
+              </div>
+              <span className="text-[11px] text-slate-400 font-normal">{totalProductsCount}</span>
             </button>
-          </div>
+
+            <button
+              type="button"
+              onClick={() => { setActiveTab('inventory'); setIsMobileMenuOpen(false); }}
+              className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-xs font-medium transition-colors cursor-pointer ${
+                activeTab === 'inventory'
+                  ? 'bg-slate-900 text-white font-semibold'
+                  : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
+              }`}
+            >
+              <div className="flex items-center gap-2.5">
+                <Boxes className="w-4 h-4 shrink-0" />
+                <span>Inventory &amp; Stock</span>
+              </div>
+              {outOfStockCount > 0 && (
+                <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-bold ${
+                  activeTab === 'inventory' ? 'bg-rose-400 text-white' : 'bg-rose-100 text-rose-800'
+                }`}>
+                  {outOfStockCount}
+                </span>
+              )}
+            </button>
+
+            <button
+              type="button"
+              onClick={() => { setActiveTab('categories'); setIsMobileMenuOpen(false); }}
+              className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-xs font-medium transition-colors cursor-pointer ${
+                activeTab === 'categories'
+                  ? 'bg-slate-900 text-white font-semibold'
+                  : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
+              }`}
+            >
+              <div className="flex items-center gap-2.5">
+                <Layers className="w-4 h-4 shrink-0" />
+                <span>Categories</span>
+              </div>
+              <span className="text-[11px] text-slate-400 font-normal">{categories.length}</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => { setActiveTab('delivery'); setIsMobileMenuOpen(false); }}
+              className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-xs font-medium transition-colors cursor-pointer ${
+                activeTab === 'delivery'
+                  ? 'bg-slate-900 text-white font-semibold'
+                  : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
+              }`}
+            >
+              <div className="flex items-center gap-2.5">
+                <Truck className="w-4 h-4 shrink-0" />
+                <span>Courier (Steadfast)</span>
+              </div>
+              {readyForSteadfastOrders.length > 0 && (
+                <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-bold ${
+                  activeTab === 'delivery' ? 'bg-indigo-300 text-indigo-950' : 'bg-indigo-50 text-indigo-700'
+                }`}>
+                  {readyForSteadfastOrders.length}
+                </span>
+              )}
+            </button>
+
+            <button
+              type="button"
+              onClick={() => { setActiveTab('customers'); setIsMobileMenuOpen(false); }}
+              className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-xs font-medium transition-colors cursor-pointer ${
+                activeTab === 'customers'
+                  ? 'bg-slate-900 text-white font-semibold'
+                  : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
+              }`}
+            >
+              <div className="flex items-center gap-2.5">
+                <Users className="w-4 h-4 shrink-0" />
+                <span>Customers</span>
+              </div>
+              <span className="text-[11px] text-slate-400 font-normal">{customerList.length}</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => { setActiveTab('reports'); setIsMobileMenuOpen(false); }}
+              className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-xs font-medium transition-colors cursor-pointer ${
+                activeTab === 'reports'
+                  ? 'bg-slate-900 text-white font-semibold'
+                  : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
+              }`}
+            >
+              <div className="flex items-center gap-2.5">
+                <BarChart3 className="w-4 h-4 shrink-0" />
+                <span>Reports &amp; Sales</span>
+              </div>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => { setActiveTab('settings'); setIsMobileMenuOpen(false); }}
+              className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-xs font-medium transition-colors cursor-pointer ${
+                activeTab === 'settings'
+                  ? 'bg-slate-900 text-white font-semibold'
+                  : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
+              }`}
+            >
+              <div className="flex items-center gap-2.5">
+                <Settings className="w-4 h-4 shrink-0" />
+                <span>Settings</span>
+              </div>
+            </button>
+          </nav>
         </div>
 
-        {/* MOBILE HORIZONTAL NAVIGATION PILLS */}
-        <div className="lg:hidden px-4 pb-2.5 pt-1 overflow-x-auto flex gap-1.5 border-t border-slate-100 bg-slate-50/70">
+        {/* Sidebar Footer */}
+        <div className="p-4 border-t border-slate-100 space-y-2">
+          <div className="flex items-center justify-between text-[11px] text-slate-500 px-2">
+            <span className="flex items-center gap-1.5">
+              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+              <span>Supabase Live</span>
+            </span>
+            <span className="font-mono text-[10px] text-slate-400">v2.6</span>
+          </div>
+
           <button
-            onClick={() => setActiveTab('dashboard')}
-            className={`px-3 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap flex items-center gap-1.5 cursor-pointer ${
-              activeTab === 'dashboard' ? 'bg-[#0f3d44] text-white shadow-xs' : 'bg-white text-slate-600 border border-slate-200'
-            }`}
+            type="button"
+            onClick={() => onNavigate('home')}
+            className="w-full flex items-center justify-center gap-1.5 py-2 rounded-lg text-xs font-medium text-slate-700 bg-slate-50 hover:bg-slate-100 border border-slate-200/80 transition-colors cursor-pointer"
           >
-            <LayoutDashboard className="w-3.5 h-3.5" />
-            <span>ড্যাশবোর্ড</span>
+            <Store className="w-3.5 h-3.5 text-teal-600" />
+            <span>স্টোরফ্রন্ট দেখুন</span>
           </button>
+
           <button
-            onClick={() => setActiveTab('orders')}
-            className={`px-3 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap flex items-center gap-1.5 cursor-pointer ${
-              activeTab === 'orders' ? 'bg-[#0f3d44] text-white shadow-xs' : 'bg-white text-slate-600 border border-slate-200'
-            }`}
+            type="button"
+            onClick={() => {
+              sessionStorage.removeItem('unex_admin_authorized');
+              setIsAuthorized(false);
+              showToast('অ্যাডমিন সেশন লক করা হয়েছে');
+            }}
+            className="w-full flex items-center justify-center gap-1.5 py-1.5 rounded-lg text-[11px] font-medium text-slate-400 hover:text-rose-600 transition-colors cursor-pointer"
           >
-            <Package className="w-3.5 h-3.5" />
-            <span>অর্ডার ({orders.length})</span>
-            {pendingOrdersCount > 0 && (
-              <span className="bg-amber-500 text-white text-[10px] px-1.5 py-0.2 rounded-full font-black">
-                {pendingOrdersCount}
+            <Lock className="w-3 h-3" />
+            <span>লগআউট / লক</span>
+          </button>
+        </div>
+      </aside>
+
+      {/* 2. MAIN CONTENT AREA */}
+      <div className="flex-1 min-w-0 flex flex-col min-h-screen">
+        {/* Top Header Bar */}
+        <header className="sticky top-0 z-30 bg-white/95 backdrop-blur-xs border-b border-slate-200/90 h-14 px-4 sm:px-6 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <button
+              type="button"
+              onClick={() => setIsMobileMenuOpen(true)}
+              className="lg:hidden p-2 rounded-lg text-slate-600 hover:bg-slate-100 cursor-pointer"
+            >
+              <Menu className="w-5 h-5" />
+            </button>
+            <div className="flex items-center gap-2 text-xs font-semibold text-slate-500">
+              <span className="text-slate-900 font-bold capitalize">
+                {activeTab === 'dashboard' && 'Dashboard Overview'}
+                {activeTab === 'orders' && 'Live Orders'}
+                {activeTab === 'products' && 'Product Catalog'}
+                {activeTab === 'inventory' && 'Inventory & Stock'}
+                {activeTab === 'categories' && 'Categories'}
+                {activeTab === 'delivery' && 'Steadfast Courier Hub'}
+                {activeTab === 'customers' && 'Customer CRM'}
+                {activeTab === 'reports' && 'Business Reports'}
+                {activeTab === 'settings' && 'Store Settings'}
               </span>
+              {activeTab === 'orders' && <span className="text-slate-400 font-normal">/ {filteredOrders.length} orders</span>}
+              {activeTab === 'products' && <span className="text-slate-400 font-normal">/ {filteredProducts.length} items</span>}
+              {activeTab === 'inventory' && <span className="text-slate-400 font-normal">/ {filteredInventory.length} items</span>}
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2 sm:gap-3">
+            <button
+              type="button"
+              onClick={handleManualRefreshOrders}
+              disabled={isRefreshingOrders}
+              className="p-2 rounded-lg text-slate-500 hover:text-slate-900 hover:bg-slate-100 transition-colors cursor-pointer"
+              title="ডাটাবেজ রিফ্রেশ"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${isRefreshingOrders ? 'animate-spin text-indigo-600' : ''}`} />
+            </button>
+
+            {(activeTab === 'products' || activeTab === 'inventory') && (
+              <button
+                type="button"
+                onClick={() => setShowAddProductModal(true)}
+                className="px-3 py-1.5 rounded-lg text-xs font-semibold text-white bg-slate-900 hover:bg-slate-800 transition-colors flex items-center gap-1.5 shadow-2xs cursor-pointer"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                <span>নতুন প্রোডাক্ট</span>
+              </button>
             )}
-          </button>
-          <button
-            onClick={() => setActiveTab('products')}
-            className={`px-3 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap flex items-center gap-1.5 cursor-pointer ${
-              activeTab === 'products' ? 'bg-[#0f3d44] text-white shadow-xs' : 'bg-white text-slate-600 border border-slate-200'
-            }`}
-          >
-            <ShoppingBag className="w-3.5 h-3.5" />
-            <span>প্রোডাক্ট ({products.length})</span>
-          </button>
-          <button
-            onClick={() => setActiveTab('inventory')}
-            className={`px-3 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap flex items-center gap-1.5 cursor-pointer ${
-              activeTab === 'inventory' ? 'bg-[#0f3d44] text-white shadow-xs' : 'bg-white text-slate-600 border border-slate-200'
-            }`}
-          >
-            <Warehouse className="w-3.5 h-3.5" />
-            <span>ইনভেন্টরি স্টক</span>
-          </button>
-          <button
-            onClick={() => setActiveTab('categories')}
-            className={`px-3 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap flex items-center gap-1.5 cursor-pointer ${
-              activeTab === 'categories' ? 'bg-[#0f3d44] text-white shadow-xs' : 'bg-white text-slate-600 border border-slate-200'
-            }`}
-          >
-            <Layers className="w-3.5 h-3.5" />
-            <span>ক্যাটাগরি ({categories.length})</span>
-          </button>
-          <button
-            onClick={() => setActiveTab('sheets')}
-            className={`px-3 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap flex items-center gap-1.5 cursor-pointer ${
-              activeTab === 'sheets' ? 'bg-emerald-700 text-white shadow-xs' : 'bg-white text-emerald-800 border border-emerald-200'
-            }`}
-          >
-            <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-600" />
-            <span>গুগল শিট</span>
-          </button>
-          <button
-            onClick={() => setActiveTab('settings')}
-            className={`px-3 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap flex items-center gap-1.5 cursor-pointer ${
-              activeTab === 'settings' ? 'bg-[#0f3d44] text-white shadow-xs' : 'bg-white text-slate-600 border border-slate-200'
-            }`}
-          >
-            <Settings className="w-3.5 h-3.5" />
-            <span>সেটিংস</span>
-          </button>
-        </div>
-      </div>
+          </div>
+        </header>
 
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6">
-        <div className="flex flex-col lg:flex-row gap-6 items-start">
-          {/* 2. DESKTOP LEFT SIDEBAR */}
-          <aside className="hidden lg:block w-64 shrink-0 bg-white rounded-3xl p-4 shadow-xs border border-slate-200/80 sticky top-22 space-y-4">
-            <div className="px-2 py-1 space-y-0.5">
-              <span className="text-[10px] font-black tracking-widest text-teal-700 uppercase">মেন্যু ও নেভিগেশন</span>
-              <h2 className="text-sm font-black text-[#0f3d44]">কন্ট্রোল সেন্টার</h2>
-            </div>
+        {/* Content Body */}
+        <main className="flex-1 p-4 sm:p-6 lg:p-8 max-w-7xl w-full mx-auto space-y-6">
 
-            <nav className="space-y-1 text-xs">
-              <button
-                onClick={() => setActiveTab('dashboard')}
-                className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-2xl font-bold transition-all cursor-pointer ${
-                  activeTab === 'dashboard'
-                    ? 'bg-[#0f3d44] text-white shadow-sm'
-                    : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
-                }`}
-              >
-                <div className="flex items-center gap-2.5">
-                  <LayoutDashboard className="w-4 h-4 text-teal-400" />
-                  <span>ড্যাশবোর্ড (Overview)</span>
+          {/* TAB 1: DASHBOARD OVERVIEW */}
+          {activeTab === 'dashboard' && (
+            <div className="space-y-6">
+              {/* 4 Clean Metric Cards (Linear / Shopify Simple) */}
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+                <div 
+                  onClick={() => setActiveTab('orders')}
+                  className="bg-white p-4 rounded-xl border border-slate-200/90 shadow-2xs space-y-1 cursor-pointer hover:border-slate-300 transition-all"
+                >
+                  <div className="flex items-center justify-between text-xs text-slate-500 font-medium">
+                    <span>সর্বমোট অর্ডার</span>
+                    <ShoppingBag className="w-4 h-4 text-slate-400" />
+                  </div>
+                  <div className="text-2xl font-bold text-slate-900">{totalOrdersCount}</div>
+                  <div className="text-[11px] text-slate-400 flex items-center gap-1">
+                    <span>সব লাইভ অর্ডার</span>
+                    <ArrowUpRight className="w-3 h-3 text-slate-400" />
+                  </div>
                 </div>
-              </button>
 
-              <button
-                onClick={() => setActiveTab('orders')}
-                className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-2xl font-bold transition-all cursor-pointer ${
-                  activeTab === 'orders'
-                    ? 'bg-[#0f3d44] text-white shadow-sm'
-                    : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
-                }`}
-              >
-                <div className="flex items-center gap-2.5">
-                  <Package className="w-4 h-4 text-amber-500" />
-                  <span>অর্ডারসমূহ (Orders)</span>
+                <div 
+                  onClick={() => { setActiveTab('orders'); setOrderStatusFilter('pending'); }}
+                  className="bg-white p-4 rounded-xl border border-amber-200/80 shadow-2xs space-y-1 cursor-pointer hover:border-amber-300 transition-all"
+                >
+                  <div className="flex items-center justify-between text-xs text-amber-700 font-semibold">
+                    <span>কনফার্মেশন দরকার</span>
+                    <span className="w-2 h-2 rounded-full bg-amber-500 animate-ping"></span>
+                  </div>
+                  <div className="text-2xl font-bold text-amber-900">{pendingOrdersCount}</div>
+                  <div className="text-[11px] text-amber-700/80">কল বা যাচাই বাকি</div>
                 </div>
-                <div className="flex items-center gap-1.5">
-                  {pendingOrdersCount > 0 && (
-                    <span className="bg-amber-500 text-white text-[10px] font-black px-1.5 py-0.5 rounded-full" title="পেন্ডিং অর্ডার">
-                      {pendingOrdersCount}
-                    </span>
-                  )}
-                  <span className={`text-[11px] px-2 py-0.5 rounded-full ${activeTab === 'orders' ? 'bg-white/20' : 'bg-slate-100 text-slate-500'}`}>
-                    {orders.length}
-                  </span>
+
+                <div 
+                  onClick={() => { setActiveTab('orders'); setOrderStatusFilter('confirmed'); }}
+                  className="bg-white p-4 rounded-xl border border-blue-200/80 shadow-2xs space-y-1 cursor-pointer hover:border-blue-300 transition-all"
+                >
+                  <div className="flex items-center justify-between text-xs text-blue-700 font-semibold">
+                    <span>কনফার্মড ও প্রসেসিং</span>
+                    <CheckCircle2 className="w-4 h-4 text-blue-500" />
+                  </div>
+                  <div className="text-2xl font-bold text-blue-900">{confirmedOrdersCount}</div>
+                  <div className="text-[11px] text-blue-700/80">কাটিং / ডিসপ্যাচের জন্য রেডি</div>
                 </div>
-              </button>
 
-              <button
-                onClick={() => setActiveTab('products')}
-                className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-2xl font-bold transition-all cursor-pointer ${
-                  activeTab === 'products'
-                    ? 'bg-[#0f3d44] text-white shadow-sm'
-                    : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
-                }`}
-              >
-                <div className="flex items-center gap-2.5">
-                  <ShoppingBag className="w-4 h-4 text-indigo-500" />
-                  <span>প্রোডাক্ট ক্যাটালগ</span>
+                <div 
+                  onClick={() => setActiveTab('products')}
+                  className="bg-white p-4 rounded-xl border border-slate-200/90 shadow-2xs space-y-1 cursor-pointer hover:border-slate-300 transition-all"
+                >
+                  <div className="flex items-center justify-between text-xs text-slate-500 font-medium">
+                    <span>মোট প্রোডাক্ট</span>
+                    <Package className="w-4 h-4 text-slate-400" />
+                  </div>
+                  <div className="text-2xl font-bold text-slate-900">{totalProductsCount}</div>
+                  <div className="text-[11px] text-slate-400">ক্যাটালগে সক্রিয়</div>
                 </div>
-                <span className={`text-[11px] px-2 py-0.5 rounded-full ${activeTab === 'products' ? 'bg-white/20' : 'bg-slate-100 text-slate-500'}`}>
-                  {products.length}
-                </span>
-              </button>
+              </div>
 
-              <button
-                onClick={() => setActiveTab('inventory')}
-                className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-2xl font-bold transition-all cursor-pointer ${
-                  activeTab === 'inventory'
-                    ? 'bg-[#0f3d44] text-white shadow-sm'
-                    : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
-                }`}
-              >
-                <div className="flex items-center gap-2.5">
-                  <Warehouse className="w-4 h-4 text-emerald-500" />
-                  <span>ইনভেন্টরি ও স্টক</span>
+              {/* 2-Column Split: Pending Action Orders + Recent Orders & Delivery Summary */}
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
+                {/* Left (2 Columns): Orders Awaiting Confirmation */}
+                <div className="lg:col-span-2 space-y-6">
+                  {/* Card: Pending Orders requiring action */}
+                  <div className="bg-white rounded-xl border border-slate-200/90 shadow-2xs overflow-hidden">
+                    <div className="px-5 py-3.5 border-b border-slate-100 flex items-center justify-between bg-amber-50/40">
+                      <div className="flex items-center gap-2">
+                        <AlertCircle className="w-4 h-4 text-amber-600" />
+                        <h2 className="text-xs font-bold text-slate-900">
+                          কনফার্ম করার অপেক্ষায় থাকা অর্ডার ({pendingOrders.length})
+                        </h2>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => { setActiveTab('orders'); setOrderStatusFilter('pending'); }}
+                        className="text-xs font-semibold text-amber-800 hover:underline flex items-center gap-1 cursor-pointer"
+                      >
+                        <span>সব দেখুন</span>
+                        <ChevronRight className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+
+                    {pendingOrders.length === 0 ? (
+                      <div className="p-8 text-center text-xs text-slate-400">
+                        বর্তমানে কোনো পেন্ডিং অর্ডার নেই। সব অর্ডার হ্যান্ডেল করা হয়েছে!
+                      </div>
+                    ) : (
+                      <div className="divide-y divide-slate-100">
+                        {pendingOrders.map(o => (
+                          <div key={o.order_number || o.id} className="p-4 hover:bg-slate-50/60 transition-colors flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                            <div className="space-y-1 min-w-0">
+                              <div className="flex items-center gap-2">
+                                <span className="font-mono font-bold text-xs text-slate-900">#{o.order_number}</span>
+                                <span className="text-[11px] text-slate-500 font-medium">({o.city || 'ঢাকা'})</span>
+                                <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-amber-100 text-amber-800">
+                                  পেন্ডিং
+                                </span>
+                              </div>
+                              <div className="text-xs font-medium text-slate-800 truncate">
+                                {o.user_name} • <span className="font-mono text-slate-500">{o.user_phone}</span>
+                              </div>
+                              <div className="text-[11px] text-slate-500 truncate max-w-md">
+                                {o.shipping_address}
+                              </div>
+                            </div>
+
+                            <div className="flex items-center gap-2 shrink-0">
+                              <span className="font-bold text-xs text-slate-900 mr-2">
+                                {formatPrice(o.total_amount)}
+                              </span>
+                              <button
+                                type="button"
+                                onClick={() => handleUpdateStatus(o.id, 'confirmed')}
+                                className="px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-blue-600 hover:bg-blue-700 text-white shadow-2xs transition-colors cursor-pointer"
+                              >
+                                কনফার্ম
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setSelectedOrderDetails(o)}
+                                className="px-2.5 py-1.5 rounded-lg text-xs font-medium text-slate-700 bg-slate-100 hover:bg-slate-200 transition-colors cursor-pointer"
+                              >
+                                বিস্তারিত
+                              </button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Card: Recent Orders */}
+                  <div className="bg-white rounded-xl border border-slate-200/90 shadow-2xs overflow-hidden">
+                    <div className="px-5 py-3.5 border-b border-slate-100 flex items-center justify-between">
+                      <h2 className="text-xs font-bold text-slate-900">সাম্প্রতিক অর্ডার (Recent Orders)</h2>
+                      <button
+                        type="button"
+                        onClick={() => setActiveTab('orders')}
+                        className="text-xs font-semibold text-slate-600 hover:text-slate-900 flex items-center gap-1 cursor-pointer"
+                      >
+                        <span>সব অর্ডার</span>
+                        <ChevronRight className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+
+                    <div className="divide-y divide-slate-100">
+                      {recentOrders.map(o => (
+                        <div key={o.order_number || o.id} className="p-3.5 hover:bg-slate-50/60 transition-colors flex items-center justify-between gap-3 text-xs">
+                          <div className="min-w-0">
+                            <div className="flex items-center gap-2">
+                              <span className="font-mono font-bold text-slate-900">#{o.order_number}</span>
+                              <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold ${
+                                o.status === 'delivered' ? 'bg-emerald-100 text-emerald-800' :
+                                o.status === 'shipped' ? 'bg-indigo-100 text-indigo-800' :
+                                o.status === 'confirmed' || o.status === 'processing' ? 'bg-blue-100 text-blue-800' :
+                                o.status === 'cancelled' ? 'bg-rose-100 text-rose-800' :
+                                'bg-amber-100 text-amber-800'
+                              }`}>
+                                {o.status}
+                              </span>
+                            </div>
+                            <div className="text-slate-500 text-[11px] truncate mt-0.5">
+                              {o.user_name} • {o.created_at?.split('T')[0] || o.created_at?.split(' ')[0]}
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-3 shrink-0">
+                            <span className="font-bold text-slate-900">{formatPrice(o.total_amount)}</span>
+                            <button
+                              type="button"
+                              onClick={() => setSelectedOrderDetails(o)}
+                              className="text-slate-400 hover:text-slate-700"
+                              title="ডিটেইলস"
+                            >
+                              <ChevronRight className="w-4 h-4" />
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
                 </div>
-                <span className={`text-[11px] px-2 py-0.5 rounded-full ${activeTab === 'inventory' ? 'bg-white/20' : 'bg-slate-100 text-slate-500'}`}>
-                  {products.reduce((acc, p) => acc + (p.stock || 0), 0)} টি
-                </span>
-              </button>
 
-              <button
-                onClick={() => setActiveTab('categories')}
-                className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-2xl font-bold transition-all cursor-pointer ${
-                  activeTab === 'categories'
-                    ? 'bg-[#0f3d44] text-white shadow-sm'
-                    : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
-                }`}
-              >
-                <div className="flex items-center gap-2.5">
-                  <Layers className="w-4 h-4 text-teal-500" />
-                  <span>ক্যাটাগরি ম্যানেজমেন্ট</span>
-                </div>
-                <span className={`text-[11px] px-2 py-0.5 rounded-full ${activeTab === 'categories' ? 'bg-white/20' : 'bg-slate-100 text-slate-500'}`}>
-                  {categories.length}
-                </span>
-              </button>
+                {/* Right (1 Column): Delivery Overview & Quick Controls */}
+                <div className="space-y-6">
+                  {/* Delivery Status Card */}
+                  <div className="bg-white rounded-xl border border-slate-200/90 shadow-2xs p-5 space-y-4">
+                    <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                      <div className="flex items-center gap-2">
+                        <Truck className="w-4 h-4 text-indigo-600" />
+                        <h3 className="text-xs font-bold text-slate-900">ডেলিভারি ওভারভিউ</h3>
+                      </div>
+                      <span className="text-[10px] font-bold text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded-md">
+                        Steadfast API
+                      </span>
+                    </div>
 
-              <button
-                onClick={() => setActiveTab('sheets')}
-                className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-2xl font-bold transition-all cursor-pointer ${
-                  activeTab === 'sheets'
-                    ? 'bg-emerald-700 text-white shadow-sm'
-                    : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
-                }`}
-              >
-                <div className="flex items-center gap-2.5">
-                  <FileSpreadsheet className="w-4 h-4 text-emerald-500" />
-                  <span>গুগল শিট সিঙ্ক</span>
-                </div>
-                <span className="text-[10px] bg-emerald-100 text-emerald-800 font-bold px-1.5 py-0.5 rounded-full">
-                  লাইভ
-                </span>
-              </button>
+                    <div className="space-y-2.5 text-xs">
+                      <div className="flex items-center justify-between p-2 rounded-lg bg-slate-50">
+                        <span className="text-slate-600 font-medium">স্টেডফাস্টে বুক করা পার্সেল</span>
+                        <span className="font-bold text-slate-900 font-mono">{steadfastBookedOrders.length}</span>
+                      </div>
+                      <div className="flex items-center justify-between p-2 rounded-lg bg-slate-50">
+                        <span className="text-slate-600 font-medium">শিপিংয়ের জন্য রেডি (বুকিং বাকি)</span>
+                        <span className="font-bold text-amber-700 font-mono">{readyForSteadfastOrders.length}</span>
+                      </div>
+                      <div className="flex items-center justify-between p-2 rounded-lg bg-slate-50">
+                        <span className="text-slate-600 font-medium">ডেলিভারি সম্পন্ন (Delivered)</span>
+                        <span className="font-bold text-emerald-700 font-mono">{deliveredOrdersCount}</span>
+                      </div>
+                    </div>
 
-              <button
-                onClick={() => setActiveTab('settings')}
-                className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-2xl font-bold transition-all cursor-pointer ${
-                  activeTab === 'settings'
-                    ? 'bg-[#0f3d44] text-white shadow-sm'
-                    : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
-                }`}
-              >
-                <div className="flex items-center gap-2.5">
-                  <Settings className="w-4 h-4 text-slate-500" />
-                  <span>স্টোর সেটিংস</span>
-                </div>
-                <ChevronRight className="w-3.5 h-3.5 opacity-50" />
-              </button>
-            </nav>
+                    <button
+                      type="button"
+                      onClick={() => setActiveTab('delivery')}
+                      className="w-full py-2 rounded-lg text-xs font-semibold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
+                    >
+                      <span>ডেলিভারি হাব ওপেন করুন</span>
+                      <ChevronRight className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
 
-            <div className="pt-3 border-t border-slate-100 space-y-2">
-              <button
-                onClick={() => setShowAddModal(true)}
-                className="w-full py-2.5 px-3 rounded-2xl bg-teal-50 hover:bg-teal-100 text-teal-800 font-bold text-xs border border-teal-200 flex items-center justify-center gap-1.5 cursor-pointer transition-all"
-              >
-                <Plus className="w-4 h-4 text-teal-600" />
-                <span>নতুন ওয়াল আর্ট যোগ</span>
-              </button>
-
-              <button
-                onClick={() => onNavigate('home')}
-                className="w-full py-2 px-3 rounded-2xl bg-slate-50 hover:bg-slate-100 text-slate-600 font-bold text-xs flex items-center justify-center gap-1.5 cursor-pointer transition-all"
-              >
-                <Store className="w-3.5 h-3.5 text-slate-500" />
-                <span>ওয়েবসাইটে যান</span>
-              </button>
-            </div>
-          </aside>
-
-          {/* 3. MAIN CONTENT AREA */}
-          <main className="flex-1 w-full min-w-0 space-y-6">
-            {/* TAB 0: DASHBOARD OVERVIEW */}
-            {activeTab === 'dashboard' && (
-              <div className="space-y-6">
-                {/* WELCOME BANNER */}
-                <div className="bg-gradient-to-r from-slate-900 via-indigo-950 to-[#0f3d44] rounded-3xl p-6 sm:p-7 text-white shadow-xl relative overflow-hidden">
-                  <div className="relative z-10 max-w-2xl space-y-2">
-                    <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 text-xs font-bold">
-                      <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
-                      UNEX AURA অ্যাডমিন ওভারভিউ
-                    </span>
-                    <h1 className="text-2xl sm:text-3xl font-black">স্বাগতম, সালমান সোহাগ!</h1>
-                    <p className="text-xs sm:text-sm text-slate-300 leading-relaxed">
-                      আপনার স্টোরের অর্ডার, প্রোডাক্ট স্টক এবং গুগল শিট ব্যাকআপ এক নজরে সহজে পরিচালনা করুন।
+                  {/* Revenue / Summary widget */}
+                  <div className="bg-white rounded-xl border border-slate-200/90 shadow-2xs p-5 space-y-3">
+                    <div className="text-xs text-slate-500 font-medium">মোট বিক্রয় ভলিউম (Total Volume)</div>
+                    <div className="text-2xl font-bold text-slate-900 font-mono">{formatPrice(totalRevenue)}</div>
+                    <p className="text-[11px] text-slate-400">
+                      সরাসরি Supabase লাইভ অর্ডার থেকে হিসাবকৃত
                     </p>
                   </div>
                 </div>
-
-                {/* 4 STATS CARDS */}
-                <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
-                  {/* Stat 1: Total Revenue */}
-                  <div className="bg-white p-4 sm:p-5 rounded-2xl border border-slate-200/80 shadow-xs space-y-1 sm:space-y-2">
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs font-bold text-slate-500">মোট বিক্রয়</span>
-                      <div className="w-8 h-8 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center">
-                        <CreditCard className="w-4 h-4" />
-                      </div>
-                    </div>
-                    <div className="text-xl sm:text-2xl font-black text-emerald-600">
-                      {formatPrice(totalOrdersRevenue)}
-                    </div>
-                    <div className="text-[10px] text-slate-400">Total Store Revenue</div>
-                  </div>
-
-                  {/* Stat 2: Total Orders */}
-                  <div
-                    onClick={() => setActiveTab('orders')}
-                    className="bg-white p-4 sm:p-5 rounded-2xl border border-slate-200/80 hover:border-teal-400 hover:shadow-md transition-all cursor-pointer group space-y-1 sm:space-y-2"
-                  >
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs font-bold text-slate-500">সর্বমোট অর্ডার</span>
-                      <div className="w-8 h-8 rounded-xl bg-teal-50 text-teal-700 flex items-center justify-center group-hover:bg-teal-600 group-hover:text-white transition-all">
-                        <Package className="w-4 h-4" />
-                      </div>
-                    </div>
-                    <div className="text-xl sm:text-2xl font-black text-[#0f3d44]">{orders.length}</div>
-                    <div className="text-[11px] text-teal-600 font-bold flex items-center gap-1">
-                      <span>অর্ডার লিস্ট দেখুন</span>
-                      <ChevronRight className="w-3.5 h-3.5" />
-                    </div>
-                  </div>
-
-                  {/* Stat 3: Pending Orders */}
-                  <div
-                    onClick={() => { setActiveTab('orders'); setOrderStatusFilter('pending'); }}
-                    className="bg-amber-50/70 p-4 sm:p-5 rounded-2xl border border-amber-300 hover:border-amber-400 hover:shadow-md transition-all cursor-pointer group space-y-1 sm:space-y-2"
-                  >
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs font-bold text-amber-800">পেন্ডিং অর্ডার</span>
-                      <div className="w-8 h-8 rounded-xl bg-amber-500 text-white flex items-center justify-center">
-                        <Clock className="w-4 h-4" />
-                      </div>
-                    </div>
-                    <div className="text-xl sm:text-2xl font-black text-amber-950">{pendingOrdersCount}</div>
-                    <div className="text-[11px] text-amber-700 font-bold flex items-center gap-1">
-                      <span>কল ও কনফার্ম করুন</span>
-                      <ChevronRight className="w-3.5 h-3.5" />
-                    </div>
-                  </div>
-
-                  {/* Stat 4: Active Products */}
-                  <div
-                    onClick={() => setActiveTab('products')}
-                    className="bg-white p-4 sm:p-5 rounded-2xl border border-slate-200/80 hover:border-indigo-400 hover:shadow-md transition-all cursor-pointer group space-y-1 sm:space-y-2"
-                  >
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs font-bold text-slate-500">সক্রিয় প্রোডাক্ট</span>
-                      <div className="w-8 h-8 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center group-hover:bg-indigo-600 group-hover:text-white transition-all">
-                        <ShoppingBag className="w-4 h-4" />
-                      </div>
-                    </div>
-                    <div className="text-xl sm:text-2xl font-black text-[#0f3d44]">{products.length}</div>
-                    <div className="text-[11px] text-indigo-600 font-bold flex items-center gap-1">
-                      <span>ক্যাটালগ পরিচালনা</span>
-                      <ChevronRight className="w-3.5 h-3.5" />
-                    </div>
-                  </div>
-                </div>
-
-                {/* QUICK ACTIONS CARDS */}
-                <div className="bg-white p-5 sm:p-6 rounded-3xl border border-slate-200/80 shadow-xs space-y-4">
-                  <h3 className="font-black text-sm sm:text-base text-[#0f3d44] flex items-center gap-2">
-                    <Sparkles className="w-4 h-4 text-amber-500" />
-                    <span>সহজ শর্টকাট (Quick Actions)</span>
-                  </h3>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-                    <button
-                      onClick={() => setShowAddModal(true)}
-                      className="p-4 rounded-2xl border border-teal-200 bg-teal-50/60 hover:bg-teal-100/80 text-left transition-all cursor-pointer group"
-                    >
-                      <div className="w-8 h-8 rounded-xl bg-teal-600 text-white flex items-center justify-center mb-2 shadow-xs">
-                        <Plus className="w-4 h-4" />
-                      </div>
-                      <div className="font-black text-xs sm:text-sm text-[#0f3d44] mb-0.5">নতুন প্রোডাক্ট যোগ করুন</div>
-                      <div className="text-[11px] text-slate-500">ওয়াল আর্টের ছবি, মাপ ও মূল্য আপলোড</div>
-                    </button>
-
-                    <button
-                      onClick={() => { setActiveTab('orders'); setOrderStatusFilter('pending'); }}
-                      className="p-4 rounded-2xl border border-amber-200 bg-amber-50/60 hover:bg-amber-100/80 text-left transition-all cursor-pointer group"
-                    >
-                      <div className="w-8 h-8 rounded-xl bg-amber-500 text-white flex items-center justify-center mb-2 shadow-xs">
-                        <Clock className="w-4 h-4" />
-                      </div>
-                      <div className="font-black text-xs sm:text-sm text-amber-900 mb-0.5">পেন্ডিং অর্ডার প্রসেস</div>
-                      <div className="text-[11px] text-amber-700">গ্রাহককে কল ও স্ট্যাটাস আপডেট</div>
-                    </button>
-
-                    <button
-                      onClick={() => setActiveTab('sheets')}
-                      className="p-4 rounded-2xl border border-emerald-200 bg-emerald-50/60 hover:bg-emerald-100/80 text-left transition-all cursor-pointer group"
-                    >
-                      <div className="w-8 h-8 rounded-xl bg-emerald-600 text-white flex items-center justify-center mb-2 shadow-xs">
-                        <FileSpreadsheet className="w-4 h-4" />
-                      </div>
-                      <div className="font-black text-xs sm:text-sm text-emerald-950 mb-0.5">গুগল শিট লাইভ সিঙ্ক</div>
-                      <div className="text-[11px] text-emerald-700">অর্ডার শিটে ব্যাকআপ ও রিস্টোর</div>
-                    </button>
-
-                    <button
-                      onClick={() => { setActiveTab('settings'); setSettingsSubTab('media'); }}
-                      className="p-4 rounded-2xl border border-indigo-200 bg-indigo-50/60 hover:bg-indigo-100/80 text-left transition-all cursor-pointer group"
-                    >
-                      <div className="w-8 h-8 rounded-xl bg-indigo-600 text-white flex items-center justify-center mb-2 shadow-xs">
-                        <Video className="w-4 h-4" />
-                      </div>
-                      <div className="font-black text-xs sm:text-sm text-indigo-950 mb-0.5">ব্যানার ও ভিডিও সেটিংস</div>
-                      <div className="text-[11px] text-indigo-700">হোম পেজের প্রোমো ভিডিও পরিবর্তন</div>
-                    </button>
-                  </div>
-                </div>
-
-                {/* RECENT 5 ORDERS TABLE */}
-                <div className="bg-white rounded-3xl border border-slate-200/80 shadow-xs overflow-hidden">
-                  <div className="p-4 sm:p-5 border-b border-slate-100 flex items-center justify-between gap-2">
-                    <div>
-                      <h3 className="font-black text-sm sm:text-base text-[#0f3d44]">সর্বশেষ ৫টি অর্ডার (Recent Orders)</h3>
-                      <p className="text-[11px] text-slate-500">গ্রাহকদের দেওয়া সাম্প্রতিক অর্ডারের স্ট্যাটাস</p>
-                    </div>
-                    <button
-                      onClick={() => setActiveTab('orders')}
-                      className="text-xs font-bold text-teal-700 hover:text-teal-900 bg-teal-50 px-3 py-1.5 rounded-xl border border-teal-200 flex items-center gap-1 cursor-pointer transition-all"
-                    >
-                      <span>সব অর্ডার ({orders.length})</span>
-                      <ChevronRight className="w-3.5 h-3.5" />
-                    </button>
-                  </div>
-
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-left text-xs">
-                      <thead className="bg-slate-50 text-slate-500 font-bold border-b border-slate-100">
-                        <tr>
-                          <th className="px-4 py-3">অর্ডার নং</th>
-                          <th className="px-4 py-3">গ্রাহক ও ফোন</th>
-                          <th className="px-4 py-3">ঠিকানা</th>
-                          <th className="px-4 py-3">পরিমাণ</th>
-                          <th className="px-4 py-3">স্ট্যাটাস</th>
-                          <th className="px-4 py-3 text-right">অ্যাকশন</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-slate-100">
-                        {recentOrdersList.map((ord) => {
-                          const statusConfig: Record<string, { label: string; bg: string; text: string }> = {
-                            pending: { label: 'পেন্ডিং', bg: 'bg-amber-100', text: 'text-amber-800' },
-                            confirmed: { label: 'কনফার্মড', bg: 'bg-blue-100', text: 'text-blue-800' },
-                            processing: { label: 'প্রসেসিং', bg: 'bg-purple-100', text: 'text-purple-800' },
-                            shipped: { label: 'শিপড', bg: 'bg-indigo-100', text: 'text-indigo-800' },
-                            delivered: { label: 'ডেলিভার্ড', bg: 'bg-emerald-100', text: 'text-emerald-800' },
-                            cancelled: { label: 'বাতিল', bg: 'bg-rose-100', text: 'text-rose-800' }
-                          };
-                          const conf = statusConfig[ord.status] || statusConfig.pending;
-
-                          return (
-                            <tr key={ord.id} className="hover:bg-slate-50/80 transition-colors">
-                              <td className="px-4 py-3 font-mono font-bold text-[#0f3d44]">
-                                {ord.order_number}
-                              </td>
-                              <td className="px-4 py-3">
-                                <div className="font-bold text-slate-900">{ord.user_name}</div>
-                                <div className="text-[11px] text-slate-500 font-mono flex items-center gap-2">
-                                  <span>{ord.user_phone}</span>
-                                  {ord.user_phone && (
-                                    <a
-                                      href={`https://wa.me/88${ord.user_phone.replace(/[^0-9]/g, '')}`}
-                                      target="_blank"
-                                      rel="noreferrer"
-                                      className="text-emerald-600 hover:text-emerald-700"
-                                      title="WhatsApp মেসেজ দিন"
-                                    >
-                                      <MessageCircle className="w-3.5 h-3.5" />
-                                    </a>
-                                  )}
-                                </div>
-                              </td>
-                              <td className="px-4 py-3 text-slate-600 max-w-xs truncate">
-                                {ord.city ? `${ord.city}, ` : ''}{ord.shipping_address}
-                              </td>
-                              <td className="px-4 py-3 font-bold text-[#0f3d44]">
-                                {formatPrice(ord.total_amount)}
-                              </td>
-                              <td className="px-4 py-3">
-                                <span className={`px-2 py-0.5 rounded-full text-[10px] font-black ${conf.bg} ${conf.text}`}>
-                                  {conf.label}
-                                </span>
-                              </td>
-                              <td className="px-4 py-3 text-right">
-                                <button
-                                  onClick={() => setSelectedOrderDetails(ord)}
-                                  className="px-2.5 py-1 rounded-lg text-xs font-bold text-teal-700 bg-teal-50 hover:bg-teal-100 border border-teal-200 cursor-pointer transition-all inline-flex items-center gap-1"
-                                >
-                                  <Eye className="w-3.5 h-3.5" />
-                                  <span>বিস্তারিত</span>
-                                </button>
-                              </td>
-                            </tr>
-                          );
-                        })}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
               </div>
-            )}
-
-      {/* TAB 1: PRODUCTS TABLE */}
-      {activeTab === 'products' && (
-        <div className="space-y-6">
-          {/* SPOTLIGHT: TODAY'S BEST DEAL SELECTION CARD */}
-          <div className="bg-gradient-to-r from-amber-500/10 via-orange-500/10 to-rose-500/10 border border-amber-300 rounded-3xl p-5 sm:p-6 shadow-xs space-y-4">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-2xl bg-amber-500 text-white flex items-center justify-center shadow-md shrink-0">
-                  <Flame className="w-5 h-5 fill-white" />
-                </div>
-                <div>
-                  <h3 className="font-black text-sm sm:text-base text-slate-900 flex items-center gap-2">
-                    <span>Today's Best Deal Spotlight (আজকের সেরা ডিল পণ্য নির্বাচন)</span>
-                    <span className="text-[11px] font-bold bg-amber-200 text-amber-900 px-2 py-0.5 rounded-full">
-                      Only 1 Active
-                    </span>
-                  </h3>
-                  <p className="text-xs text-slate-600">
-                    হোম পেজে প্রদর্শিত "Deal of the Day" এর জন্য যেকোনো একটি প্রোডাক্ট নির্বাচন করুন। নতুন একটি সিলেক্ট করলে আগেরটি স্বয়ংক্রিয়ভাবে আনসিলেক্ট হয়ে যাবে।
-                  </p>
-                </div>
-              </div>
-
-              {activeBestDealProduct && (
-                <div className="bg-white px-4 py-2 rounded-2xl border border-amber-300 flex items-center gap-3 shrink-0">
-                  <img
-                    src={activeBestDealProduct.room_images?.drawing_room || activeBestDealProduct.image_url}
-                    alt=""
-                    className="w-8 h-8 rounded-lg object-cover border border-amber-200"
-                  />
-                  <div>
-                    <span className="text-[10px] font-bold text-amber-800 uppercase block">Current Active Deal:</span>
-                    <span className="font-bold text-xs text-slate-900 line-clamp-1">{activeBestDealProduct.name}</span>
-                  </div>
-                </div>
-              )}
-            </div>
-
-            {/* Quick Best Deal Selector Dropdown */}
-            <div className="flex flex-col sm:flex-row items-center gap-3 bg-white/80 p-3 rounded-2xl border border-amber-200">
-              <label className="text-xs font-bold text-slate-700 shrink-0">
-                Choose Product for Today's Best Deal:
-              </label>
-              <select
-                value={settings.best_deal_product_id || (products[0] ? products[0].id : 1)}
-                onChange={(e) => handleSelectBestDeal(Number(e.target.value))}
-                className="w-full sm:w-auto flex-1 bg-white border border-amber-300 rounded-xl px-3.5 py-2 text-xs font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-amber-500"
-              >
-                {products.map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {p.name} — ({formatPrice(p.price)})
-                  </option>
-                ))}
-              </select>
-              <span className="text-[11px] text-emerald-700 font-bold flex items-center gap-1 shrink-0">
-                <Check className="w-3.5 h-3.5" /> Auto-Saved
-              </span>
-            </div>
-          </div>
-
-          {/* CATEGORY-WISE FILTER BAR & SEARCH */}
-          <div className="bg-white p-5 rounded-3xl border border-slate-200/80 shadow-xs space-y-4">
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-              <div>
-                <h2 className="font-black text-base text-[#0f3d44] flex items-center gap-2">
-                  <Layers className="w-5 h-5 text-indigo-600" />
-                  <span>Category-Wise Product Management (ক্যাটাগরি ভিত্তিক পণ্য তালিকা)</span>
-                </h2>
-                <p className="text-xs text-slate-500">
-                  নির্দিষ্ট ক্যাটাগরি অনুযায়ী প্রোডাক্ট ফিল্টার করুন এবং প্রতিটি প্রোডাক্টের ৫টি রুম ছবি ও সাইজ ডিটেইলস এক ক্লিকে এডিট করুন।
-                </p>
-              </div>
-
-              {/* Controls & Search */}
-              <div className="flex flex-wrap items-center gap-2.5">
-                <button
-                  type="button"
-                  onClick={async () => {
-                    setIsPullingInventory(true);
-                    try {
-                      await syncInventoryFromSheet();
-                    } finally {
-                      setIsPullingInventory(false);
-                    }
-                  }}
-                  disabled={isPullingInventory}
-                  title="গুগল শিট থেকে সর্বশেষ স্টক ও পণ্য সিঙ্ক করুন"
-                  className="px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white text-xs font-bold flex items-center gap-1.5 transition-all shadow-xs cursor-pointer"
-                >
-                  <Download className={`w-3.5 h-3.5 ${isPullingInventory ? 'animate-spin' : ''}`} />
-                  <span>{isPullingInventory ? 'সিঙ্ক হচ্ছে...' : '📥 শিট থেকে সিঙ্ক'}</span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={async () => {
-                    const confirmed = window.confirm(`আপনি কি মোট ${products.length}টি প্রোডাক্ট ও ${categories.length}টি ক্যাটাগরি গুগল শিটে ব্যাকআপ/আপডেট করতে চান?`);
-                    if (!confirmed) return;
-                    setIsPushingCatalog(true);
-                    try {
-                      await pushCatalogToSheet();
-                    } finally {
-                      setIsPushingCatalog(false);
-                    }
-                  }}
-                  disabled={isPushingCatalog}
-                  title="বর্তমান সম্পূর্ণ ক্যাটালগ গুগল শিটে পাঠান"
-                  className="px-3.5 py-2 rounded-xl bg-[#0f3d44] hover:bg-teal-900 disabled:opacity-50 text-white text-xs font-bold flex items-center gap-1.5 transition-all shadow-xs cursor-pointer"
-                >
-                  <Upload className={`w-3.5 h-3.5 ${isPushingCatalog ? 'animate-spin' : ''}`} />
-                  <span>{isPushingCatalog ? 'পাঠানো হচ্ছে...' : '📤 শিটে ব্যাকআপ'}</span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => setShowAddModal(true)}
-                  className="px-3.5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold flex items-center gap-1.5 transition-all shadow-xs cursor-pointer"
-                >
-                  <Plus className="w-3.5 h-3.5" />
-                  <span>➕ নতুন পণ্য যোগ</span>
-                </button>
-
-                {/* Search Box */}
-                <div className="relative w-full sm:w-56">
-                  <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
-                  <input
-                    type="text"
-                    value={productSearch}
-                    onChange={(e) => setProductSearch(e.target.value)}
-                    placeholder="পণ্য বা ক্যাটাগরি..."
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-8 pr-3 py-2 text-xs font-medium text-[#0f3d44] focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                  />
-                </div>
-              </div>
-            </div>
-
-            {/* Category Pills */}
-            <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-slate-100">
-              <button
-                type="button"
-                onClick={() => setSelectedCatFilter('all')}
-                className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
-                  selectedCatFilter === 'all'
-                    ? 'bg-[#0f3d44] text-white shadow-sm ring-2 ring-[#0f3d44]/30'
-                    : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                }`}
-              >
-                <span>সব পণ্য (All)</span>
-                <span className={`text-[10px] px-1.5 py-0.2 rounded-full ${selectedCatFilter === 'all' ? 'bg-white/20 text-white' : 'bg-slate-200 text-slate-700'}`}>
-                  {products.length}
-                </span>
-              </button>
-
-              {categories.map((c) => {
-                const count = products.filter(p => p.category_id === c.id).length;
-                const isSelected = selectedCatFilter === c.id;
-                return (
-                  <button
-                    key={c.id}
-                    type="button"
-                    onClick={() => setSelectedCatFilter(c.id)}
-                    className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
-                      isSelected
-                        ? 'bg-indigo-600 text-white shadow-sm ring-2 ring-indigo-400/50'
-                        : 'bg-slate-50 border border-slate-200 text-slate-700 hover:bg-indigo-50 hover:border-indigo-200 hover:text-indigo-900'
-                    }`}
-                  >
-                    <span>{c.icon ? `${c.icon} ` : '🏷️ '}{c.name}</span>
-                    <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-mono ${isSelected ? 'bg-white/20 text-white' : 'bg-slate-200 text-slate-700'}`}>
-                      {count}
-                    </span>
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-
-          {/* MAIN PRODUCTS LIST CARDS */}
-          {(() => {
-            const filtered = products.filter(p => {
-              const matchesCat = selectedCatFilter === 'all' || p.category_id === selectedCatFilter;
-              const matchesSearch = !productSearch.trim() ||
-                p.name.toLowerCase().includes(productSearch.toLowerCase()) ||
-                (p.category_name || '').toLowerCase().includes(productSearch.toLowerCase());
-              return matchesCat && matchesSearch;
-            });
-
-            if (filtered.length === 0) {
-              return (
-                <div className="bg-white rounded-3xl border border-slate-200 p-12 text-center space-y-3">
-                  <div className="w-12 h-12 rounded-2xl bg-slate-100 text-slate-400 flex items-center justify-center mx-auto">
-                    <Search className="w-6 h-6" />
-                  </div>
-                  <h3 className="font-bold text-slate-800 text-sm">কোনো প্রোডাক্ট পাওয়া যায়নি</h3>
-                  <p className="text-xs text-slate-500">
-                    ফিল্টার পরিবর্তন করুন অথবা নতুন প্রোডাক্ট যোগ করুন।
-                  </p>
-                  <button
-                    onClick={() => { setSelectedCatFilter('all'); setProductSearch(''); }}
-                    className="px-4 py-2 bg-indigo-50 text-indigo-600 rounded-xl text-xs font-bold hover:bg-indigo-100 cursor-pointer"
-                  >
-                    রিসেট ফিল্টার
-                  </button>
-                </div>
-              );
-            }
-
-            return (
-              <div className="space-y-4">
-                {filtered.map((p) => {
-                  const isCurrentBestDeal = (settings.best_deal_product_id ? p.id === settings.best_deal_product_id : p.id === (products[0]?.id || 1));
-                  const isIslamic =
-                    p.category_id === 1 ||
-                    p.category_id === 2 ||
-                    p.category_id === 3 ||
-                    (p.category_name || '').toLowerCase().includes('islamic') ||
-                    (p.name || '').toLowerCase().includes('ayatul') ||
-                    (p.name || '').toLowerCase().includes('surah');
-
-                  const room3Label = isIslamic ? 'নামাজের ঘর' : 'রিডিং রুম';
-
-                  const rDrawing = p.room_images?.drawing_room || p.image_url || '';
-                  const rOffice = p.room_images?.office_room || p.placements?.find(x => x.room_type === 'Office')?.image_url || 'https://images.unsplash.com/photo-1513694203232-719a280e022f?auto=format&fit=crop&w=1200&q=80';
-                  const rPrayerReading = p.room_images?.prayer_or_reading_room || p.placements?.find(x => x.room_type === 'Hallway' || x.room_type === 'Formations')?.image_url || 'https://images.unsplash.com/photo-1618221195710-dd6b41faaea6?auto=format&fit=crop&w=1200&q=80';
-                  const rBedroom = p.room_images?.bedroom || p.placements?.find(x => x.room_type === 'Bedroom')?.image_url || 'https://images.unsplash.com/photo-1616486338812-3dadae4b4ace?auto=format&fit=crop&w=1200&q=80';
-                  const rCloseView = p.room_images?.close_view || p.image_url || '';
-
-                  const medSize = p.sizes?.[0] || {
-                    name: 'Medium (75cm × 40cm)',
-                    size_dimensions: p.size_dimensions || '75cm × 40cm',
-                    price: p.price,
-                    old_price: p.old_price,
-                    weight_grams: p.weight_grams
-                  };
-
-                  const lrgSize = p.sizes?.[1] || {
-                    name: 'Large (120cm × 60cm)',
-                    size_dimensions: '120cm × 60cm',
-                    price: Math.round(p.price * 1.36),
-                    old_price: p.old_price ? Math.round(p.old_price * 1.36) : undefined,
-                    weight_grams: Math.round(p.weight_grams * 1.57)
-                  };
-
-                  return (
-                    <div
-                      key={p.id}
-                      className={`bg-white rounded-3xl border p-5 sm:p-6 shadow-xs transition-all space-y-4 hover:shadow-md ${
-                        isCurrentBestDeal ? 'border-amber-300 ring-2 ring-amber-200/50 bg-amber-50/10' : 'border-slate-200/90'
-                      }`}
-                    >
-                      {/* TOP ROW: TITLE, CATEGORY, BADGES & ACTIONS */}
-                      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 border-b border-slate-100 pb-3.5">
-                        <div className="flex items-start sm:items-center gap-3">
-                          <img
-                            src={rDrawing}
-                            alt=""
-                            className="w-14 h-14 rounded-2xl object-cover border border-slate-200 shrink-0 shadow-xs"
-                          />
-                          <div className="space-y-1">
-                            <div className="flex flex-wrap items-center gap-2">
-                              <h3 className="font-extrabold text-sm sm:text-base text-[#0f3d44]">
-                                {p.name}
-                              </h3>
-                              <span className="bg-teal-50 text-teal-800 px-2.5 py-0.5 rounded-full text-[11px] font-bold border border-teal-200">
-                                {p.category_name || 'Wall Decor'}
-                              </span>
-                              {p.badge && (
-                                <span className="bg-rose-50 text-rose-700 px-2 py-0.5 rounded-md text-[10px] font-black uppercase tracking-wider border border-rose-200">
-                                  {p.badge}
-                                </span>
-                              )}
-                              {isCurrentBestDeal && (
-                                <span className="bg-amber-100 text-amber-900 border border-amber-300 px-2 py-0.5 rounded-md text-[10px] font-black flex items-center gap-1">
-                                  <Flame className="w-3 h-3 fill-amber-600 text-amber-600" /> Best Deal Active
-                                </span>
-                              )}
-                            </div>
-                            <div className="text-[11px] text-slate-400 font-mono flex items-center gap-2">
-                              <span>ID: #{p.id}</span>
-                              <span>•</span>
-                              <span>Stock: <strong className={p.stock > 0 ? 'text-emerald-600' : 'text-rose-600'}>{p.stock} pcs</strong></span>
-                              <span>•</span>
-                              <span>Material: {p.material || 'Surgical Stainless Steel'}</span>
-                            </div>
-                          </div>
-                        </div>
-
-                        {/* Top Action Buttons */}
-                        <div className="flex items-center gap-2 self-end lg:self-center">
-                          {!isCurrentBestDeal && (
-                            <button
-                              type="button"
-                              onClick={() => handleSelectBestDeal(p.id)}
-                              className="px-3 py-1.5 rounded-xl text-xs font-bold text-amber-800 bg-amber-50 hover:bg-amber-100 border border-amber-200 transition-all flex items-center gap-1 cursor-pointer"
-                              title="Set as Homepage Today's Best Deal"
-                            >
-                              <Flame className="w-3.5 h-3.5 text-amber-600" />
-                              <span>Set Best Deal</span>
-                            </button>
-                          )}
-                          <button
-                            type="button"
-                            onClick={() => onNavigate('product', { slug: p.slug })}
-                            className="px-3 py-1.5 rounded-xl text-xs font-bold text-slate-600 hover:text-[#0f3d44] bg-slate-100 hover:bg-slate-200 transition-all flex items-center gap-1 cursor-pointer"
-                            title="View on public store"
-                          >
-                            <Eye className="w-3.5 h-3.5" />
-                            <span>Preview</span>
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => openEditProduct(p)}
-                            className="px-4 py-1.5 rounded-xl text-xs font-black text-white bg-gradient-to-r from-teal-500 via-indigo-600 to-pink-500 hover:opacity-90 shadow-sm transition-all flex items-center gap-1.5 cursor-pointer"
-                            title="Edit All 4 Room Images, Sizes & Descriptions"
-                          >
-                            <Edit className="w-3.5 h-3.5" />
-                            <span>সম্পূর্ণ এডিট করুন</span>
-                          </button>
-                        </div>
-                      </div>
-
-                      {/* 4 ROOM VIEW THUMBNAILS ROW */}
-                      <div className="space-y-1.5">
-                        <div className="flex items-center justify-between text-[11px] font-bold text-slate-500">
-                          <span>৪টি রুম ভিউ ফটো (4 Types of Room Images):</span>
-                          <span className="text-[10px] text-teal-700 font-semibold">ডিফল্ট সিলেক্টেড: ড্রয়িং রুম</span>
-                        </div>
-                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
-                          {/* 1. Drawing Room */}
-                          <div className="bg-slate-50 p-2 rounded-2xl border border-slate-200 flex items-center gap-2">
-                            <img src={rDrawing} alt="Drawing Room" className="w-10 h-10 rounded-xl object-cover border border-slate-300 shrink-0" />
-                            <div className="min-w-0">
-                              <span className="text-[9px] font-black text-indigo-900 uppercase block">১. ড্রয়িং রুম</span>
-                              <span className="text-[10px] font-bold text-emerald-700 block truncate">ডিফল্ট মেইন</span>
-                            </div>
-                          </div>
-
-                          {/* 2. Office Room */}
-                          <div className="bg-slate-50 p-2 rounded-2xl border border-slate-200 flex items-center gap-2">
-                            <img src={rOffice} alt="Office Room" className="w-10 h-10 rounded-xl object-cover border border-slate-300 shrink-0" />
-                            <div className="min-w-0">
-                              <span className="text-[9px] font-black text-slate-700 uppercase block">২. অফিস রুম</span>
-                              <span className="text-[10px] font-medium text-slate-500 block truncate">অফিস স্পেস</span>
-                            </div>
-                          </div>
-
-                          {/* 3. Prayer / Reading Room */}
-                          <div className="bg-slate-50 p-2 rounded-2xl border border-slate-200 flex items-center gap-2">
-                            <img src={rPrayerReading} alt={room3Label} className="w-10 h-10 rounded-xl object-cover border border-slate-300 shrink-0" />
-                            <div className="min-w-0">
-                              <span className="text-[9px] font-black text-teal-800 uppercase block truncate">৩. {room3Label}</span>
-                              <span className="text-[10px] font-medium text-slate-500 block truncate">{isIslamic ? 'ইসলামিক ভিউ' : 'ন্যাচারাল ভিউ'}</span>
-                            </div>
-                          </div>
-
-                          {/* 4. Bedroom */}
-                          <div className="bg-slate-50 p-2 rounded-2xl border border-slate-200 flex items-center gap-2">
-                            <img src={rBedroom} alt="Bedroom" className="w-10 h-10 rounded-xl object-cover border border-slate-300 shrink-0" />
-                            <div className="min-w-0">
-                              <span className="text-[9px] font-black text-slate-700 uppercase block">৪. বেডরুম</span>
-                              <span className="text-[10px] font-medium text-slate-500 block truncate">বেডরুম স্পেস</span>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* PRICING, DIMENSION & WEIGHT ROW */}
-                      <div className="bg-slate-50 p-3 rounded-2xl border border-slate-200 flex flex-wrap items-center justify-between gap-3">
-                        <div className="flex items-center gap-3">
-                          <div className="px-3 py-1.5 rounded-xl bg-white border border-slate-200 text-xs">
-                            <span className="text-[10px] text-slate-400 font-bold uppercase block">সাইজ / ডাইমেনশন</span>
-                            <span className="font-black text-[#0f3d44] font-mono">{p.size_dimensions || '75cm × 40cm'}</span>
-                          </div>
-                          <div className="px-3 py-1.5 rounded-xl bg-white border border-slate-200 text-xs">
-                            <span className="text-[10px] text-slate-400 font-bold uppercase block">ওজন (Weight)</span>
-                            <span className="font-bold text-slate-700 font-mono">{p.weight_grams || 1400} গ্রাম</span>
-                          </div>
-                          <div className="px-3 py-1.5 rounded-xl bg-white border border-slate-200 text-xs">
-                            <span className="text-[10px] text-slate-400 font-bold uppercase block">ইনভেন্টরি স্টক</span>
-                            <span className={`font-black font-mono ${p.stock > 0 ? 'text-emerald-700' : 'text-rose-600'}`}>{p.stock} টি</span>
-                          </div>
-                        </div>
-
-                        <div className="flex items-baseline gap-2 text-right">
-                          <span className="text-[11px] text-slate-400 font-bold">বিক্রয় মূল্য:</span>
-                          <span className="text-base sm:text-lg font-black text-teal-800">{formatPrice(p.price)}</span>
-                          {p.old_price && (
-                            <span className="text-xs text-slate-400 line-through">{formatPrice(p.old_price)}</span>
-                          )}
-                        </div>
-                      </div>
-
-                      {/* Bangla Description Excerpt */}
-                      {p.bangla_short_desc && (
-                        <div className="text-[11px] text-slate-600 bg-slate-50 p-2.5 rounded-xl border border-slate-100 italic">
-                          "{p.bangla_short_desc}"
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-            );
-          })()}
-        </div>
-      )}
-
-      {/* TAB: INVENTORY & STOCK MANAGEMENT */}
-      {activeTab === 'inventory' && (() => {
-        const totalItems = products.length;
-        const totalStockUnits = products.reduce((sum, p) => sum + (p.stock || 0), 0);
-        const lowStockProducts = products.filter(p => (p.stock || 0) > 0 && (p.stock || 0) <= 5);
-        const outOfStockProducts = products.filter(p => (p.stock || 0) === 0);
-
-        const filteredInventoryProducts = products.filter(p => {
-          if (inventoryStockFilter === 'low') {
-            if (!((p.stock || 0) > 0 && (p.stock || 0) <= 5)) return false;
-          } else if (inventoryStockFilter === 'out') {
-            if ((p.stock || 0) !== 0) return false;
-          } else if (inventoryStockFilter === 'in') {
-            if ((p.stock || 0) <= 5) return false;
-          }
-
-          if (!inventorySearch.trim()) return true;
-          const q = inventorySearch.toLowerCase();
-          return (
-            p.name.toLowerCase().includes(q) ||
-            (p.category_name && p.category_name.toLowerCase().includes(q)) ||
-            (p.slug && p.slug.toLowerCase().includes(q))
-          );
-        });
-
-        return (
-          <div className="space-y-6">
-            {/* Header & Supabase Banner */}
-            <div className="bg-gradient-to-r from-teal-900 via-slate-900 to-[#0f3d44] p-6 rounded-3xl text-white shadow-xl flex flex-col md:flex-row md:items-center justify-between gap-4">
-              <div className="space-y-1 max-w-2xl">
-                <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 text-xs font-bold">
-                  <Database className="w-3.5 h-3.5" />
-                  <span>Supabase Live Stock Sync</span>
-                </div>
-                <h2 className="text-xl sm:text-2xl font-black">ইনভেন্টরি ও স্টক পরিচালনা (Inventory Management)</h2>
-                <p className="text-xs text-slate-300">
-                  প্রতিটি ওয়াল আর্টের বর্তমান স্টক সংখ্যা দেখুন ও এক ক্লিকে আপডেট করুন। যে পরিবর্তনই করবেন, তা সরাসরি Supabase ডেটাবেজ ও ওয়েবসাইটে আপডেট হবে।
-                </p>
-              </div>
-
-              <div className="flex flex-wrap items-center gap-2">
-                <button
-                  type="button"
-                  onClick={handleSeedSupabase}
-                  disabled={isSyncingSupabaseSeed}
-                  className="px-4 py-2.5 rounded-2xl bg-amber-500 hover:bg-amber-600 disabled:opacity-50 text-slate-950 font-black text-xs flex items-center gap-2 transition-all shadow-md cursor-pointer"
-                  title="সকল প্রোডাক্ট ও স্টক Supabase-এ সিঙ্ক করুন"
-                >
-                  <RefreshCw className={`w-3.5 h-3.5 ${isSyncingSupabaseSeed ? 'animate-spin' : ''}`} />
-                  <span>{isSyncingSupabaseSeed ? 'সিঙ্ক হচ্ছে...' : 'Supabase-এ ক্যাটালগ সিঙ্ক'}</span>
-                </button>
-              </div>
-            </div>
-
-            {/* Inventory Metric Cards */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
-              <div className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-xs space-y-1">
-                <div className="flex items-center justify-between text-slate-500 text-xs font-bold">
-                  <span>মোট প্রোডাক্ট আইটেম</span>
-                  <ShoppingBag className="w-4 h-4 text-indigo-500" />
-                </div>
-                <div className="text-2xl font-black text-[#0f3d44]">{totalItems}</div>
-                <div className="text-[11px] text-slate-400">Total Catalog Items</div>
-              </div>
-
-              <div className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-xs space-y-1">
-                <div className="flex items-center justify-between text-emerald-700 text-xs font-bold">
-                  <span>মোট স্টক মজুদ</span>
-                  <Warehouse className="w-4 h-4 text-emerald-600" />
-                </div>
-                <div className="text-2xl font-black text-emerald-800">{totalStockUnits} <span className="text-xs font-normal">টি</span></div>
-                <div className="text-[11px] text-emerald-600">Total In-Stock Units</div>
-              </div>
-
-              <div
-                onClick={() => setInventoryStockFilter(inventoryStockFilter === 'low' ? 'all' : 'low')}
-                className={`p-4 rounded-2xl border transition-all cursor-pointer space-y-1 ${
-                  inventoryStockFilter === 'low' ? 'bg-amber-100 border-amber-400 shadow-md' : 'bg-amber-50/70 border-amber-200 hover:border-amber-300'
-                }`}
-              >
-                <div className="flex items-center justify-between text-amber-800 text-xs font-bold">
-                  <span>কম স্টক (≤ ৫ টি)</span>
-                  <AlertCircle className="w-4 h-4 text-amber-600" />
-                </div>
-                <div className="text-2xl font-black text-amber-950">{lowStockProducts.length} <span className="text-xs font-normal">টি পণ্য</span></div>
-                <div className="text-[11px] text-amber-700">Reorder Required</div>
-              </div>
-
-              <div
-                onClick={() => setInventoryStockFilter(inventoryStockFilter === 'out' ? 'all' : 'out')}
-                className={`p-4 rounded-2xl border transition-all cursor-pointer space-y-1 ${
-                  inventoryStockFilter === 'out' ? 'bg-rose-100 border-rose-400 shadow-md' : 'bg-rose-50/70 border-rose-200 hover:border-rose-300'
-                }`}
-              >
-                <div className="flex items-center justify-between text-rose-800 text-xs font-bold">
-                  <span>স্টক আউট (০ টি)</span>
-                  <X className="w-4 h-4 text-rose-600" />
-                </div>
-                <div className="text-2xl font-black text-rose-950">{outOfStockProducts.length} <span className="text-xs font-normal">টি পণ্য</span></div>
-                <div className="text-[11px] text-rose-700">Out of Stock Alert</div>
-              </div>
-            </div>
-
-            {/* Search & Quick Filter Controls */}
-            <div className="bg-white p-4 sm:p-5 rounded-2xl border border-slate-200/80 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-3">
-              <div className="relative flex-1 max-w-md">
-                <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
-                <input
-                  type="text"
-                  value={inventorySearch}
-                  onChange={(e) => setInventorySearch(e.target.value)}
-                  placeholder="প্রোডাক্ট নাম বা ক্যাটাগরি সার্চ করুন..."
-                  className="w-full pl-9 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium text-[#0f3d44] focus:outline-none focus:ring-2 focus:ring-[#0f3d44]"
-                />
-                {inventorySearch && (
-                  <button
-                    onClick={() => setInventorySearch('')}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 text-xs"
-                  >
-                    ✕
-                  </button>
-                )}
-              </div>
-
-              <div className="flex items-center gap-1.5 overflow-x-auto text-xs pb-1 sm:pb-0">
-                <button
-                  onClick={() => setInventoryStockFilter('all')}
-                  className={`px-3 py-1.5 rounded-xl font-bold transition-all cursor-pointer ${
-                    inventoryStockFilter === 'all'
-                      ? 'bg-[#0f3d44] text-white shadow-xs'
-                      : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                  }`}
-                >
-                  সব ({products.length})
-                </button>
-                <button
-                  onClick={() => setInventoryStockFilter('in')}
-                  className={`px-3 py-1.5 rounded-xl font-bold transition-all cursor-pointer ${
-                    inventoryStockFilter === 'in'
-                      ? 'bg-emerald-600 text-white shadow-xs'
-                      : 'bg-emerald-50 text-emerald-800 hover:bg-emerald-100'
-                  }`}
-                >
-                  পর্যাপ্ত স্টক ({products.filter(p => (p.stock || 0) > 5).length})
-                </button>
-                <button
-                  onClick={() => setInventoryStockFilter('low')}
-                  className={`px-3 py-1.5 rounded-xl font-bold transition-all cursor-pointer ${
-                    inventoryStockFilter === 'low'
-                      ? 'bg-amber-500 text-white shadow-xs'
-                      : 'bg-amber-50 text-amber-800 hover:bg-amber-100'
-                  }`}
-                >
-                  কম স্টক ({lowStockProducts.length})
-                </button>
-                <button
-                  onClick={() => setInventoryStockFilter('out')}
-                  className={`px-3 py-1.5 rounded-xl font-bold transition-all cursor-pointer ${
-                    inventoryStockFilter === 'out'
-                      ? 'bg-rose-600 text-white shadow-xs'
-                      : 'bg-rose-50 text-rose-800 hover:bg-rose-100'
-                  }`}
-                >
-                  স্টক আউট ({outOfStockProducts.length})
-                </button>
-              </div>
-            </div>
-
-            {/* Inventory Table */}
-            <div className="bg-white rounded-2xl border border-slate-200/80 shadow-xs overflow-hidden">
-              <div className="p-4 sm:p-5 border-b border-slate-100 flex items-center justify-between">
-                <div>
-                  <h3 className="font-black text-base text-[#0f3d44]">লাইভ স্টক পরিবর্তন তালিকা</h3>
-                  <p className="text-xs text-slate-500">
-                    ইনপুট বক্সে নতুন স্টক লিখুন অথবা +/- বোতাম চেপে এক ক্লিকে "স্টক সেভ" এ ক্লিক করুন।
-                  </p>
-                </div>
-                <span className="text-xs text-slate-400 font-mono">
-                  {filteredInventoryProducts.length} টি পণ্য প্রদর্শিত
-                </span>
-              </div>
-
-              {filteredInventoryProducts.length === 0 ? (
-                <div className="p-12 text-center text-slate-400 space-y-2">
-                  <Warehouse className="w-10 h-10 mx-auto text-slate-300" />
-                  <p className="font-bold text-sm">কোনো প্রোডাক্ট পাওয়া যায়নি</p>
-                </div>
-              ) : (
-                <div className="divide-y divide-slate-100">
-                  {filteredInventoryProducts.map((p) => {
-                    const currentEditVal = inventoryStockEdits[p.id] !== undefined ? inventoryStockEdits[p.id] : (p.stock || 0);
-                    const isSaving = savingStockId === p.id;
-                    const isLow = (p.stock || 0) > 0 && (p.stock || 0) <= 5;
-                    const isOut = (p.stock || 0) === 0;
-
-                    return (
-                      <div key={p.id} className="p-4 sm:p-5 flex flex-col md:flex-row md:items-center justify-between gap-4 hover:bg-slate-50/80 transition-colors">
-                        {/* Product Info */}
-                        <div className="flex items-center gap-3.5 min-w-0">
-                          <img
-                            src={p.image_url}
-                            alt=""
-                            className="w-14 h-14 object-cover rounded-xl border border-slate-200 shrink-0 bg-slate-100"
-                          />
-                          <div className="min-w-0 space-y-1">
-                            <div className="flex items-center gap-2 flex-wrap">
-                              <h4 className="font-black text-sm text-[#0f3d44] truncate">{p.name}</h4>
-                              <span className="text-[10px] font-mono text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded">
-                                ID: #{p.id}
-                              </span>
-                            </div>
-                            <div className="flex items-center gap-2 text-xs flex-wrap">
-                              <span className="text-teal-800 font-black">{formatPrice(p.price)}</span>
-                              <span className="text-slate-300">•</span>
-                              <span className="text-slate-500 font-medium">{p.category_name || 'Wall Art'}</span>
-                              <span className="text-slate-300">•</span>
-                              <span className="text-slate-500 font-mono">{p.size_dimensions || '75cm × 40cm'}</span>
-                            </div>
-                            <div className="pt-0.5">
-                              {isOut ? (
-                                <span className="inline-flex items-center gap-1 text-[10px] font-black bg-rose-100 text-rose-800 px-2 py-0.5 rounded-full">
-                                  <AlertCircle className="w-3 h-3" /> স্টক আউট (০ টি)
-                                </span>
-                              ) : isLow ? (
-                                <span className="inline-flex items-center gap-1 text-[10px] font-black bg-amber-100 text-amber-900 px-2 py-0.5 rounded-full">
-                                  <AlertCircle className="w-3 h-3" /> কম স্টক ({p.stock} টি বাকি)
-                                </span>
-                              ) : (
-                                <span className="inline-flex items-center gap-1 text-[10px] font-black bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded-full">
-                                  <CheckCircle2 className="w-3 h-3" /> পর্যাপ্ত স্টক ({p.stock} টি)
-                                </span>
-                              )}
-                            </div>
-                          </div>
-                        </div>
-
-                        {/* Quick Stock Controls */}
-                        <div className="flex items-center gap-2 sm:gap-3 shrink-0 self-end md:self-center">
-                          {/* Stepper Buttons */}
-                          <div className="flex items-center bg-slate-100 p-1 rounded-xl border border-slate-200">
-                            <button
-                              type="button"
-                              onClick={() => {
-                                const nextVal = Math.max(0, currentEditVal - 1);
-                                setInventoryStockEdits(prev => ({ ...prev, [p.id]: nextVal }));
-                              }}
-                              className="w-7 h-7 rounded-lg bg-white hover:bg-slate-200 font-black text-slate-700 text-sm flex items-center justify-center transition-colors cursor-pointer shadow-xs"
-                              title="-১ কমান"
-                            >
-                              -1
-                            </button>
-                            <input
-                              type="number"
-                              min="0"
-                              value={currentEditVal}
-                              onChange={(e) => {
-                                const val = parseInt(e.target.value, 10);
-                                setInventoryStockEdits(prev => ({ ...prev, [p.id]: isNaN(val) ? 0 : Math.max(0, val) }));
-                              }}
-                              className="w-14 text-center font-black text-sm text-[#0f3d44] bg-transparent focus:outline-none"
-                            />
-                            <button
-                              type="button"
-                              onClick={() => {
-                                const nextVal = currentEditVal + 1;
-                                setInventoryStockEdits(prev => ({ ...prev, [p.id]: nextVal }));
-                              }}
-                              className="w-7 h-7 rounded-lg bg-white hover:bg-slate-200 font-black text-slate-700 text-sm flex items-center justify-center transition-colors cursor-pointer shadow-xs"
-                              title="+১ বাড়ান"
-                            >
-                              +1
-                            </button>
-                          </div>
-
-                          {/* Quick +5 and +10 Buttons */}
-                          <div className="hidden sm:flex items-center gap-1">
-                            <button
-                              type="button"
-                              onClick={() => {
-                                const nextVal = currentEditVal + 5;
-                                setInventoryStockEdits(prev => ({ ...prev, [p.id]: nextVal }));
-                              }}
-                              className="px-2 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 text-[11px] font-bold cursor-pointer"
-                              title="+৫ স্টক যোগ করুন"
-                            >
-                              +5
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => {
-                                const nextVal = currentEditVal + 10;
-                                setInventoryStockEdits(prev => ({ ...prev, [p.id]: nextVal }));
-                              }}
-                              className="px-2 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 text-[11px] font-bold cursor-pointer"
-                              title="+১০ স্টক যোগ করুন"
-                            >
-                              +10
-                            </button>
-                          </div>
-
-                          {/* Save Button */}
-                          <button
-                            type="button"
-                            onClick={() => handleUpdateStock(p.id, currentEditVal)}
-                            disabled={isSaving}
-                            className={`px-3.5 py-2 rounded-xl text-xs font-black transition-all flex items-center gap-1.5 shadow-xs cursor-pointer ${
-                              currentEditVal !== p.stock
-                                ? 'bg-emerald-600 hover:bg-emerald-700 text-white animate-pulse'
-                                : 'bg-[#0f3d44] hover:bg-teal-900 text-white'
-                            }`}
-                          >
-                            <Save className={`w-3.5 h-3.5 ${isSaving ? 'animate-spin' : ''}`} />
-                            <span>{isSaving ? 'সেভ হচ্ছে...' : 'স্টক সেভ'}</span>
-                          </button>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-          </div>
-        );
-      })()}
-
-      {/* SETTINGS SUB-NAV HEADER */}
-      {activeTab === 'settings' && (
-        <div className="bg-white p-5 sm:p-6 rounded-3xl border border-slate-200/80 shadow-xs space-y-4">
-          <div>
-            <h2 className="text-base sm:text-lg font-black text-[#0f3d44] flex items-center gap-2">
-              <Settings className="w-5 h-5 text-teal-600" />
-              <span>স্টোর সেটিংস ও কনফিগারেশন</span>
-            </h2>
-            <p className="text-xs text-slate-500">
-              মিডিয়া ব্যানার, ক্যাটাগরি, কুপন ডিসকাউন্ট, ডেলিভারি চার্জ এবং পাসওয়ার্ড পরিচালনা করুন
-            </p>
-          </div>
-
-          <div className="flex flex-wrap gap-2 pt-2 border-t border-slate-100">
-            <button
-              onClick={() => setSettingsSubTab('media')}
-              className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
-                settingsSubTab === 'media'
-                  ? 'bg-[#0f3d44] text-white shadow-xs'
-                  : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-              }`}
-            >
-              <Video className="w-3.5 h-3.5" />
-              <span>ব্যানার ও ভিডিও</span>
-            </button>
-
-            <button
-              onClick={() => setSettingsSubTab('categories')}
-              className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
-                settingsSubTab === 'categories'
-                  ? 'bg-[#0f3d44] text-white shadow-xs'
-                  : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-              }`}
-            >
-              <Layers className="w-3.5 h-3.5" />
-              <span>ক্যাটাগরি ({categories.length})</span>
-            </button>
-
-            <button
-              onClick={() => setSettingsSubTab('coupons')}
-              className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
-                settingsSubTab === 'coupons'
-                  ? 'bg-[#0f3d44] text-white shadow-xs'
-                  : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-              }`}
-            >
-              <Tag className="w-3.5 h-3.5" />
-              <span>কুপন ({coupons.length})</span>
-            </button>
-
-            <button
-              onClick={() => setSettingsSubTab('shipping')}
-              className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
-                settingsSubTab === 'shipping'
-                  ? 'bg-[#0f3d44] text-white shadow-xs'
-                  : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-              }`}
-            >
-              <Truck className="w-3.5 h-3.5" />
-              <span>শিপিং চার্জ</span>
-            </button>
-
-            <button
-              onClick={() => setSettingsSubTab('security')}
-              className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
-                settingsSubTab === 'security'
-                  ? 'bg-[#0f3d44] text-white shadow-xs'
-                  : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-              }`}
-            >
-              <Lock className="w-3.5 h-3.5" />
-              <span>পাসওয়ার্ড ও হোয়াটসঅ্যাপ</span>
-            </button>
-
-            <button
-              onClick={() => setSettingsSubTab('meta')}
-              className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
-                settingsSubTab === 'meta'
-                  ? 'bg-[#1877F2] text-white shadow-xs'
-                  : 'bg-blue-50 text-blue-700 hover:bg-blue-100'
-              }`}
-            >
-              <Share2 className="w-3.5 h-3.5" />
-              <span>Meta Pixel & CAPI</span>
-            </button>
-
-            <button
-              onClick={() => setSettingsSubTab('supabase')}
-              className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
-                settingsSubTab === 'supabase'
-                  ? 'bg-emerald-600 text-white shadow-xs'
-                  : 'bg-emerald-50 text-emerald-800 hover:bg-emerald-100'
-              }`}
-            >
-              <Database className="w-3.5 h-3.5" />
-              <span>Supabase Backend</span>
-            </button>
-
-            <button
-              onClick={() => setSettingsSubTab('steadfast')}
-              className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
-                settingsSubTab === 'steadfast'
-                  ? 'bg-indigo-600 text-white shadow-xs'
-                  : 'bg-indigo-50 text-indigo-700 hover:bg-indigo-100'
-              }`}
-            >
-              <Truck className="w-3.5 h-3.5" />
-              <span>Steadfast Courier</span>
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* TAB 2: MEDIA, VIDEO & IMAGE HUB */}
-      {(activeTab === 'media' || (activeTab === 'settings' && settingsSubTab === 'media')) && (
-        <div className="space-y-8">
-          {/* SECTION 1: HERO SECTION VIDEO & BANNER LINK */}
-          <div className="bg-white p-6 rounded-3xl border border-slate-200/80 shadow-xs space-y-6">
-            <div className="flex items-center gap-3 border-b border-slate-100 pb-4">
-              <div className="w-10 h-10 rounded-2xl bg-indigo-50 text-indigo-600 flex items-center justify-center font-black text-sm">
-                1
-              </div>
-              <div>
-                <h2 className="font-extrabold text-base text-[#0f3d44] flex items-center gap-2">
-                  <Video className="w-5 h-5 text-indigo-600" />
-                  <span>No 1: Hero Section Promotional Video &amp; Banner Link</span>
-                </h2>
-                <p className="text-xs text-slate-500">
-                  হোমপেজের একদম উপরের হিরো সেকশনে যে ভিডিও ও ব্যাকগ্রাউন্ড ব্যানার চলে, তার সরাসরি লিঙ্ক এখান থেকে পরিবর্তন করতে পারবেন।
-                </p>
-              </div>
-            </div>
-
-            <form onSubmit={handleSaveMediaSettings} className="space-y-4 text-xs">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="font-bold text-slate-700 block mb-1">
-                    Hero Section Video URL / Direct Link (ভিডিও লিঙ্ক) *
-                  </label>
-                  <input
-                    type="url"
-                    value={promoVideoUrl}
-                    onChange={(e) => setPromoVideoUrl(e.target.value)}
-                    placeholder="https://commondatastorage.googleapis.com/... or https://www.youtube.com/embed/..."
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs text-[#0f3d44] font-mono"
-                  />
-                  <p className="text-[11px] text-slate-400 mt-1">
-                    সরাসরি MP4 ভিডিও ফাইলের লিঙ্ক অথবা ইউটিউব Embed লিঙ্ক দিন।
-                  </p>
-                </div>
-
-                <div>
-                  <label className="font-bold text-slate-700 block mb-1">
-                    Hero Banner Poster / Fallback Image URL (ব্যানার ছবির লিঙ্ক)
-                  </label>
-                  <input
-                    type="url"
-                    value={heroBannerImg}
-                    onChange={(e) => setHeroBannerImg(e.target.value)}
-                    placeholder="https://images.unsplash.com/... or /images/..."
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs text-[#0f3d44] font-mono"
-                  />
-                  <p className="text-[11px] text-slate-400 mt-1">
-                    ভিডিও লোড হওয়ার পূর্বের প্রিভিউ ব্যানার বা হোমপেজ ব্যাকগ্রাউন্ড ছবি।
-                  </p>
-                </div>
-              </div>
-
-              {/* LIVE VIDEO PREVIEW */}
-              {promoVideoUrl && (
-                <div className="mt-4 p-4 bg-slate-900 rounded-2xl space-y-2">
-                  <div className="text-white font-bold text-xs flex items-center justify-between">
-                    <span>🎬 Hero Video Live Preview:</span>
-                    <span className="text-emerald-400 text-[10px] font-mono">16:9 Format</span>
-                  </div>
-                  <div className="aspect-video w-full max-w-xl mx-auto rounded-xl overflow-hidden bg-black flex items-center justify-center">
-                    {promoVideoUrl.includes('youtube.com') || promoVideoUrl.includes('youtu.be') ? (
-                      <iframe
-                        src={promoVideoUrl}
-                        title="Hero Video Preview"
-                        className="w-full h-full"
-                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                        allowFullScreen
-                      />
-                    ) : (
-                      <video
-                        src={promoVideoUrl}
-                        controls
-                        poster={heroBannerImg || undefined}
-                        className="w-full h-full object-contain"
-                      />
-                    )}
-                  </div>
-                </div>
-              )}
-
-              <button
-                type="submit"
-                className="px-6 py-3 rounded-xl text-xs font-bold text-white bg-[#0f3d44] hover:bg-indigo-950 shadow-md cursor-pointer transition-all flex items-center gap-2"
-              >
-                <Check className="w-4 h-4 text-emerald-400" />
-                <span>Save Hero Video &amp; Banner Links</span>
-              </button>
-            </form>
-          </div>
-
-          {/* SECTION 2: CATEGORY PRODUCTS IMAGE LINKS (SCREENSHOT CATEGORIES) */}
-          <div className="bg-white p-6 rounded-3xl border border-slate-200/80 shadow-xs space-y-6">
-            <div className="flex items-center gap-3 border-b border-slate-100 pb-4">
-              <div className="w-10 h-10 rounded-2xl bg-teal-50 text-teal-600 flex items-center justify-center font-black text-sm">
-                2
-              </div>
-              <div>
-                <h2 className="font-extrabold text-base text-[#0f3d44] flex items-center gap-2">
-                  <ImageIcon className="w-5 h-5 text-teal-600" />
-                  <span>No 2: Category Products Image Links (স্ক্রিনশটে দেয়া ক্যাটাগরি প্রোডাক্ট ছবির লিঙ্ক)</span>
-                </h2>
-                <p className="text-xs text-slate-500">
-                  স্ক্রিনশটের ৫টি মূল ক্যাটাগরি (Islamic Wall Decor Combo, Islamic Surah, Islamic Dua, Natural Design Combo, Natural Design) সহ সকল ক্যাটাগরির ছবির লিঙ্ক এখান থেকে সরাসরি এডিট ও প্রিভিউ করতে পারবেন।
-                </p>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {categories.map((cat) => (
-                <div key={cat.id} className="p-4 bg-slate-50 rounded-2xl border border-slate-200 space-y-3 flex flex-col justify-between">
-                  <div className="space-y-2">
-                    <div className="flex items-center justify-between">
-                      <span className="text-xl">{cat.icon}</span>
-                      <span className="text-[10px] font-mono bg-slate-200 px-2 py-0.5 rounded text-slate-700">
-                        ID: {cat.id}
-                      </span>
-                    </div>
-                    <h4 className="font-extrabold text-xs text-[#0f3d44]">{cat.name}</h4>
-                    
-                    {/* Category Image Preview */}
-                    <div className="w-full aspect-video bg-white rounded-xl border border-slate-200 overflow-hidden flex items-center justify-center p-2">
-                      {cat.image_url ? (
-                        <img
-                          src={cat.image_url}
-                          alt={cat.name}
-                          referrerPolicy="no-referrer"
-                          className="w-full h-full object-contain"
-                        />
-                      ) : (
-                        <span className="text-slate-400 text-xs italic">No Image URL Set</span>
-                      )}
-                    </div>
-
-                    <div>
-                      <label className="text-[10px] font-bold text-slate-600 block mb-1">Image Link URL:</label>
-                      <input
-                        type="url"
-                        value={cat.image_url || ''}
-                        onChange={(e) => {
-                          updateCategory(cat.id, { image_url: e.target.value });
-                        }}
-                        placeholder="https://... or /images/..."
-                        className="w-full bg-white border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs text-[#0f3d44] font-mono"
-                      />
-                    </div>
-                  </div>
-
-                  <button
-                    onClick={() => {
-                      showToast(`"${cat.name}" ক্যাটাগরির ছবি আপডেট করা হয়েছে!`);
-                    }}
-                    className="w-full py-2 rounded-xl text-xs font-bold text-teal-800 bg-teal-100/80 hover:bg-teal-200 transition-all cursor-pointer flex items-center justify-center gap-1"
-                  >
-                    <Check className="w-3.5 h-3.5" />
-                    <span>Save Category Image</span>
-                  </button>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* SECTION 3: NORMAL PRODUCTS IMAGE LINKS DIRECTORY */}
-          <div className="bg-white p-6 rounded-3xl border border-slate-200/80 shadow-xs space-y-6">
-            <div className="flex items-center gap-3 border-b border-slate-100 pb-4">
-              <div className="w-10 h-10 rounded-2xl bg-purple-50 text-purple-600 flex items-center justify-center font-black text-sm">
-                3
-              </div>
-              <div>
-                <h2 className="font-extrabold text-base text-[#0f3d44] flex items-center gap-2">
-                  <Layers className="w-5 h-5 text-purple-600" />
-                  <span>No 3: Normal Products Image Links (সাধারণ প্রোডাক্ট ছবির লিঙ্ক ডিরেক্টরি)</span>
-                </h2>
-                <p className="text-xs text-slate-500">
-                  সকল ওয়াল আর্ট প্রোডাক্টের মূল ছবি এবং রুম প্লেসমেন্ট (ড্রয়িং রুম, লিভিং রুম, অফিস ইত্যাদি) ছবির লিঙ্ক এডিট করুন।
-                </p>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-              {products.map((p) => (
-                <div key={p.id} className="p-4 bg-slate-50 rounded-2xl border border-slate-200 space-y-3 flex flex-col justify-between">
-                  <div className="space-y-2">
-                    <div className="flex items-center gap-3">
-                      <img src={p.image_url} alt="" className="w-12 h-12 object-cover rounded-xl border border-slate-200 shrink-0" />
-                      <div>
-                        <h4 className="font-extrabold text-xs text-[#0f3d44] line-clamp-1">{p.name}</h4>
-                        <span className="text-[10px] text-slate-400 font-mono">{formatPrice(p.price)}</span>
-                      </div>
-                    </div>
-
-                    <div>
-                      <label className="text-[10px] font-bold text-slate-600 block mb-0.5">Primary Image URL:</label>
-                      <input
-                        type="url"
-                        value={p.image_url}
-                        onChange={(e) => {
-                          updateProduct({ ...p, image_url: e.target.value });
-                        }}
-                        className="w-full bg-white border border-slate-200 rounded-lg px-2.5 py-1 text-[11px] text-[#0f3d44] font-mono"
-                      />
-                    </div>
-                  </div>
-
-                  <div className="flex gap-2">
-                    <button
-                      onClick={() => {
-                        showToast(`"${p.name}" এর ছবি সেভ করা হয়েছে!`);
-                      }}
-                      className="w-1/2 py-2 rounded-xl text-xs font-bold text-teal-800 bg-teal-100/80 hover:bg-teal-200 transition-all cursor-pointer flex items-center justify-center gap-1"
-                    >
-                      <Check className="w-3.5 h-3.5" />
-                      <span>Save Link</span>
-                    </button>
-                    <button
-                      onClick={() => openEditProduct(p)}
-                      className="w-1/2 py-2 rounded-xl text-xs font-bold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 transition-all cursor-pointer flex items-center justify-center gap-1"
-                    >
-                      <Edit className="w-3.5 h-3.5" />
-                      <span>Full Edit</span>
-                    </button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* TAB 3: CATEGORIES MANAGEMENT */}
-      {(activeTab === 'categories' || (activeTab === 'settings' && settingsSubTab === 'categories')) && (
-        <div className="space-y-6">
-          {activeTab === 'categories' && (
-            <div className="bg-gradient-to-r from-teal-900 via-slate-900 to-[#0f3d44] p-6 rounded-3xl text-white shadow-xl flex flex-col md:flex-row md:items-center justify-between gap-4">
-              <div className="space-y-1 max-w-2xl">
-                <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 text-xs font-bold">
-                  <Database className="w-3.5 h-3.5" />
-                  <span>Supabase Live Categories Sync</span>
-                </div>
-                <h2 className="text-xl sm:text-2xl font-black">ক্যাটাগরি ম্যানেজমেন্ট (Category Management)</h2>
-                <p className="text-xs text-slate-300">
-                  নতুন ক্যাটাগরি তৈরি করুন, নাম ও আইকন পরিবর্তন করুন অথবা ডিলিট করুন। প্রতিটি অ্যাকশন সরাসরি Supabase ডেটাবেজ ও সাইটের ক্যাটাগরি বারে তাৎক্ষণিক আপডেট হয়।
-                </p>
-              </div>
-
-              <button
-                type="button"
-                onClick={handleSeedSupabase}
-                disabled={isSyncingSupabaseSeed}
-                className="px-4 py-2.5 rounded-2xl bg-amber-500 hover:bg-amber-600 disabled:opacity-50 text-slate-950 font-black text-xs flex items-center gap-2 transition-all shadow-md cursor-pointer self-start md:self-auto"
-                title="সকল ক্যাটাগরি ও প্রোডাক্ট Supabase-এ সিঙ্ক করুন"
-              >
-                <RefreshCw className={`w-3.5 h-3.5 ${isSyncingSupabaseSeed ? 'animate-spin' : ''}`} />
-                <span>{isSyncingSupabaseSeed ? 'সিঙ্ক হচ্ছে...' : 'Supabase সিঙ্ক'}</span>
-              </button>
             </div>
           )}
 
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-            {/* LEFT: CREATE CATEGORY FORM */}
-            <div className="lg:col-span-5 bg-white p-6 rounded-2xl border border-slate-200/80 shadow-xs space-y-4">
-              <h3 className="font-extrabold text-base text-[#0f3d44]">Add New Category (নতুন ক্যাটাগরি যোগ করুন)</h3>
-              <form onSubmit={handleCreateCategory} className="space-y-4 text-xs">
-                <div>
-                  <label className="font-bold text-slate-700 block mb-1">Category Name *</label>
-                  <input
-                    type="text"
-                    required
-                    value={newCatName}
-                    onChange={(e) => setNewCatName(e.target.value)}
-                    placeholder="e.g. Calligraphy Art"
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2 text-xs font-medium text-[#0f3d44]"
-                  />
-                </div>
-
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="font-bold text-slate-700 block mb-1">Category Icon / Emoji</label>
+          {/* TAB 2: ORDERS MANAGEMENT (Central Focus) */}
+          {activeTab === 'orders' && (
+            <div className="space-y-4">
+              {/* Header & Filter Controls */}
+              <div className="bg-white p-4 rounded-xl border border-slate-200/90 shadow-2xs space-y-3">
+                <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
+                  {/* Search Bar */}
+                  <div className="relative flex-1 max-w-md">
+                    <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
                     <input
                       type="text"
-                      value={newCatIcon}
-                      onChange={(e) => setNewCatIcon(e.target.value)}
-                      placeholder="e.g. 🕌 or 🌿"
-                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-center font-bold text-[#0f3d44]"
+                      value={orderSearch}
+                      onChange={(e) => setOrderSearch(e.target.value)}
+                      placeholder="অর্ডার নম্বর, নাম, ফোন বা ঠিকানা দিয়ে খুঁজুন..."
+                      className="w-full pl-9 pr-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-lg text-slate-900 focus:bg-white focus:border-slate-800 focus:outline-none transition-all"
                     />
                   </div>
 
-                  <div>
-                    <label className="font-bold text-slate-700 block mb-1">URL Slug</label>
-                    <input
-                      type="text"
-                      value={newCatSlug}
-                      onChange={(e) => setNewCatSlug(e.target.value)}
-                      placeholder="calligraphy-art"
-                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-mono text-[#0f3d44]"
-                    />
-                  </div>
-                </div>
-
-                <div>
-                  <label className="font-bold text-slate-700 block mb-1">Category Image URL (ক্যাটাগরি ছবি লিঙ্ক)</label>
-                  <input
-                    type="url"
-                    value={newCatImg}
-                    onChange={(e) => setNewCatImg(e.target.value)}
-                    placeholder="https://images.unsplash.com/... or /images/..."
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2 text-xs text-[#0f3d44]"
-                  />
-                </div>
-
-                <button
-                  type="submit"
-                  className="w-full py-3 rounded-xl text-xs font-bold text-white bg-[#0f3d44] hover:bg-indigo-950 shadow-md cursor-pointer transition-all"
-                >
-                  + Create Category
-                </button>
-              </form>
-            </div>
-
-            {/* RIGHT: CATEGORIES LIST */}
-            <div className="lg:col-span-7 bg-white p-6 rounded-2xl border border-slate-200/80 shadow-xs space-y-4">
-              <h3 className="font-extrabold text-base text-[#0f3d44] flex items-center justify-between">
-                <span>Existing Categories ({categories.length})</span>
-              </h3>
-
-              <div className="space-y-3">
-                {categories.map((c) => {
-                  const catProdCount = products.filter(p => p.category_id === c.id).length;
-                  return (
-                    <div key={c.id} className="p-4 bg-slate-50 rounded-2xl border border-slate-200 flex items-center justify-between hover:bg-slate-100/60 transition-colors">
-                      <div className="flex items-center gap-3">
-                        {c.image_url ? (
-                          <img
-                            src={c.image_url}
-                            alt=""
-                            className="w-12 h-12 object-contain rounded-xl bg-white border border-slate-200 p-1"
-                          />
-                        ) : (
-                          <span className="text-3xl">{c.icon}</span>
-                        )}
-                        <div>
-                          <h4 className="font-extrabold text-sm text-[#0f3d44]">{c.name}</h4>
-                          <div className="text-[11px] text-slate-400 font-mono flex items-center gap-2">
-                            <span>Slug: {c.slug}</span>
-                            <span>•</span>
-                            <span className="text-teal-700 font-bold bg-teal-50 px-1.5 py-0.2 rounded">
-                              {catProdCount} টি প্রোডাক্ট
-                            </span>
-                          </div>
-                        </div>
-                      </div>
-
-                      <div className="flex items-center gap-2">
-                        <button
-                          onClick={() => setEditingCategory(c)}
-                          className="p-2 text-slate-500 hover:text-teal-600 hover:bg-teal-50 rounded-xl transition-all cursor-pointer"
-                          title="Edit Category Details & Image Link"
-                        >
-                          <Edit className="w-4 h-4" />
-                        </button>
-                        <button
-                          onClick={() => {
-                            const count = products.filter(p => p.category_id === c.id).length;
-                            if (count > 0) {
-                              alert(`এই ক্যাটাগরিতে ${count}টি প্রোডাক্ট রয়েছে। আগে প্রোডাক্ট পরিবর্তন করুন।`);
-                              return;
-                            }
-                            if (confirm(`Delete category ${c.name}?`)) {
-                              deleteCategory(c.id);
-                            }
-                          }}
-                          className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition-all cursor-pointer"
-                          title="Delete Category"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* EDIT CATEGORY MODAL */}
-      {editingCategory && (
-        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl max-w-md w-full p-6 space-y-4 shadow-2xl border border-slate-200">
-            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-              <h3 className="font-extrabold text-base text-[#0f3d44]">
-                Edit Category: {editingCategory.name}
-              </h3>
-              <button
-                type="button"
-                onClick={() => setEditingCategory(null)}
-                className="text-slate-400 hover:text-slate-600 font-bold text-lg cursor-pointer"
-              >
-                ✕
-              </button>
-            </div>
-
-            <form onSubmit={handleSaveEditedCategory} className="space-y-4 text-xs">
-              <div>
-                <label className="font-bold text-slate-700 block mb-1">Category Name *</label>
-                <input
-                  type="text"
-                  required
-                  value={editingCategory.name}
-                  onChange={(e) => setEditingCategory({ ...editingCategory, name: e.target.value })}
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2 text-xs font-bold text-[#0f3d44]"
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="font-bold text-slate-700 block mb-1">Icon / Emoji</label>
-                  <input
-                    type="text"
-                    value={editingCategory.icon}
-                    onChange={(e) => setEditingCategory({ ...editingCategory, icon: e.target.value })}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-center font-bold text-[#0f3d44]"
-                  />
-                </div>
-                <div>
-                  <label className="font-bold text-slate-700 block mb-1">Slug</label>
-                  <input
-                    type="text"
-                    value={editingCategory.slug}
-                    onChange={(e) => setEditingCategory({ ...editingCategory, slug: e.target.value })}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-mono text-[#0f3d44]"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="font-bold text-slate-700 block mb-1">Category Image URL (ছবির লিঙ্ক)</label>
-                <input
-                  type="url"
-                  value={editingCategory.image_url || ''}
-                  onChange={(e) => setEditingCategory({ ...editingCategory, image_url: e.target.value })}
-                  placeholder="https://... or /images/..."
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2 text-xs text-[#0f3d44]"
-                />
-              </div>
-
-              {editingCategory.image_url && (
-                <div className="p-2 bg-slate-50 rounded-xl border border-slate-200 flex items-center justify-center">
-                  <img
-                    src={editingCategory.image_url}
-                    alt=""
-                    className="max-h-24 object-contain rounded-lg"
-                  />
-                </div>
-              )}
-
-              <div className="flex gap-2 pt-2">
-                <button
-                  type="button"
-                  onClick={() => setEditingCategory(null)}
-                  className="w-1/2 py-2.5 rounded-xl border border-slate-200 text-xs font-bold text-slate-600 hover:bg-slate-100 cursor-pointer"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="w-1/2 py-2.5 rounded-xl text-xs font-bold text-white bg-[#0f3d44] hover:bg-indigo-950 shadow-md cursor-pointer"
-                >
-                  Save Category
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* TAB 4: ORDERS MANAGEMENT (STAFF PORTAL) */}
-      {activeTab === 'orders' && (() => {
-        const totalOrdersCount = orders.length;
-        const pendingOrdersCount = orders.filter(o => o.status === 'pending').length;
-        const confirmedOrdersCount = orders.filter(o => o.status === 'confirmed').length;
-        const processingOrdersCount = orders.filter(o => o.status === 'processing').length;
-        const shippedOrdersCount = orders.filter(o => o.status === 'shipped').length;
-        const deliveredOrdersCount = orders.filter(o => o.status === 'delivered').length;
-        const totalRevenue = orders.reduce((sum, o) => sum + (o.total_amount || 0), 0);
-
-        const filteredOrders = orders.filter(o => {
-          if (orderStatusFilter !== 'all' && o.status !== orderStatusFilter) {
-            return false;
-          }
-          if (!orderSearch.trim()) return true;
-          const q = orderSearch.toLowerCase();
-          return (
-            (o.order_number && o.order_number.toLowerCase().includes(q)) ||
-            (o.user_name && o.user_name.toLowerCase().includes(q)) ||
-            (o.user_phone && o.user_phone.toLowerCase().includes(q)) ||
-            (o.city && o.city.toLowerCase().includes(q)) ||
-            (o.shipping_address && o.shipping_address.toLowerCase().includes(q))
-          );
-        });
-
-        return (
-          <div className="space-y-6">
-            {/* 1. STAFF ORDER METRICS CARDS */}
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 sm:gap-4">
-              <div className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-xs space-y-1">
-                <div className="flex items-center justify-between text-slate-500 text-xs">
-                  <span>সর্বমোট অর্ডার</span>
-                  <Truck className="w-4 h-4 text-slate-400" />
-                </div>
-                <div className="text-2xl font-black text-[#0f3d44]">{totalOrdersCount}</div>
-                <div className="text-[11px] text-slate-400">Total All-Time Orders</div>
-              </div>
-
-              <div className="bg-amber-50/60 p-4 rounded-2xl border border-amber-200/80 shadow-xs space-y-1">
-                <div className="flex items-center justify-between text-amber-700 text-xs font-bold">
-                  <span>পেন্ডিং (অ্যাকশন দরকার)</span>
-                  <span className="w-2 h-2 rounded-full bg-amber-500 animate-ping"></span>
-                </div>
-                <div className="text-2xl font-black text-amber-900">{pendingOrdersCount}</div>
-                <div className="text-[11px] text-amber-700">Waiting for call/confirmation</div>
-              </div>
-
-              <div className="bg-blue-50/60 p-4 rounded-2xl border border-blue-200/80 shadow-xs space-y-1">
-                <div className="flex items-center justify-between text-blue-700 text-xs font-bold">
-                  <span>কনফার্মড ও কাটিং</span>
-                  <Clock className="w-4 h-4 text-blue-500" />
-                </div>
-                <div className="text-2xl font-black text-blue-900">{confirmedOrdersCount + processingOrdersCount}</div>
-                <div className="text-[11px] text-blue-700">In Production / Ready to ship</div>
-              </div>
-
-              <div className="bg-emerald-50/60 p-4 rounded-2xl border border-emerald-200/80 shadow-xs space-y-1">
-                <div className="flex items-center justify-between text-emerald-700 text-xs font-bold">
-                  <span>ডেলিভারি সম্পন্ন</span>
-                  <CheckCircle2 className="w-4 h-4 text-emerald-500" />
-                </div>
-                <div className="text-2xl font-black text-emerald-900">{deliveredOrdersCount}</div>
-                <div className="text-[11px] text-emerald-700">Successfully Delivered</div>
-              </div>
-
-              <div className="col-span-2 sm:col-span-1 bg-slate-900 p-4 rounded-2xl text-white shadow-xs space-y-1">
-                <div className="flex items-center justify-between text-teal-400 text-xs font-bold">
-                  <span>মোট বিক্রয় ভলিউম</span>
-                  <CreditCard className="w-4 h-4 text-teal-400" />
-                </div>
-                <div className="text-xl sm:text-2xl font-black text-emerald-400">{formatPrice(totalRevenue)}</div>
-                <div className="text-[10px] text-slate-400">Total Order Revenue</div>
-              </div>
-            </div>
-
-            {/* 2. ORDER PERMANENCE & REAL-TIME RETENTION BANNER */}
-            <div className="bg-emerald-50/70 border border-emerald-200/90 rounded-2xl p-3.5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs">
-              <div className="flex items-center gap-2.5 text-emerald-900 font-medium">
-                <div className="w-8 h-8 rounded-xl bg-emerald-100 flex items-center justify-center shrink-0 text-emerald-700">
-                  <CheckCircle2 className="w-4 h-4" />
-                </div>
-                <div>
-                  <div className="font-bold text-emerald-950 flex items-center gap-2">
-                    <span>অর্ডার ডাটা সংরক্ষণ ও লাইভ সিঙ্ক সক্রিয়</span>
-                    <span className="bg-emerald-200 text-emerald-900 text-[10px] px-2 py-0.5 rounded-full font-bold">Auto-Synced</span>
-                  </div>
-                  <div className="text-[11px] text-emerald-700">
-                    প্রতিটি নতুন অর্ডার সার্ভার ডাটাবেজ, আপনার ব্রাউজার এবং WhatsApp-এ স্বয়ংক্রিয়ভাবে ব্যাকআপ রাখা হচ্ছে।
-                  </div>
-                </div>
-              </div>
-              <div className="text-[11px] text-emerald-800 shrink-0 font-medium bg-white/80 px-3 py-1.5 rounded-xl border border-emerald-200">
-                💾 ডাটাবেজ ব্যাকআপ অথবা রিস্টোর সুবিধা
-              </div>
-            </div>
-
-            {/* 3. SEARCH, STATUS TABS & BACKUP BUTTONS */}
-            <div className="bg-white p-4 sm:p-5 rounded-2xl border border-slate-200/80 shadow-xs space-y-4">
-              <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3">
-                {/* Search Bar */}
-                <div className="relative flex-1">
-                  <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
-                  <input
-                    type="text"
-                    value={orderSearch}
-                    onChange={(e) => setOrderSearch(e.target.value)}
-                    placeholder="অর্ডার # (যেমন: UA-1002), কাস্টমার নাম, ফোন নম্বর বা ঠিকানা দিয়ে সার্চ..."
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-9 pr-9 py-2.5 text-xs text-[#0f3d44] focus:outline-none focus:ring-2 focus:ring-[#0f3d44]"
-                  />
-                  {orderSearch && (
-                    <button
-                      onClick={() => setOrderSearch('')}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
-                    >
-                      <X className="w-3.5 h-3.5" />
-                    </button>
-                  )}
-                </div>
-
-                {/* Actions Group */}
-                <div className="flex items-center flex-wrap gap-2 shrink-0">
-                  <button
-                    onClick={fetchAdminOrders}
-                    disabled={loadingOrders}
-                    className="px-3.5 py-2 rounded-xl border border-teal-200 bg-teal-50 text-teal-800 text-xs font-bold hover:bg-teal-100 flex items-center gap-1.5 cursor-pointer transition-all"
-                    title="রিয়েল-টাইম নতুন অর্ডার রিফ্রেশ করুন"
-                  >
-                    <RefreshCw className={`w-3.5 h-3.5 ${loadingOrders ? 'animate-spin' : ''}`} />
-                    <span>{loadingOrders ? 'লোড হচ্ছে...' : 'রিফ্রেশ (Live Sync)'}</span>
-                  </button>
-
-                  {/* DIRECT OPEN GOOGLE SHEET BUTTON */}
-                  {settings.google_sheet_url && (
-                    <a
-                      href={settings.google_sheet_url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="px-3.5 py-2 rounded-xl border border-emerald-500 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold flex items-center gap-1.5 cursor-pointer transition-all shadow-xs"
-                      title="ওয়েবসাইটের সাথে যুক্ত লাইভ গুগল শিট ওপেন করুন"
-                    >
-                      <ExternalLink className="w-3.5 h-3.5 text-white" />
-                      <span>গুগল শিট ওপেন করুন</span>
-                    </a>
-                  )}
-
-                  <button
-                    onClick={handlePullFromSheet}
-                    disabled={isPullingFromSheet}
-                    className="px-3 py-2 rounded-xl border border-emerald-300 bg-emerald-100/70 text-emerald-900 text-xs font-bold hover:bg-emerald-200 flex items-center gap-1.5 cursor-pointer transition-all"
-                    title="আপনার Google Sheet থেকে সমস্ত অর্ডার ডাটাবেজে ফিরিয়ে আনুন"
-                  >
-                    <RefreshCw className={`w-3.5 h-3.5 text-emerald-700 ${isPullingFromSheet ? 'animate-spin' : ''}`} />
-                    <span>{isPullingFromSheet ? 'শিট থেকে আনছে...' : 'গুগল শিট থেকে রিকভার'}</span>
-                  </button>
-
-                  <button
-                    onClick={handleExportOrdersCSV}
-                    className="px-3 py-2 rounded-xl border border-emerald-200 bg-emerald-50 text-emerald-800 text-xs font-bold hover:bg-emerald-100 flex items-center gap-1.5 cursor-pointer transition-all"
-                    title="এক্সেল বা গুগল শিটের জন্য CSV ডাউনলোড করুন"
-                  >
-                    <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-600" />
-                    <span>CSV শিট</span>
-                  </button>
-
-                  <button
-                    onClick={handleExportOrdersBackup}
-                    className="px-3 py-2 rounded-xl border border-slate-200 bg-slate-100 text-slate-800 text-xs font-bold hover:bg-slate-200 flex items-center gap-1.5 cursor-pointer transition-all"
-                    title="হোস্টিং বা সার্ভার পরিবর্তনের ব্যাকআপ JSON ফাইল ডাউনলোড করুন"
-                  >
-                    <Download className="w-3.5 h-3.5" />
-                    <span>ডাটাবেজ ব্যাকআপ</span>
-                  </button>
-
-                  {/* Restore / Import Orders */}
-                  <input
-                    ref={orderImportInputRef}
-                    type="file"
-                    accept=".json"
-                    onChange={handleImportOrdersFile}
-                    className="hidden"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => orderImportInputRef.current?.click()}
-                    className="px-3 py-2 rounded-xl border border-indigo-200 bg-indigo-50 text-indigo-800 text-xs font-bold hover:bg-indigo-100 flex items-center gap-1.5 cursor-pointer transition-all"
-                    title="পূর্বে সেভ করা JSON ফাইল থেকে অর্ডার রিস্টোর করুন"
-                  >
-                    <Save className="w-3.5 h-3.5 text-indigo-600" />
-                    <span>রিস্টোর / ইমপোর্ট</span>
-                  </button>
-                </div>
-              </div>
-
-              {/* Status Pills */}
-              <div className="flex items-center gap-1.5 overflow-x-auto pb-1 text-xs">
-                <button
-                  onClick={() => setOrderStatusFilter('all')}
-                  className={`px-3 py-1.5 rounded-xl font-bold whitespace-nowrap cursor-pointer transition-all ${
-                    orderStatusFilter === 'all'
-                      ? 'bg-[#0f3d44] text-white shadow-xs'
-                      : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                  }`}
-                >
-                  সব অর্ডার ({totalOrdersCount})
-                </button>
-                <button
-                  onClick={() => setOrderStatusFilter('pending')}
-                  className={`px-3 py-1.5 rounded-xl font-bold whitespace-nowrap cursor-pointer transition-all flex items-center gap-1 ${
-                    orderStatusFilter === 'pending'
-                      ? 'bg-amber-500 text-white shadow-xs'
-                      : 'bg-amber-50 text-amber-700 border border-amber-200/60 hover:bg-amber-100'
-                  }`}
-                >
-                  <span className="w-1.5 h-1.5 rounded-full bg-amber-400"></span>
-                  <span>পেন্ডিং ({pendingOrdersCount})</span>
-                </button>
-                <button
-                  onClick={() => setOrderStatusFilter('confirmed')}
-                  className={`px-3 py-1.5 rounded-xl font-bold whitespace-nowrap cursor-pointer transition-all ${
-                    orderStatusFilter === 'confirmed'
-                      ? 'bg-blue-600 text-white shadow-xs'
-                      : 'bg-blue-50 text-blue-700 border border-blue-200/60 hover:bg-blue-100'
-                  }`}
-                >
-                  কনফার্মড ({confirmedOrdersCount})
-                </button>
-                <button
-                  onClick={() => setOrderStatusFilter('processing')}
-                  className={`px-3 py-1.5 rounded-xl font-bold whitespace-nowrap cursor-pointer transition-all ${
-                    orderStatusFilter === 'processing'
-                      ? 'bg-purple-600 text-white shadow-xs'
-                      : 'bg-purple-50 text-purple-700 border border-purple-200/60 hover:bg-purple-100'
-                  }`}
-                >
-                  লেজার কাটিং / প্রসেসিং ({processingOrdersCount})
-                </button>
-                <button
-                  onClick={() => setOrderStatusFilter('shipped')}
-                  className={`px-3 py-1.5 rounded-xl font-bold whitespace-nowrap cursor-pointer transition-all ${
-                    orderStatusFilter === 'shipped'
-                      ? 'bg-indigo-600 text-white shadow-xs'
-                      : 'bg-indigo-50 text-indigo-700 border border-indigo-200/60 hover:bg-indigo-100'
-                  }`}
-                >
-                  কুরিয়ারে পাঠানো হয়েছে ({shippedOrdersCount})
-                </button>
-                <button
-                  onClick={() => setOrderStatusFilter('delivered')}
-                  className={`px-3 py-1.5 rounded-xl font-bold whitespace-nowrap cursor-pointer transition-all ${
-                    orderStatusFilter === 'delivered'
-                      ? 'bg-emerald-600 text-white shadow-xs'
-                      : 'bg-emerald-50 text-emerald-700 border border-emerald-200/60 hover:bg-emerald-100'
-                  }`}
-                >
-                  ডেলিভার্ড ({deliveredOrdersCount})
-                </button>
-                <button
-                  onClick={() => setOrderStatusFilter('cancelled')}
-                  className={`px-3 py-1.5 rounded-xl font-bold whitespace-nowrap cursor-pointer transition-all ${
-                    orderStatusFilter === 'cancelled'
-                      ? 'bg-rose-600 text-white shadow-xs'
-                      : 'bg-rose-50 text-rose-700 border border-rose-200/60 hover:bg-rose-100'
-                  }`}
-                >
-                  বাতিল ({orders.filter(o => o.status === 'cancelled').length})
-                </button>
-              </div>
-            </div>
-
-            {/* 3. ORDERS LIST / TABLE */}
-            <div className="bg-white rounded-2xl border border-slate-200/80 shadow-xs overflow-hidden">
-              <div className="p-4 sm:p-5 border-b border-slate-100 flex items-center justify-between">
-                <div>
-                  <h2 className="font-black text-base text-[#0f3d44] flex items-center gap-2">
-                    <span>লাইভ কাস্টমার অর্ডার তালিকা</span>
-                    <span className="text-xs font-normal text-slate-500">
-                      ({filteredOrders.length} টি দেখানো হচ্ছে)
-                    </span>
-                  </h2>
-                  <p className="text-[11px] text-slate-400">
-                    সিরিয়াল নম্বর ক্রমানুসারে (UA-1001, UA-1002...) স্বয়ংক্রিয়ভাবে সংরক্ষিত থাকে এবং কখনো রিমুভ হয় না।
-                  </p>
-                </div>
-              </div>
-
-              {filteredOrders.length === 0 ? (
-                <div className="p-12 text-center space-y-3">
-                  <div className="w-12 h-12 rounded-full bg-slate-100 text-slate-400 flex items-center justify-center mx-auto">
-                    <Truck className="w-6 h-6" />
-                  </div>
-                  <p className="text-sm font-bold text-slate-600">কোনো অর্ডার পাওয়া যায়নি</p>
-                  <p className="text-xs text-slate-400">অন্য কোনো ফিল্টার বা সার্চ দিয়ে চেষ্টা করুন</p>
-                </div>
-              ) : (
-                <div className="divide-y divide-slate-100">
-                  {filteredOrders.map((o) => {
-                    const cleanPhone = (o.user_phone || '').replace(/[^0-9]/g, '');
-                    const waPhone = cleanPhone.startsWith('88') ? cleanPhone : (cleanPhone.startsWith('0') ? '88' + cleanPhone : '880' + cleanPhone);
-                    const waMessage = encodeURIComponent(`আসসালামু আলাইকুম ${o.user_name || ''}, UNEX AURA থেকে আপনার অর্ডার নম্বর #${o.order_number} (মোট: ${formatPrice(o.total_amount)}) কনফার্ম করার জন্য যোগাযোগ করছি।`);
-                    const waLink = `https://wa.me/${waPhone}?text=${waMessage}`;
-
-                    return (
-                      <div key={o.id} className="p-4 sm:p-5 hover:bg-slate-50/70 transition-colors space-y-3">
-                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 pb-3">
-                          <div className="flex items-center flex-wrap gap-2">
-                            <span className="font-mono font-black text-sm text-[#0f3d44] bg-teal-50 border border-teal-200 px-2.5 py-1 rounded-lg">
-                              #{o.order_number}
-                            </span>
-                            <span className={`px-2.5 py-1 rounded-full text-[10px] font-extrabold uppercase ${
-                              o.status === 'delivered' ? 'bg-emerald-100 text-emerald-800' :
-                              o.status === 'shipped' ? 'bg-indigo-100 text-indigo-800' :
-                              o.status === 'processing' ? 'bg-purple-100 text-purple-800' :
-                              o.status === 'confirmed' ? 'bg-blue-100 text-blue-800' :
-                              o.status === 'cancelled' ? 'bg-rose-100 text-rose-800' :
-                              'bg-amber-100 text-amber-800'
-                            }`}>
-                              ● {o.status}
-                            </span>
-                            <span className="text-xs text-slate-400 flex items-center gap-1">
-                              <Calendar className="w-3 h-3 text-slate-400" />
-                              <span>{new Date(o.created_at).toLocaleString('en-BD', { dateStyle: 'medium', timeStyle: 'short' })}</span>
-                            </span>
-                          </div>
-
-                          <div className="flex items-center gap-2">
-                            <button
-                              onClick={() => setSelectedOrderDetails(o)}
-                              className="px-3 py-1.5 rounded-xl border border-slate-200 bg-white text-slate-700 text-xs font-bold hover:bg-slate-50 flex items-center gap-1 cursor-pointer"
-                              title="পূর্ণ বিবরণ ও আইটেম দেখুন"
-                            >
-                              <Eye className="w-3.5 h-3.5 text-slate-500" />
-                              <span>বিবরণ</span>
-                            </button>
-                            <button
-                              onClick={() => setPrintInvoiceOrder(o)}
-                              className="px-3 py-1.5 rounded-xl border border-slate-200 bg-white text-slate-700 text-xs font-bold hover:bg-slate-50 flex items-center gap-1 cursor-pointer"
-                              title="প্রিন্টযোগ্য চালান / ইনভয়েস তৈরি করুন"
-                            >
-                              <Printer className="w-3.5 h-3.5 text-slate-500" />
-                              <span>ইনভয়েস</span>
-                            </button>
-                            <button
-                              onClick={() => handleDeleteOrder(o.id, o.order_number)}
-                              className="px-2.5 py-1.5 rounded-xl border border-rose-200 bg-rose-50 hover:bg-rose-100 text-rose-700 text-xs font-bold flex items-center gap-1 cursor-pointer transition-colors"
-                              title="অর্ডারটি মুছে ফেলুন (Supabase ও লোকাল ডাটাবেজ থেকে)"
-                            >
-                              <Trash2 className="w-3.5 h-3.5 text-rose-600" />
-                              <span className="hidden sm:inline">মুছুন</span>
-                            </button>
-                          </div>
-                        </div>
-
-                        {/* Order Body Grid */}
-                        <div className="grid grid-cols-1 md:grid-cols-12 gap-4 items-start text-xs">
-                          {/* Customer Contact */}
-                          <div className="md:col-span-4 space-y-1.5">
-                            <div className="font-extrabold text-slate-900 text-sm flex items-center gap-1.5">
-                              <UserIcon className="w-3.5 h-3.5 text-[#0f3d44]" />
-                              <span>{o.user_name || 'Customer'}</span>
-                            </div>
-                            <div className="flex items-center gap-2 pt-0.5">
-                              <a
-                                href={`tel:${o.user_phone}`}
-                                className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-800 font-bold text-xs hover:bg-emerald-100"
-                                title="কাস্টমারকে কল করুন"
-                              >
-                                <Phone className="w-3 h-3 text-emerald-600" />
-                                <span>{o.user_phone}</span>
-                              </a>
-                              <a
-                                href={waLink}
-                                target="_blank"
-                                rel="noreferrer"
-                                className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-[#25D366]/10 border border-[#25D366]/30 text-[#128C7E] font-bold text-xs hover:bg-[#25D366]/20"
-                                title="হোয়াটসঅ্যাপে সরাসরি মেসেজ দিন"
-                              >
-                                <MessageCircle className="w-3 h-3 text-[#25D366]" />
-                                <span>WhatsApp</span>
-                              </a>
-                            </div>
-                            <div className="text-slate-600 text-[11px] flex items-start gap-1 pt-1">
-                              <MapPin className="w-3.5 h-3.5 text-slate-400 shrink-0 mt-0.5" />
-                              <span>{o.shipping_address}, {o.city}</span>
-                            </div>
-                          </div>
-
-                          {/* Ordered Items Summary */}
-                          <div className="md:col-span-5 space-y-1.5">
-                            <div className="text-slate-500 font-semibold text-[11px]">অর্ডারকৃত পণ্যসমূহ:</div>
-                            <div className="space-y-1.5">
-                              {(o.items || []).map((item, idx) => (
-                                <div key={idx} className="flex items-center gap-2 bg-slate-50 p-1.5 rounded-lg border border-slate-200/60">
-                                  {item.product_image ? (
-                                    <img
-                                      src={item.product_image}
-                                      alt=""
-                                      className="w-9 h-9 object-cover rounded-md shrink-0 border border-slate-200"
-                                    />
-                                  ) : (
-                                    <div className="w-9 h-9 rounded-md bg-slate-200 shrink-0" />
-                                  )}
-                                  <div className="flex-1 min-w-0">
-                                    <div className="font-bold text-slate-900 truncate text-[11px]">{item.product_name}</div>
-                                    <div className="text-[10px] text-slate-500 flex items-center gap-1">
-                                      {item.size && !item.size.toLowerCase().includes('medium') && (
-                                        <>
-                                          <span className="font-semibold text-teal-700 bg-teal-50 px-1 rounded">{item.size}</span>
-                                          <span>•</span>
-                                        </>
-                                      )}
-                                      <span className="font-bold text-[#0f3d44]">পরিমাণ: {item.quantity} টি</span>
-                                    </div>
-                                  </div>
-                                  <div className="font-bold text-slate-800 text-[11px] shrink-0">
-                                    {formatPrice(item.price * item.quantity)}
-                                  </div>
-                                </div>
-                              ))}
-                            </div>
-                          </div>
-
-                          {/* Status & Financial Controls */}
-                          <div className="md:col-span-3 bg-slate-50 p-3 rounded-xl border border-slate-200/80 space-y-2.5">
-                            <div className="flex items-center justify-between">
-                              <span className="text-slate-500 text-[11px]">পেমেন্ট মেথড:</span>
-                              <span className="font-bold text-slate-800 uppercase">{o.payment_method || 'COD'}</span>
-                            </div>
-                            <div className="flex items-center justify-between">
-                              <span className="text-slate-500 text-[11px]">মোট বিল:</span>
-                              <div className="flex items-center gap-1.5">
-                                <span className="font-black text-sm text-emerald-700">{formatPrice(o.total_amount)}</span>
-                                <button
-                                  type="button"
-                                  onClick={() => handleOpenPriceEdit(o)}
-                                  className="p-1 rounded-md bg-amber-100 hover:bg-amber-200 text-amber-800 transition-colors cursor-pointer"
-                                  title="দাম বা ডিসকাউন্ট এডিট করুন"
-                                >
-                                  <Edit className="w-3 h-3" />
-                                </button>
-                              </div>
-                            </div>
-
-                            {/* PRICE EDIT QUICK BUTTON */}
-                            <button
-                              type="button"
-                              onClick={() => handleOpenPriceEdit(o)}
-                              className="w-full py-1 px-2 rounded-lg border border-amber-300 bg-amber-50 hover:bg-amber-100 text-amber-900 text-[11px] font-bold flex items-center justify-center gap-1 cursor-pointer transition-all"
-                            >
-                              <Edit className="w-3 h-3 text-amber-700" />
-                              <span>দাম বা ডিসকাউন্ট এডিট</span>
-                            </button>
-
-                            {/* STATUS SELECTOR */}
-                            <div className="pt-0.5">
-                              <label className="text-[10px] font-bold text-slate-500 block mb-1">স্ট্যাটাস পরিবর্তন করুন:</label>
-                              <select
-                                value={o.status}
-                                onChange={(e) => handleUpdateOrderStatus(o.id, e.target.value)}
-                                className="w-full bg-white border border-slate-300 rounded-lg px-2 py-1.5 text-xs font-bold text-[#0f3d44] focus:outline-none focus:ring-1 focus:ring-[#0f3d44]"
-                              >
-                                <option value="pending">⏳ Pending (অপেক্ষমান)</option>
-                                <option value="confirmed">✅ Confirmed (কল করে কনফার্মড)</option>
-                                <option value="processing">⚙️ Processing (লেজার কাটিং প্রসেস)</option>
-                                <option value="shipped">🚚 Shipped (কুরিয়ারে পাঠানো হয়েছে)</option>
-                                <option value="delivered">🎉 Delivered (ডেলিভারি সম্পন্ন)</option>
-                                <option value="cancelled">❌ Cancelled (বাতিল)</option>
-                              </select>
-                            </div>
-
-                            {/* GOOGLE SHEET SYNC ACTION */}
-                            <button
-                              type="button"
-                              onClick={() => handleManualSyncToSheet(o)}
-                              disabled={syncingOrderId === o.id}
-                              className="w-full py-1 px-2 rounded-lg border border-emerald-300 bg-emerald-50 hover:bg-emerald-100 text-emerald-900 text-[11px] font-bold flex items-center justify-center gap-1 cursor-pointer transition-all disabled:opacity-50"
-                              title="অর্ডারটি সরাসরি Google Sheet এ যুক্ত করুন"
-                            >
-                              <FileSpreadsheet className="w-3 h-3 text-emerald-600" />
-                              <span>{syncingOrderId === o.id ? 'শিটে যাচ্ছে...' : 'গুগল শিটে পাঠান'}</span>
-                            </button>
-
-                            {/* STEADFAST COURIER ACTION */}
-                            {o.steadfast_tracking_code || (o.tracking_number && o.courier_name?.toLowerCase().includes('steadfast')) ? (
-                              <div className="p-1.5 rounded-lg bg-indigo-50 border border-indigo-200 text-indigo-950 text-[10px] font-bold flex items-center justify-between">
-                                <span className="flex items-center gap-1 truncate">
-                                  <Truck className="w-3 h-3 text-indigo-600 shrink-0" />
-                                  <span className="truncate">SF: {o.steadfast_tracking_code || o.tracking_number}</span>
-                                </span>
-                                <a
-                                  href={`https://steadfast.com.bd/t/${o.steadfast_tracking_code || o.tracking_number}`}
-                                  target="_blank"
-                                  rel="noreferrer"
-                                  className="text-indigo-700 underline shrink-0 pl-1"
-                                >
-                                  ট্র্যাক
-                                </a>
-                              </div>
-                            ) : (
-                              <button
-                                type="button"
-                                onClick={() => handleOpenSteadfastModal(o)}
-                                className="w-full py-1 px-2 rounded-lg border border-indigo-300 bg-indigo-50 hover:bg-indigo-100 text-indigo-900 text-[11px] font-bold flex items-center justify-center gap-1 cursor-pointer transition-all"
-                                title="Steadfast Merchant API দিয়ে স্বয়ংক্রিয় পার্সেল বুকিং করুন"
-                              >
-                                <Truck className="w-3 h-3 text-indigo-600" />
-                                <span>স্টেডফাস্টে পাঠান</span>
-                              </button>
-                            )}
-
-                            <div className="flex items-center justify-between text-[10px] text-teal-700 font-medium pt-1 border-t border-slate-200/60">
-                              <span className="flex items-center gap-1">
-                                <Database className="w-3 h-3 text-teal-600" /> Supabase লাইভ সিঙ্ক
-                              </span>
-                              <span className="text-emerald-700 font-bold">● Active</span>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-          </div>
-        );
-      })()}
-
-      {/* TAB 5: GOOGLE SHEETS SYNC */}
-      {activeTab === 'sheets' && (
-        <GoogleSheetsSync />
-      )}
-
-      {/* TAB 6: COUPONS */}
-      {(activeTab === 'coupons' || (activeTab === 'settings' && settingsSubTab === 'coupons')) && (
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-          <div className="lg:col-span-5 bg-white p-6 rounded-2xl border border-slate-200/80 shadow-xs space-y-4">
-            <h3 className="font-extrabold text-base text-[#0f3d44]">Create Staff Promo Coupon</h3>
-            <form onSubmit={handleCreateCoupon} className="space-y-4 text-xs">
-              <div>
-                <label className="font-bold text-slate-700 block mb-1">Coupon Code *</label>
-                <input
-                  type="text"
-                  required
-                  value={newCouponCode}
-                  onChange={(e) => setNewCouponCode(e.target.value.toUpperCase())}
-                  placeholder="e.g. SAVE10"
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2 text-xs font-mono font-bold uppercase text-[#0f3d44]"
-                />
-              </div>
-
-              <div>
-                <label className="font-bold text-slate-700 block mb-1">Discount Percentage (%) *</label>
-                <input
-                  type="number"
-                  required
-                  min="1"
-                  max="100"
-                  value={newCouponDiscount}
-                  onChange={(e) => setNewCouponDiscount(Number(e.target.value))}
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2 text-xs font-bold text-[#0f3d44]"
-                />
-              </div>
-
-              <button
-                type="submit"
-                className="w-full py-3 rounded-xl text-xs font-bold text-white bg-[#0f3d44] hover:bg-indigo-950 shadow-md cursor-pointer transition-all"
-              >
-                + Create Promo Coupon
-              </button>
-            </form>
-          </div>
-
-          <div className="lg:col-span-7 bg-white p-6 rounded-2xl border border-slate-200/80 shadow-xs space-y-4">
-            <h3 className="font-extrabold text-base text-[#0f3d44]">Active Coupons ({coupons.length})</h3>
-            <div className="space-y-3">
-              {coupons.map((cp) => (
-                <div key={cp.id} className="p-4 bg-slate-50 rounded-2xl border border-slate-200 flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <span className="font-mono font-black text-sm text-[#0f3d44] bg-indigo-100 border border-indigo-200 px-2.5 py-0.5 rounded-lg">
-                      {cp.code}
-                    </span>
-                    <span className="text-xs font-extrabold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2.5 py-0.5 rounded-full">
-                      {cp.discount_percentage}% OFF
-                    </span>
-                  </div>
-
-                  <button
-                    onClick={() => deleteCoupon(cp.id)}
-                    className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition-all cursor-pointer"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </button>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* TAB 7: SHIPPING & WEIGHT RULES */}
-      {(activeTab === 'shipping' || (activeTab === 'settings' && settingsSubTab === 'shipping')) && (
-        <div className="bg-white p-6 rounded-2xl border border-slate-200/80 shadow-xs space-y-6 max-w-2xl">
-          <h2 className="font-extrabold text-lg text-[#0f3d44]">Weight &amp; Delivery Rules</h2>
-          <form onSubmit={handleUpdateShippingSettings} className="space-y-4 text-xs">
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div>
-                <label className="font-semibold text-slate-700 block mb-1">Inside Dhaka Base Delivery (৳)</label>
-                <input
-                  type="number"
-                  value={dhakaBase}
-                  onChange={(e) => setDhakaBase(Number(e.target.value))}
-                  className="w-full bg-white border border-slate-300 rounded-xl px-3.5 py-2 text-xs font-bold text-[#0f3d44]"
-                />
-              </div>
-
-              <div>
-                <label className="font-semibold text-slate-700 block mb-1">Dhaka Free Delivery Threshold (৳)</label>
-                <input
-                  type="number"
-                  value={dhakaFree}
-                  onChange={(e) => setDhakaFree(Number(e.target.value))}
-                  className="w-full bg-white border border-slate-300 rounded-xl px-3.5 py-2 text-xs font-bold text-[#0f3d44]"
-                />
-              </div>
-
-              <div>
-                <label className="font-semibold text-slate-700 block mb-1">Outside Dhaka Base Delivery (৳)</label>
-                <input
-                  type="number"
-                  value={outsideBase}
-                  onChange={(e) => setOutsideBase(Number(e.target.value))}
-                  className="w-full bg-white border border-slate-300 rounded-xl px-3.5 py-2 text-xs font-bold text-[#0f3d44]"
-                />
-              </div>
-
-              <div>
-                <label className="font-semibold text-slate-700 block mb-1">Outside Dhaka Extra Per 100g (৳)</label>
-                <input
-                  type="number"
-                  value={weightRate}
-                  onChange={(e) => setWeightRate(Number(e.target.value))}
-                  className="w-full bg-white border border-slate-300 rounded-xl px-3.5 py-2 text-xs font-bold text-[#0f3d44]"
-                />
-              </div>
-            </div>
-
-            <button
-              type="submit"
-              className="px-6 py-3 rounded-xl text-xs font-bold text-white bg-[#0f3d44] hover:bg-indigo-950 shadow-md cursor-pointer"
-            >
-              Save Delivery Rules
-            </button>
-          </form>
-        </div>
-      )}
-
-      {/* TAB 8: SECURITY & PASSWORD */}
-      {(activeTab === 'security' || (activeTab === 'settings' && settingsSubTab === 'security')) && (
-        <div className="bg-white p-6 rounded-2xl border border-slate-200/80 shadow-xs space-y-6 max-w-lg">
-          <div className="space-y-1">
-            <h2 className="font-extrabold text-lg text-[#0f3d44] flex items-center gap-2">
-              <Lock className="w-5 h-5 text-teal-600" />
-              <span>Staff Portal Security &amp; Password Settings</span>
-            </h2>
-            <p className="text-xs text-slate-500">
-              পাসওয়ার্ড সুরক্ষিত রাখুন এবং নিয়মিত পরিবর্তন করতে পারেন।
-            </p>
-          </div>
-
-          <form onSubmit={handleChangePassword} className="space-y-4 text-xs">
-            <div>
-              <label className="font-bold text-slate-700 block mb-1">New Staff Password (নতুন পাসওয়ার্ড) *</label>
-              <input
-                type="password"
-                required
-                value={newAdminPass}
-                onChange={(e) => setNewAdminPass(e.target.value)}
-                placeholder="নতুন পাসওয়ার্ড লিখুন..."
-                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs text-[#0f3d44] font-mono"
-              />
-            </div>
-
-            <div>
-              <label className="font-bold text-slate-700 block mb-1">Confirm New Password (পুনরায় লিখুন) *</label>
-              <input
-                type="password"
-                required
-                value={confirmAdminPass}
-                onChange={(e) => setConfirmAdminPass(e.target.value)}
-                placeholder="পুনরায় নতুন পাসওয়ার্ড লিখুন..."
-                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs text-[#0f3d44] font-mono"
-              />
-            </div>
-
-            <button
-              type="submit"
-              className="w-full py-3 rounded-xl text-xs font-bold text-white bg-gradient-to-r from-[#14b8a6] via-[#4f46e5] via-[#9333ea] to-[#ec4899] shadow-md cursor-pointer"
-            >
-              Update Password
-            </button>
-          </form>
-
-          {/* ADMIN BACKEND WHATSAPP AUTOMATION SETTINGS */}
-          <div className="pt-6 border-t border-slate-200/80 space-y-4">
-            <div className="space-y-1">
-              <div className="flex items-center gap-2">
-                <span className="w-8 h-8 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center font-bold">
-                  <MessageCircle className="w-4 h-4" />
-                </span>
-                <div>
-                  <h3 className="font-extrabold text-sm text-[#0f3d44]">
-                    স্বয়ংক্রিয় WhatsApp অর্ডার নোটিফিকেশন (Backend Auto Messaging)
-                  </h3>
-                  <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
-                    Background Mode • Zero Customer Redirection
-                  </span>
-                </div>
-              </div>
-              <p className="text-[11px] text-slate-500 leading-relaxed pt-1">
-                অর্ডার আসলে হোয়াটসঅ্যাপে স্বয়ংক্রিয় মেসেজ পাঠানো আপনি ইচ্ছেমতো চালু বা বন্ধ রাখতে পারেন। নিচে সুইচ দিয়ে এটি কন্ট্রোল করুন:
-              </p>
-            </div>
-
-            <form onSubmit={handleSaveWhatsAppNumber} className="space-y-4 text-xs">
-              {/* Auto WhatsApp Notification ON/OFF Toggle */}
-              <div className="p-3.5 rounded-2xl border transition-all flex items-center justify-between gap-3 bg-slate-50 border-slate-200">
-                <div className="space-y-0.5">
-                  <div className="flex items-center gap-2">
-                    <span className="font-extrabold text-slate-800 text-xs">অটো WhatsApp মেসেজ পাঠানোর সুবিধা:</span>
-                    <span className={`text-[10px] font-black px-2 py-0.5 rounded-full ${
-                      adminWhatsAppAutoNotify 
-                        ? 'bg-emerald-100 text-emerald-800 border border-emerald-300' 
-                        : 'bg-rose-100 text-rose-800 border border-rose-300'
-                    }`}>
-                      {adminWhatsAppAutoNotify ? '🟢 চালু (Enabled)' : '🔴 বন্ধ আছে (Disabled / OFF)'}
-                    </span>
-                  </div>
-                  <p className="text-[11px] text-slate-500">
-                    {adminWhatsAppAutoNotify
-                      ? 'অর্ডার প্লেস হলে সার্ভার থেকে স্বয়ংক্রিয়ভাবে হোয়াটসঅ্যাপে নোটিফিকেশন মেসেজ যাবে।'
-                      : 'নতুন অর্ডার আসলে হোয়াটসঅ্যাপে কোনো অটো মেসেজ পাঠানো হবে না। আপনি শুধু অ্যাডমিন প্যানেল থেকেই অর্ডার দেখবেন।'}
-                  </p>
-                </div>
-
-                <label className="relative inline-flex items-center cursor-pointer shrink-0">
-                  <input
-                    type="checkbox"
-                    checked={adminWhatsAppAutoNotify}
-                    onChange={(e) => setAdminWhatsAppAutoNotify(e.target.checked)}
-                    className="sr-only peer"
-                  />
-                  <div className="w-11 h-6 bg-slate-300 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-600"></div>
-                </label>
-              </div>
-
-              <div>
-                <label className="font-bold text-slate-700 block mb-1">
-                  অ্যাডমিন WhatsApp মোবাইল নম্বর (Receiver Phone) *
-                </label>
-                <div className="flex items-center gap-2">
-                  <span className="px-3 py-2.5 bg-slate-100 border border-slate-200 rounded-xl font-mono font-bold text-slate-600">
-                    +88
-                  </span>
-                  <input
-                    type="text"
-                    required
-                    value={adminWhatsApp}
-                    onChange={(e) => setAdminWhatsApp(e.target.value)}
-                    placeholder="01623319639"
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs text-[#0f3d44] font-mono font-bold focus:bg-white focus:border-emerald-500 focus:outline-none"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <div className="flex items-center justify-between mb-1">
-                  <label className="font-bold text-slate-700 block">
-                    CallMeBot WhatsApp API Key (ঐচ্ছিক - ফ্রি অটো WhatsApp বট)
-                  </label>
-                  <a 
-                    href="https://www.callmebot.com/blog/free-api-whatsapp-messages/" 
-                    target="_blank" 
-                    rel="noreferrer"
-                    className="text-[10px] text-indigo-600 hover:underline font-semibold"
-                  >
-                    API Key কীভাবে পাবেন?
-                  </a>
-                </div>
-                <input
-                  type="text"
-                  value={adminWhatsAppApiKey}
-                  onChange={(e) => setAdminWhatsAppApiKey(e.target.value)}
-                  placeholder="যেমন: 123456 (CallMeBot থেকে পাওয়া ফ্রি কী)"
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs text-[#0f3d44] font-mono focus:bg-white focus:border-emerald-500 focus:outline-none"
-                />
-                <p className="text-[10px] text-slate-400 mt-1">
-                  WhatsApp থেকে <code className="bg-slate-100 px-1 py-0.5 rounded text-slate-700 font-mono">+34 911 06 14 62</code> নম্বরে "I allow callmebot to send me messages" পাঠালে ১ সেকেন্ডে ফ্রি API Key পাবেন।
-                </p>
-              </div>
-
-              <div>
-                <label className="font-bold text-slate-700 block mb-1">
-                  Custom WhatsApp Webhook / Gateway URL (ঐচ্ছিক)
-                </label>
-                <input
-                  type="url"
-                  value={adminWhatsAppWebhook}
-                  onChange={(e) => setAdminWhatsAppWebhook(e.target.value)}
-                  placeholder="https://your-webhook-or-ultramsg-endpoint.com/..."
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs text-[#0f3d44] font-mono focus:bg-white focus:border-emerald-500 focus:outline-none"
-                />
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-2">
-                <button
-                  type="submit"
-                  className="w-full py-3 rounded-xl text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 shadow-md cursor-pointer transition-all flex items-center justify-center gap-2"
-                >
-                  <Save className="w-4 h-4" />
-                  <span>সেটিংস সেভ করুন (Save Settings)</span>
-                </button>
-
-                <button
-                  type="button"
-                  disabled={isTestingWhatsApp}
-                  onClick={handleTestWhatsAppMessage}
-                  className="w-full py-3 rounded-xl text-xs font-bold text-slate-700 bg-slate-100 hover:bg-slate-200 border border-slate-200 shadow-xs cursor-pointer transition-all flex items-center justify-center gap-2 disabled:opacity-60"
-                >
-                  <MessageCircle className="w-4 h-4 text-emerald-600" />
-                  <span>{isTestingWhatsApp ? 'টেস্ট পাঠানো হচ্ছে...' : 'টেস্ট মেসেজ পাঠান (Test WhatsApp)'}</span>
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* TAB 7: META PIXEL & CONVERSIONS API (CAPI) */}
-      {(activeTab === 'settings' && settingsSubTab === 'meta') && (
-        <div className="space-y-6">
-          <div className="bg-white p-6 rounded-3xl border border-slate-200/80 shadow-xs space-y-6">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-4">
-              <div className="flex items-center gap-3">
-                <div className="w-12 h-12 rounded-2xl bg-[#1877F2]/10 text-[#1877F2] flex items-center justify-center font-bold shadow-xs">
-                  <Share2 className="w-6 h-6" />
-                </div>
-                <div>
-                  <h3 className="text-base font-black text-[#0f3d44]">
-                    Meta Pixel & Conversions API (CAPI) সেটআপ
-                  </h3>
-                  <p className="text-xs text-slate-500">
-                    ব্রাউজার ব্লকার ও iOS 14+ ট্র্যাকিং লিমিটেশন বাইপাস করে সরাসরি ফেসবুক সার্ভারে ১০০% সঠিক অর্ডার ইভেন্ট পাঠান
-                  </p>
-                </div>
-              </div>
-              <div className="flex items-center gap-2">
-                <span className={`px-3 py-1 rounded-full text-[11px] font-bold ${
-                  adminMetaCapiEnabled ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-600'
-                }`}>
-                  {adminMetaCapiEnabled ? '● CAPI সক্রিয় (Active)' : '○ CAPI বন্ধ (Disabled)'}
-                </span>
-              </div>
-            </div>
-
-            {/* Information Callout */}
-            <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200/70 rounded-2xl p-4 text-xs text-blue-900 space-y-2">
-              <div className="font-bold flex items-center gap-2 text-blue-950">
-                <CheckCircle2 className="w-4 h-4 text-blue-600" />
-                <span>সার্ভার-সাইড ট্র্যাকিং ও ব্রাউজার পিক্সেল ডিডুপ্লিকেশন (Deduplication) সিস্টেম</span>
-              </div>
-              <p className="text-blue-800/90 leading-relaxed">
-                ব্রাউজারে <code className="bg-blue-100/80 px-1 py-0.5 rounded font-mono text-[11px]">fbq('track', 'Purchase')</code> ফায়ার হওয়ার সাথে সাথে আমাদের এক্সপ্রেস সার্ভার থেকে সরাসরি Meta Graph API-তে একই <code className="bg-blue-100/80 px-1 py-0.5 rounded font-mono text-[11px]">event_id</code> (অর্ডার নাম্বার) এবং SHA-256 হ্যাশড কাস্টমার ডাটা সহ রিকোয়েস্ট পাঠানো হয়। এতে ফেসবুক কোনো ডুপ্লিকেট কাউন্ট না করে সর্বোচ্চ কোয়ালিটি স্কোরসহ অর্ডার ট্র্যাক করে।
-              </p>
-            </div>
-
-            <form onSubmit={handleSaveMetaSettings} className="space-y-4">
-              {/* Meta Pixel ID */}
-              <div>
-                <label className="font-bold text-slate-700 block mb-1 text-xs">
-                  Meta Pixel ID / Dataset ID *
-                </label>
-                <div className="relative">
-                  <input
-                    type="text"
-                    required
-                    value={adminMetaPixelId}
-                    onChange={(e) => setAdminMetaPixelId(e.target.value)}
-                    placeholder="1814759089902668"
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs text-[#0f3d44] font-mono font-bold focus:bg-white focus:border-blue-500 focus:outline-none"
-                  />
-                </div>
-                <p className="text-[11px] text-slate-500 mt-1">
-                  Facebook Events Manager থেকে প্রাপ্ত পিক্সেল আইডি। (ডিফল্ট: 1814759089902668)
-                </p>
-              </div>
-
-              {/* Conversions API Access Token */}
-              <div>
-                <div className="flex items-center justify-between mb-1">
-                  <label className="font-bold text-slate-700 block text-xs">
-                    Meta Conversions API (CAPI) Access Token *
-                  </label>
-                  <a
-                    href="https://business.facebook.com/events_manager2"
-                    target="_blank"
-                    rel="noreferrer"
-                    className="text-[11px] text-blue-600 hover:underline font-semibold flex items-center gap-1"
-                  >
-                    <span>Events Manager ওপেন করুন</span>
-                    <ExternalLink className="w-3 h-3" />
-                  </a>
-                </div>
-                <textarea
-                  rows={3}
-                  value={adminMetaCapiToken}
-                  onChange={(e) => setAdminMetaCapiToken(e.target.value)}
-                  placeholder="EAAZANzZCMuiTQ..."
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2 text-xs text-[#0f3d44] font-mono focus:bg-white focus:border-blue-500 focus:outline-none"
-                />
-                <p className="text-[11px] text-slate-500 mt-1">
-                  Facebook Business Manager &gt; Events Manager &gt; Settings &gt; Generate access token থেকে কপি করা দীর্ঘ মেটা টোকেন।
-                </p>
-              </div>
-
-              {/* Test Event Code */}
-              <div>
-                <label className="font-bold text-slate-700 block mb-1 text-xs">
-                  Test Event Code (ঐচ্ছিক - টেস্ট করার জন্য)
-                </label>
-                <input
-                  type="text"
-                  value={adminMetaTestCode}
-                  onChange={(e) => setAdminMetaTestCode(e.target.value)}
-                  placeholder="e.g. TEST12345"
-                  className="w-full sm:w-64 bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2 text-xs text-[#0f3d44] font-mono focus:bg-white focus:border-blue-500 focus:outline-none"
-                />
-                <p className="text-[11px] text-slate-500 mt-1">
-                  Events Manager &gt; Test Events ট্যাবে দেওয়া কোড লিখলে টেস্ট ইভেন্ট সেখানে সরাসরি শো করবে।
-                </p>
-              </div>
-
-              {/* Enable Toggle */}
-              <div className="pt-2 border-t border-slate-100">
-                <label className="flex items-center gap-3 cursor-pointer select-none">
-                  <input
-                    type="checkbox"
-                    checked={adminMetaCapiEnabled}
-                    onChange={(e) => setAdminMetaCapiEnabled(e.target.checked)}
-                    className="w-4 h-4 rounded text-blue-600 focus:ring-blue-500 border-slate-300"
-                  />
-                  <div>
-                    <span className="text-xs font-bold text-slate-800">
-                      সার্ভার-সাইড Conversions API সক্রিয় রাখুন (Enable Server-Side CAPI)
-                    </span>
-                    <p className="text-[11px] text-slate-500">
-                      চেক করা থাকলে কাস্টমার অর্ডার সাবমিট করার সাথে সাথে ব্যাকএন্ড স্বয়ংক্রিয়ভাবে মেটাতে Purchase ইভেন্ট পোস্ট করবে।
-                    </p>
-                  </div>
-                </label>
-              </div>
-
-              {/* Test Feedback Notice */}
-              {metaTestResult && (
-                <div className={`p-3.5 rounded-xl text-xs font-medium border flex items-start gap-2 ${
-                  metaTestResult.success
-                    ? 'bg-emerald-50 border-emerald-200 text-emerald-900'
-                    : 'bg-rose-50 border-rose-200 text-rose-900'
-                }`}>
-                  {metaTestResult.success ? (
-                    <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
-                  ) : (
-                    <AlertCircle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
-                  )}
-                  <div>
-                    <p className="font-bold">{metaTestResult.success ? 'টেস্ট সফল হয়েছে!' : 'টেস্টে সমস্যা পাওয়া গেছে:'}</p>
-                    <p className="text-[11px] mt-0.5">{metaTestResult.message}</p>
-                  </div>
-                </div>
-              )}
-
-              {/* Action Buttons */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-3 border-t border-slate-100">
-                <button
-                  type="submit"
-                  className="w-full py-3 rounded-xl text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 shadow-md cursor-pointer transition-all flex items-center justify-center gap-2"
-                >
-                  <Save className="w-4 h-4" />
-                  <span>Meta সেটিংস সেভ করুন (Save Meta Settings)</span>
-                </button>
-
-                <button
-                  type="button"
-                  disabled={isTestingMetaCapi}
-                  onClick={handleTestMetaCapi}
-                  className="w-full py-3 rounded-xl text-xs font-bold text-slate-700 bg-slate-100 hover:bg-slate-200 border border-slate-200 shadow-xs cursor-pointer transition-all flex items-center justify-center gap-2 disabled:opacity-60"
-                >
-                  <RefreshCw className={`w-4 h-4 text-blue-600 ${isTestingMetaCapi ? 'animate-spin' : ''}`} />
-                  <span>{isTestingMetaCapi ? 'টেস্ট ইভেন্ট পাঠানো হচ্ছে...' : 'টেস্ট CAPI ইভেন্ট পাঠান (Send Test CAPI Event)'}</span>
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* TAB: SUPABASE BACKEND MANAGER */}
-      {(activeTab === 'settings' && settingsSubTab === 'supabase') && (
-        <SupabaseManager />
-      )}
-
-      {/* TAB: STEADFAST COURIER INTEGRATION */}
-      {(activeTab === 'settings' && settingsSubTab === 'steadfast') && (
-        <div className="bg-white p-6 rounded-3xl border border-slate-200/80 shadow-xs space-y-6 max-w-2xl">
-          <div className="flex items-center justify-between border-b border-slate-100 pb-4">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-2xl bg-indigo-50 text-indigo-600 flex items-center justify-center font-black">
-                <Truck className="w-5 h-5" />
-              </div>
-              <div>
-                <h2 className="font-extrabold text-base text-[#0f3d44]">
-                  Steadfast Courier API Integration
-                </h2>
-                <p className="text-xs text-slate-500">
-                  স্টেডফাস্ট মার্চেন্ট কুরিয়ার এপিআই সেটিংস ও অটোমেটিক পার্সেল বুকিং
-                </p>
-              </div>
-            </div>
-            <span className={`px-2.5 py-1 rounded-full text-[11px] font-bold border ${
-              settings.steadfast_api_key && settings.steadfast_secret_key
-                ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
-                : 'bg-amber-50 text-amber-800 border-amber-200'
-            }`}>
-              {settings.steadfast_api_key && settings.steadfast_secret_key ? '● রেডি / Connected' : '○ কি (Keys) দিন'}
-            </span>
-          </div>
-
-          <div className="bg-gradient-to-r from-indigo-50/80 to-blue-50/80 border border-indigo-100 rounded-2xl p-4 text-xs text-indigo-950 space-y-2">
-            <div className="font-bold flex items-center gap-2">
-              <CheckCircle2 className="w-4 h-4 text-indigo-600" />
-              <span>স্টেডফাস্ট মার্চেন্ট কানেকশন কিভাবে কাজ করে:</span>
-            </div>
-            <ul className="list-disc list-inside space-y-1 text-slate-700 leading-relaxed text-[11px]">
-              <li>ওয়েবসাইটে নতুন অর্ডার আসলে তা অ্যাডমিন ড্যাশবোর্ডে <strong>পেন্ডিং</strong> হিসেবে থাকবে।</li>
-              <li>ভুল বা ফেইক অর্ডার ফিল্টার করার জন্য অর্ডারটি যাচাই বা কাস্টমারকে ফোন করে কনফার্ম করার পর এক ক্লিকেই <strong>"স্টেডফাস্টে পাঠান"</strong> বাটনে চাপলেই পার্সেল বুকিং হয়ে যাবে।</li>
-              <li>বুকিং হওয়ার সাথে সাথে <strong>Tracking Code</strong> এবং <strong>Consignment ID</strong> অর্ডারে যুক্ত হয়ে যাবে যা দিয়ে আপনি ও কাস্টমার সরাসরি Steadfast পোর্টালে পার্সেল ট্র্যাক করতে পারবেন।</li>
-              <li>কাস্টমারের পছন্দমত মূল্য পরিবর্তন বা ছাড় দিতে চাইলে আগেই <strong>"দাম এডিট"</strong> বাটনে ক্লিক করে ফাইনাল COD এমাউন্ট ঠিক করে নিতে পারবেন।</li>
-            </ul>
-          </div>
-
-          <form onSubmit={handleSaveSteadfastSettings} className="space-y-4 text-xs">
-            <div>
-              <div className="flex items-center justify-between mb-1">
-                <label className="font-bold text-slate-700 block">
-                  Steadfast API Key *
-                </label>
-                <a
-                  href="https://portal.steadfast.com.bd/"
-                  target="_blank"
-                  rel="noreferrer"
-                  className="text-[11px] text-indigo-600 hover:underline font-semibold flex items-center gap-1"
-                >
-                  <span>Steadfast Merchant Portal ওপেন করুন</span>
-                  <ExternalLink className="w-3 h-3" />
-                </a>
-              </div>
-              <input
-                type="text"
-                required
-                value={steadfastApiKey}
-                onChange={(e) => setSteadfastApiKey(e.target.value)}
-                placeholder="আপনার Steadfast Api-Key পেস্ট করুন"
-                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs text-[#0f3d44] font-mono focus:bg-white focus:border-indigo-500 focus:outline-none"
-              />
-              <p className="text-[11px] text-slate-500 mt-1">
-                Steadfast Merchant Dashboard &gt; Settings &gt; API Information থেকে <code>Api Key</code> কপি করুন।
-              </p>
-            </div>
-
-            <div>
-              <label className="font-bold text-slate-700 block mb-1">
-                Steadfast Secret Key *
-              </label>
-              <input
-                type="password"
-                required
-                value={steadfastSecretKey}
-                onChange={(e) => setSteadfastSecretKey(e.target.value)}
-                placeholder="আপনার Steadfast Secret-Key পেস্ট করুন"
-                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs text-[#0f3d44] font-mono focus:bg-white focus:border-indigo-500 focus:outline-none"
-              />
-              <p className="text-[11px] text-slate-500 mt-1">
-                Steadfast Merchant Dashboard &gt; Settings &gt; API Information থেকে <code>Secret Key</code> কপি করুন।
-              </p>
-            </div>
-
-            <div className="pt-3 border-t border-slate-100 flex items-center justify-end">
-              <button
-                type="submit"
-                disabled={isSavingSteadfast}
-                className="px-6 py-3 rounded-xl text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 shadow-md cursor-pointer transition-all flex items-center gap-2 disabled:opacity-60"
-              >
-                <Save className="w-4 h-4" />
-                <span>{isSavingSteadfast ? 'সেভ হচ্ছে...' : 'স্টেডফাস্ট সেটিংস সেভ করুন (Save Steadfast Settings)'}</span>
-              </button>
-            </div>
-          </form>
-        </div>
-      )}
-
-          </main>
-        </div>
-      </div>
-
-      {/* ADD NEW PRODUCT MODAL */}
-      {showAddModal && (
-        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4">
-          <div className="bg-white rounded-3xl max-w-2xl w-full p-5 sm:p-6 space-y-5 shadow-2xl border border-slate-200 max-h-[92vh] overflow-y-auto">
-            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-              <div className="flex items-center gap-2.5">
-                <div className="w-8 h-8 rounded-xl bg-indigo-600 text-white flex items-center justify-center font-bold">
-                  <Plus className="w-4 h-4" />
-                </div>
-                <div>
-                  <h3 className="font-extrabold text-base text-[#0f3d44]">
-                    নতুন ওয়াল আর্ট প্রোডাক্ট যোগ করুন
-                  </h3>
-                  <p className="text-[11px] text-slate-500">
-                    ৪টি রুম ভিউ ইমেজ, ২ ধরণের সাইজ (মিডিয়াম ও লার্জ), মূল্য ও বিবরণ দিন
-                  </p>
-                </div>
-              </div>
-              <button
-                type="button"
-                onClick={() => setShowAddModal(false)}
-                className="text-slate-400 hover:text-slate-600 font-bold text-lg p-1.5 rounded-lg hover:bg-slate-100 cursor-pointer"
-              >
-                ✕
-              </button>
-            </div>
-
-            <form onSubmit={handleCreateProduct} className="space-y-6 text-xs">
-              {/* SECTION 1: BASIC INFORMATION */}
-              <div className="bg-slate-50/80 p-4 rounded-2xl border border-slate-200/80 space-y-3">
-                <h4 className="font-extrabold text-xs text-[#0f3d44] flex items-center gap-1.5">
-                  <span className="w-5 h-5 rounded-full bg-indigo-100 text-indigo-700 flex items-center justify-center text-[10px] font-black">১</span>
-                  <span>বেসিক তথ্য (Product Basic Information)</span>
-                </h4>
-
-                <div>
-                  <label className="font-bold text-slate-700 block mb-1">
-                    প্রোডাক্টের নাম (Product Name) *
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    value={newProdName}
-                    onChange={(e) => setNewProdName(e.target.value)}
-                    placeholder="যেমন: Ayatul Kursi Laser-Cut Stainless Steel Wall Art"
-                    className="w-full bg-white border border-slate-200 rounded-xl px-3.5 py-2 text-xs font-bold text-[#0f3d44] focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                  />
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div>
-                    <label className="font-bold text-slate-700 block mb-1">
-                      ক্যাটাগরি (Category) *
-                    </label>
-                    <select
-                      required
-                      value={newProdCatId}
-                      onChange={(e) => setNewProdCatId(Number(e.target.value))}
-                      className="w-full border border-slate-200 rounded-xl px-3.5 py-2 text-xs font-bold bg-white text-[#0f3d44] focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                    >
-                      <option value={0}>-- ক্যাটাগরি সিলেক্ট করুন * --</option>
-                      {categories.map((c) => (
-                        <option key={c.id} value={c.id}>
-                          {c.icon ? `${c.icon} ` : ''}{c.name}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-
-                  <div>
-                    <label className="font-bold text-slate-700 block mb-1">
-                      স্টক সংখ্যা (Stock Units)
-                    </label>
-                    <input
-                      type="number"
-                      value={newProdStock}
-                      onChange={(e) => setNewProdStock(Number(e.target.value))}
-                      className="w-full bg-white border border-slate-200 rounded-xl px-3.5 py-2 text-xs font-bold text-[#0f3d44]"
-                    />
-                  </div>
-                </div>
-
-                <div>
-                  <label className="font-bold text-slate-700 block mb-1">
-                    হাইলাইট ব্যাজ (Badge)
-                  </label>
-                  <div className="flex gap-2">
-                    {(['NEW', 'HOT', 'SALE', ''] as const).map((b) => (
+                  {/* Filter Pills */}
+                  <div className="flex items-center gap-1.5 overflow-x-auto pb-1 text-xs">
+                    {(['all', 'pending', 'confirmed', 'processing', 'shipped', 'delivered', 'cancelled'] as const).map(st => (
                       <button
-                        key={b || 'none'}
+                        key={st}
                         type="button"
-                        onClick={() => setNewProdBadge(b)}
-                        className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-                          newProdBadge === b
-                            ? 'bg-indigo-600 text-white shadow-xs'
-                            : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-100'
+                        onClick={() => setOrderStatusFilter(st)}
+                        className={`px-3 py-1.5 rounded-lg text-xs font-semibold capitalize whitespace-nowrap transition-colors cursor-pointer ${
+                          orderStatusFilter === st
+                            ? 'bg-slate-900 text-white shadow-2xs'
+                            : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
                         }`}
                       >
-                        {b || 'কোনো ব্যাজ নেই'}
+                        {st === 'all' ? `সব (${orders.length})` : st}
                       </button>
                     ))}
                   </div>
                 </div>
               </div>
 
-              {/* SECTION 2: 4 ROOM VIEW IMAGES */}
-              <div className="bg-indigo-50/40 p-4 rounded-2xl border border-indigo-100 space-y-3">
-                <div className="flex items-center justify-between">
-                  <h4 className="font-extrabold text-xs text-indigo-950 flex items-center gap-1.5">
-                    <span className="w-5 h-5 rounded-full bg-indigo-200 text-indigo-800 flex items-center justify-center text-[10px] font-black">২</span>
-                    <span>৪টি রুম ভিউ ইমেজ লিঙ্ক (4 Types Room Images Upload/Links)</span>
-                  </h4>
-                  <span className="text-[10px] bg-emerald-100 text-emerald-800 font-bold px-2 py-0.5 rounded-full">
-                    ১. ড্রয়িং রুম ডিফল্ট
-                  </span>
-                </div>
-                <p className="text-[11px] text-slate-600">
-                  প্রতিটি রুমের জন্য সুন্দর ছবির লিঙ্ক দিন। ওয়েবসাইট ও প্রোডাক্ট পেজে ড্রয়িং রুমের ছবিটি প্রথমে স্বয়ংক্রিয়ভাবে লোড হবে।
-                </p>
+              {/* Orders Table */}
+              <div className="bg-white rounded-xl border border-slate-200/90 shadow-2xs overflow-hidden">
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-xs">
+                    <thead className="bg-slate-50/80 text-slate-500 font-semibold border-b border-slate-200/80">
+                      <tr>
+                        <th className="px-4 py-3">অর্ডার #</th>
+                        <th className="px-4 py-3">কাস্টমার</th>
+                        <th className="px-4 py-3">তারিখ</th>
+                        <th className="px-4 py-3">পণ্য</th>
+                        <th className="px-4 py-3">মোট</th>
+                        <th className="px-4 py-3">অর্ডার স্ট্যাটাস</th>
+                        <th className="px-4 py-3">কুরিয়ার (Steadfast)</th>
+                        <th className="px-4 py-3 text-right">অ্যাকশন</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {filteredOrders.length === 0 ? (
+                        <tr>
+                          <td colSpan={8} className="p-8 text-center text-slate-400">
+                            কোনো অর্ডার পাওয়া যায়নি
+                          </td>
+                        </tr>
+                      ) : (
+                        filteredOrders.map((o, idx) => {
+                          const isBookedOnSteadfast = Boolean(o.steadfast_tracking_code || (o.tracking_number && o.courier_name?.toLowerCase().includes('steadfast')));
+                          const trackingCode = o.steadfast_tracking_code || o.tracking_number;
 
-                {/* 1. Drawing Room */}
-                <div className="p-3 bg-white rounded-xl border border-indigo-100 space-y-2">
-                  <div className="flex items-center justify-between">
-                    <label className="font-black text-indigo-900 text-xs flex items-center gap-1.5">
-                      <span>১. ড্রয়িং রুম (Drawing Room)</span>
-                      <span className="text-[10px] font-bold bg-amber-100 text-amber-900 px-1.5 py-0.2 rounded-md">মেইন ফটো &amp; ডিফল্ট সিলেক্টেড</span>
-                    </label>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <img src={newProdDrawingRoomImg} alt="" className="w-12 h-12 rounded-xl object-cover border border-slate-200 shrink-0" />
-                    <input
-                      type="url"
-                      required
-                      value={newProdDrawingRoomImg}
-                      onChange={(e) => setNewProdDrawingRoomImg(e.target.value)}
-                      placeholder="ড্রয়িং রুম ভিউ ছবির লিঙ্ক..."
-                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-[#0f3d44] font-mono"
-                    />
-                  </div>
-                </div>
+                          return (
+                            <tr key={o.order_number ? `order-row-${o.order_number}` : `order-row-${o.id}-${idx}`} className="hover:bg-slate-50/60 transition-colors">
+                              {/* Order Number */}
+                              <td className="px-4 py-3 font-mono font-bold text-slate-900 whitespace-nowrap">
+                                #{o.order_number}
+                              </td>
 
-                {/* 2. Office Room */}
-                <div className="p-3 bg-white rounded-xl border border-slate-200 space-y-2">
-                  <label className="font-bold text-slate-800 text-xs block">
-                    ২. অফিস রুম (Office Room View)
-                  </label>
-                  <div className="flex items-center gap-2">
-                    <img src={newProdOfficeRoomImg} alt="" className="w-12 h-12 rounded-xl object-cover border border-slate-200 shrink-0" />
-                    <input
-                      type="url"
-                      value={newProdOfficeRoomImg}
-                      onChange={(e) => setNewProdOfficeRoomImg(e.target.value)}
-                      placeholder="অফিস রুম ছবির লিঙ্ক..."
-                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-[#0f3d44] font-mono"
-                    />
-                  </div>
-                </div>
+                              {/* Customer */}
+                              <td className="px-4 py-3">
+                                <div className="font-semibold text-slate-900 truncate max-w-[130px]">{o.user_name}</div>
+                                <div className="text-[11px] text-slate-500 font-mono">{o.user_phone}</div>
+                              </td>
 
-                {/* 3. Prayer / Reading Room (Dynamic based on Category) */}
-                <div className="p-3 bg-white rounded-xl border border-teal-200 space-y-2">
-                  <label className="font-bold text-teal-900 text-xs block">
-                    ৩. নামাজের ঘর (ইসলামিক ক্যাটাগরির জন্য) / রিডিং রুম (ন্যাচারাল ক্যাটাগরির জন্য)
-                  </label>
-                  <div className="flex items-center gap-2">
-                    <img src={newProdPrayerOrReadingRoomImg} alt="" className="w-12 h-12 rounded-xl object-cover border border-slate-200 shrink-0" />
-                    <input
-                      type="url"
-                      value={newProdPrayerOrReadingRoomImg}
-                      onChange={(e) => setNewProdPrayerOrReadingRoomImg(e.target.value)}
-                      placeholder="নামাজের ঘর বা রিডিং রুম ছবির লিঙ্ক..."
-                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-[#0f3d44] font-mono"
-                    />
-                  </div>
-                </div>
+                              {/* Date */}
+                              <td className="px-4 py-3 text-slate-500 whitespace-nowrap">
+                                {o.created_at?.split('T')[0] || o.created_at?.split(' ')[0]}
+                              </td>
 
-                {/* 4. Bedroom */}
-                <div className="p-3 bg-white rounded-xl border border-slate-200 space-y-2">
-                  <label className="font-bold text-slate-800 text-xs block">
-                    ৪. বেডরুম (Bedroom View)
-                  </label>
-                  <div className="flex items-center gap-2">
-                    <img src={newProdBedroomImg} alt="" className="w-12 h-12 rounded-xl object-cover border border-slate-200 shrink-0" />
-                    <input
-                      type="url"
-                      value={newProdBedroomImg}
-                      onChange={(e) => setNewProdBedroomImg(e.target.value)}
-                      placeholder="বেডরুম ছবির লিঙ্ক..."
-                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-[#0f3d44] font-mono"
-                    />
-                  </div>
-                </div>
-              </div>
+                              {/* Items Summary */}
+                              <td className="px-4 py-3 text-slate-700 max-w-[180px] truncate">
+                                {Array.isArray(o.items) && o.items.length > 0 ? (
+                                  o.items.map((it: any) => `${it.product_name || it.name} (${it.quantity || 1})`).join(', ')
+                                ) : (
+                                  'ওয়াল আর্ট'
+                                )}
+                              </td>
 
-              {/* SECTION 3: SIZES (MEDIUM & LARGE - LENGTH & WIDTH ONLY), PRICES & WEIGHT */}
-              <div className="bg-slate-50/80 p-4 rounded-2xl border border-slate-200/80 space-y-3">
-                <h4 className="font-extrabold text-xs text-[#0f3d44] flex items-center gap-1.5">
-                  <span className="w-5 h-5 rounded-full bg-indigo-100 text-indigo-700 flex items-center justify-center text-[10px] font-black">৩</span>
-                  <span>সাইজ ও মূল্য নির্ধারণ (Sizes: Length × Width, Both Prices &amp; Weight)</span>
-                </h4>
+                              {/* Total Amount */}
+                              <td className="px-4 py-3 font-bold text-slate-900 whitespace-nowrap font-mono">
+                                {formatPrice(o.total_amount)}
+                              </td>
 
-                {/* Medium Size */}
-                <div className="p-3 bg-white rounded-xl border border-indigo-100 space-y-2">
-                  <span className="font-black text-indigo-900 text-xs block">
-                    মিডিয়াম সাইজ (Medium Size - ডিফল্ট)
-                  </span>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                    <div>
-                      <label className="text-[10px] font-bold text-slate-600 block">
-                        দৈর্ঘ্য ও প্রস্থ (Length × Width) *
-                      </label>
-                      <input
-                        type="text"
-                        required
-                        value={newProdMediumDimensions}
-                        onChange={(e) => setNewProdMediumDimensions(e.target.value)}
-                        placeholder="যেমন: 75cm × 40cm"
-                        className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs font-bold text-[#0f3d44]"
-                      />
-                    </div>
-                    <div>
-                      <label className="text-[10px] font-bold text-slate-600 block">
-                        ওজন (Weight in grams) *
-                      </label>
-                      <input
-                        type="number"
-                        required
-                        value={newProdMediumWeight}
-                        onChange={(e) => setNewProdMediumWeight(Number(e.target.value))}
-                        className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs font-bold text-[#0f3d44]"
-                      />
-                    </div>
-                  </div>
-                  <div className="grid grid-cols-2 gap-2">
-                    <div>
-                      <label className="text-[10px] font-bold text-emerald-700 block">
-                        বিক্রয় মূল্য (Price ৳) *
-                      </label>
-                      <input
-                        type="number"
-                        required
-                        value={newProdMediumPrice}
-                        onChange={(e) => setNewProdMediumPrice(Number(e.target.value))}
-                        className="w-full bg-emerald-50/50 border border-emerald-200 rounded-lg px-2.5 py-1.5 text-xs font-black text-emerald-900"
-                      />
-                    </div>
-                    <div>
-                      <label className="text-[10px] font-bold text-slate-500 block">
-                        পূর্বের মূল্য / কাটা মূল্য (Old Price ৳)
-                      </label>
-                      <input
-                        type="number"
-                        value={newProdMediumOldPrice}
-                        onChange={(e) => setNewProdMediumOldPrice(Number(e.target.value))}
-                        className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs text-slate-600"
-                      />
-                    </div>
-                  </div>
-                </div>
+                              {/* Status Dropdown */}
+                              <td className="px-4 py-3 whitespace-nowrap">
+                                <select
+                                  value={o.status}
+                                  onChange={(e) => handleUpdateStatus(o.id, e.target.value)}
+                                  className={`text-[11px] font-semibold px-2 py-1 rounded-md border border-slate-200 bg-white cursor-pointer focus:outline-none ${
+                                    o.status === 'delivered' ? 'text-emerald-700' :
+                                    o.status === 'shipped' ? 'text-indigo-700' :
+                                    o.status === 'confirmed' || o.status === 'processing' ? 'text-blue-700' :
+                                    o.status === 'cancelled' ? 'text-rose-700' :
+                                    'text-amber-700'
+                                  }`}
+                                >
+                                  <option value="pending">পেন্ডিং</option>
+                                  <option value="confirmed">কনফার্মড</option>
+                                  <option value="processing">প্রসেসিং</option>
+                                  <option value="shipped">শিপড</option>
+                                  <option value="delivered">ডেলিভার্ড</option>
+                                  <option value="cancelled">বাতিল</option>
+                                </select>
+                              </td>
 
-                {/* Large Size */}
-                <div className="p-3 bg-white rounded-xl border border-purple-100 space-y-2">
-                  <span className="font-black text-purple-900 text-xs block">
-                    লার্জ সাইজ (Large Size)
-                  </span>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                    <div>
-                      <label className="text-[10px] font-bold text-slate-600 block">
-                        দৈর্ঘ্য ও প্রস্থ (Length × Width) *
-                      </label>
-                      <input
-                        type="text"
-                        required
-                        value={newProdLargeDimensions}
-                        onChange={(e) => setNewProdLargeDimensions(e.target.value)}
-                        placeholder="যেমন: 120cm × 60cm"
-                        className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs font-bold text-[#0f3d44]"
-                      />
-                    </div>
-                    <div>
-                      <label className="text-[10px] font-bold text-slate-600 block">
-                        ওজন (Weight in grams) *
-                      </label>
-                      <input
-                        type="number"
-                        required
-                        value={newProdLargeWeight}
-                        onChange={(e) => setNewProdLargeWeight(Number(e.target.value))}
-                        className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs font-bold text-[#0f3d44]"
-                      />
-                    </div>
-                  </div>
-                  <div className="grid grid-cols-2 gap-2">
-                    <div>
-                      <label className="text-[10px] font-bold text-purple-700 block">
-                        বিক্রয় মূল্য (Price ৳) *
-                      </label>
-                      <input
-                        type="number"
-                        required
-                        value={newProdLargePrice}
-                        onChange={(e) => setNewProdLargePrice(Number(e.target.value))}
-                        className="w-full bg-purple-50/50 border border-purple-200 rounded-lg px-2.5 py-1.5 text-xs font-black text-purple-900"
-                      />
-                    </div>
-                    <div>
-                      <label className="text-[10px] font-bold text-slate-500 block">
-                        পূর্বের মূল্য / কাটা মূল্য (Old Price ৳)
-                      </label>
-                      <input
-                        type="number"
-                        value={newProdLargeOldPrice}
-                        onChange={(e) => setNewProdLargeOldPrice(Number(e.target.value))}
-                        className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs text-slate-600"
-                      />
-                    </div>
-                  </div>
+                              {/* Courier / Steadfast */}
+                              <td className="px-4 py-3 whitespace-nowrap">
+                                {isBookedOnSteadfast ? (
+                                  <div className="flex items-center gap-1.5">
+                                    <span className="px-2 py-0.5 rounded-md text-[10px] font-mono font-bold bg-indigo-50 text-indigo-700 border border-indigo-200">
+                                      {trackingCode}
+                                    </span>
+                                    <a
+                                      href={`https://steadfast.com.bd/t/${trackingCode}`}
+                                      target="_blank"
+                                      rel="noreferrer"
+                                      className="text-[11px] text-indigo-600 hover:underline flex items-center"
+                                      title="লাইভ ট্র্যাক"
+                                    >
+                                      <ExternalLink className="w-3 h-3" />
+                                    </a>
+                                  </div>
+                                ) : (
+                                  <button
+                                    type="button"
+                                    onClick={() => handleOpenSteadfastModal(o)}
+                                    className="px-2 py-1 rounded-md text-[10px] font-semibold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 transition-colors flex items-center gap-1 cursor-pointer"
+                                  >
+                                    <Truck className="w-3 h-3" />
+                                    <span>স্টেডফাস্টে পাঠান</span>
+                                  </button>
+                                )}
+                              </td>
+
+                              {/* Actions */}
+                              <td className="px-4 py-3 text-right whitespace-nowrap">
+                                <div className="flex items-center justify-end gap-1.5">
+                                  <button
+                                    type="button"
+                                    onClick={() => handleOpenPriceEdit(o)}
+                                    className="px-2 py-1 rounded-md text-[11px] font-medium text-slate-700 bg-slate-100 hover:bg-slate-200 transition-colors cursor-pointer"
+                                    title="দাম এডিট"
+                                  >
+                                    দাম এডিট
+                                  </button>
+
+                                  <button
+                                    type="button"
+                                    onClick={() => setSelectedOrderDetails(o)}
+                                    className="px-2 py-1 rounded-md text-[11px] font-medium text-slate-900 bg-slate-100 hover:bg-slate-200 transition-colors cursor-pointer"
+                                  >
+                                    বিস্তারিত
+                                  </button>
+
+                                  <button
+                                    type="button"
+                                    onClick={() => handleDeleteOrder(o.id, o.order_number)}
+                                    className="p-1 rounded-md text-slate-400 hover:text-rose-600 transition-colors cursor-pointer"
+                                    title="মুছে ফেলুন"
+                                  >
+                                    <Trash2 className="w-3.5 h-3.5" />
+                                  </button>
+                                </div>
+                              </td>
+                            </tr>
+                          );
+                        })
+                      )}
+                    </tbody>
+                  </table>
                 </div>
               </div>
-
-              {/* SECTION 4: DESCRIPTION & MATERIAL */}
-              <div className="bg-slate-50/80 p-4 rounded-2xl border border-slate-200/80 space-y-3">
-                <h4 className="font-extrabold text-xs text-[#0f3d44] flex items-center gap-1.5">
-                  <span className="w-5 h-5 rounded-full bg-indigo-100 text-indigo-700 flex items-center justify-center text-[10px] font-black">৪</span>
-                  <span>পণ্যের বিবরণ ও মেটেরিয়াল (Description &amp; Overview)</span>
-                </h4>
-
-                <div>
-                  <label className="font-bold text-slate-700 block mb-1">
-                    বাংলা সংক্ষিপ্ত বিবরণ (Bangla Short Overview)
-                  </label>
-                  <textarea
-                    rows={2}
-                    value={newProdBanglaDesc}
-                    onChange={(e) => setNewProdBanglaDesc(e.target.value)}
-                    placeholder="যেমন: ১০০% খাঁটি সার্জিক্যাল স্টেইনলেস স্টিলে তৈরি অনন্য ওয়াল আর্ট। ঘরকে দেবে প্রিমিয়াম লাক্সারি লুক।"
-                    className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs text-[#0f3d44] focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                  />
-                </div>
-
-                <div>
-                  <label className="font-bold text-slate-700 block mb-1">
-                    মেটেরিয়াল ও থিকনেস (Material)
-                  </label>
-                  <input
-                    type="text"
-                    value={newProdMaterial}
-                    onChange={(e) => setNewProdMaterial(e.target.value)}
-                    className="w-full bg-white border border-slate-200 rounded-xl px-3.5 py-2 text-xs font-bold text-[#0f3d44]"
-                  />
-                </div>
-              </div>
-
-              <div className="flex gap-2 pt-2">
-                <button
-                  type="button"
-                  onClick={() => setShowAddModal(false)}
-                  className="w-1/2 py-3 rounded-xl border border-slate-200 text-xs font-bold text-slate-600 hover:bg-slate-100 cursor-pointer"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="w-1/2 py-3 rounded-xl text-xs font-black text-white bg-gradient-to-r from-[#14b8a6] via-[#4f46e5] via-[#9333ea] to-[#ec4899] shadow-md hover:opacity-95 cursor-pointer"
-                >
-                  সংরক্ষণ করুন (Save Product)
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* EDIT PRODUCT MODAL (COMPLETE EDITABLE ALL 6 ITEMS) */}
-      {editingProduct && (
-        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4">
-          <div className="bg-white rounded-3xl max-w-2xl w-full p-5 sm:p-6 space-y-5 shadow-2xl border border-slate-200 max-h-[92vh] overflow-y-auto">
-            {/* Modal Header */}
-            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-              <div className="flex items-center gap-2.5">
-                <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-teal-500 to-indigo-600 text-white flex items-center justify-center font-bold shrink-0">
-                  <Edit className="w-4 h-4" />
-                </div>
-                <div>
-                  <h3 className="font-extrabold text-base text-[#0f3d44]">
-                    প্রোডাক্ট সম্পূর্ণ এডিট করুন: {editingProduct.name}
-                  </h3>
-                  <p className="text-[11px] text-slate-500">
-                    ৪টি রুম ইমেজ লিঙ্ক, মিডিয়াম ও লার্জ সাইজ, উভয় প্রাইস, ওজন ও বিবরণ এডিট করুন
-                  </p>
-                </div>
-              </div>
-              <button
-                type="button"
-                onClick={() => setEditingProduct(null)}
-                className="text-slate-400 hover:text-slate-600 font-bold text-lg p-1.5 rounded-lg hover:bg-slate-100 cursor-pointer"
-              >
-                ✕
-              </button>
             </div>
+          )}
 
-            <form onSubmit={handleSaveEditedProduct} className="space-y-6 text-xs">
-              {/* 1. PRODUCT TITLE, CATEGORY, SLUG & STOCK */}
-              <div className="bg-slate-50/80 p-4 rounded-2xl border border-slate-200/80 space-y-3">
-                <h4 className="font-extrabold text-xs text-[#0f3d44] flex items-center gap-1.5">
-                  <span className="w-5 h-5 rounded-full bg-indigo-100 text-indigo-700 flex items-center justify-center text-[10px] font-black">১</span>
-                  <span>পণ্যের নাম ও ক্যাটাগরি (Product Title &amp; Category)</span>
-                </h4>
-
-                <div>
-                  <label className="font-bold text-slate-700 block mb-1">
-                    প্রোডাক্টের নাম (Product Title) *
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    value={editingProduct.name}
-                    onChange={(e) => setEditingProduct({ ...editingProduct, name: e.target.value })}
-                    className="w-full bg-white border border-slate-200 rounded-xl px-3.5 py-2 text-xs font-bold text-[#0f3d44] focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                  />
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div>
-                    <label className="font-bold text-slate-700 block mb-1">
-                      ক্যাটাগরি (Category) *
-                    </label>
-                    <select
-                      required
-                      value={editingProduct.category_id || 0}
-                      onChange={(e) => {
-                        const selectedId = Number(e.target.value);
-                        const matchedCat = categories.find(c => c.id === selectedId);
-                        setEditingProduct({
-                          ...editingProduct,
-                          category_id: selectedId,
-                          category_name: matchedCat ? matchedCat.name : editingProduct.category_name
-                        });
-                      }}
-                      className="w-full border border-slate-200 rounded-xl px-3.5 py-2 text-xs font-bold bg-white text-[#0f3d44] focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                    >
-                      {categories.map((c) => (
-                        <option key={c.id} value={c.id}>
-                          {c.icon ? `${c.icon} ` : ''}{c.name}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-
-                  <div>
-                    <label className="font-bold text-slate-700 block mb-1">
-                      URL Slug
-                    </label>
+          {/* TAB 3: PRODUCTS MANAGEMENT */}
+          {activeTab === 'products' && (
+            <div className="space-y-4">
+              <div className="bg-white p-4 rounded-xl border border-slate-200/90 shadow-2xs flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div className="flex items-center gap-2 flex-1 max-w-md">
+                  <div className="relative flex-1">
+                    <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
                     <input
                       type="text"
-                      value={editingProduct.slug}
-                      onChange={(e) => setEditingProduct({ ...editingProduct, slug: e.target.value })}
-                      className="w-full bg-white border border-slate-200 rounded-xl px-3.5 py-2 text-xs font-mono text-[#0f3d44]"
-                    />
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div>
-                    <label className="font-bold text-slate-700 block mb-1">
-                      স্টক সংখ্যা (Stock Units)
-                    </label>
-                    <input
-                      type="number"
-                      value={editingProduct.stock}
-                      onChange={(e) => setEditingProduct({ ...editingProduct, stock: Number(e.target.value) })}
-                      className="w-full bg-white border border-slate-200 rounded-xl px-3.5 py-2 text-xs font-bold text-[#0f3d44]"
+                      value={productSearch}
+                      onChange={(e) => setProductSearch(e.target.value)}
+                      placeholder="প্রোডাক্ট নাম খুঁজুন..."
+                      className="w-full pl-9 pr-3 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-lg text-slate-900 focus:bg-white focus:outline-none"
                     />
                   </div>
 
-                  <div>
-                    <label className="font-bold text-slate-700 block mb-1">
-                      হাইলাইট ব্যাজ (Badge)
-                    </label>
-                    <select
-                      value={editingProduct.badge || ''}
-                      onChange={(e) => setEditingProduct({ ...editingProduct, badge: (e.target.value || null) as any })}
-                      className="w-full bg-white border border-slate-200 rounded-xl px-3.5 py-2 text-xs font-bold text-[#0f3d44]"
-                    >
-                      <option value="">কোনো ব্যাজ নেই (None)</option>
-                      <option value="NEW">NEW</option>
-                      <option value="HOT">HOT</option>
-                      <option value="SALE">SALE</option>
-                    </select>
-                  </div>
-                </div>
-              </div>
-
-              {/* 2. 4 ROOM VIEW IMAGES WITH DYNAMIC BANGLA LABELS */}
-              {(() => {
-                const isIslamic =
-                  editingProduct.category_id === 1 ||
-                  editingProduct.category_id === 2 ||
-                  editingProduct.category_id === 3 ||
-                  (editingProduct.category_name || '').toLowerCase().includes('islamic') ||
-                  (editingProduct.name || '').toLowerCase().includes('ayatul') ||
-                  (editingProduct.name || '').toLowerCase().includes('surah');
-
-                const room3Label = isIslamic ? 'নামাজের ঘর (Prayer Room)' : 'রিডিং রুম (Reading Room)';
-                const roomImages = editingProduct.room_images || {
-                  drawing_room: editingProduct.image_url || '',
-                  office_room: 'https://images.unsplash.com/photo-1513694203232-719a280e022f?auto=format&fit=crop&w=1200&q=80',
-                  prayer_or_reading_room: 'https://images.unsplash.com/photo-1618221195710-dd6b41faaea6?auto=format&fit=crop&w=1200&q=80',
-                  bedroom: 'https://images.unsplash.com/photo-1616486338812-3dadae4b4ace?auto=format&fit=crop&w=1200&q=80'
-                };
-
-                return (
-                  <div className="bg-indigo-50/40 p-4 rounded-2xl border border-indigo-100 space-y-3">
-                    <div className="flex items-center justify-between">
-                      <h4 className="font-extrabold text-xs text-indigo-950 flex items-center gap-1.5">
-                        <span className="w-5 h-5 rounded-full bg-indigo-200 text-indigo-800 flex items-center justify-center text-[10px] font-black">২</span>
-                        <span>৪টি রুম ভিউ ইমেজ লিঙ্ক (4 Types Room Images Upload/Links)</span>
-                      </h4>
-                      <span className="text-[10px] bg-emerald-100 text-emerald-800 font-bold px-2 py-0.5 rounded-full">
-                        ১. ড্রয়িং রুম সর্বদা ডিফল্ট
-                      </span>
-                    </div>
-                    <p className="text-[11px] text-slate-600">
-                      নিচে প্রতিটি রুমের ছবি লিঙ্ক দিন বা পরিবর্তন করুন। ড্রয়িং রুমের ছবিটি স্টোরে ডিফল্ট সিলেক্টেড থাকবে।
-                    </p>
-
-                    {/* 1. Drawing Room */}
-                    <div className="p-3 bg-white rounded-xl border border-indigo-200 space-y-2">
-                      <div className="flex items-center justify-between">
-                        <label className="font-black text-indigo-950 text-xs flex items-center gap-1.5">
-                          <span>১. ড্রয়িং রুম (Drawing Room)</span>
-                          <span className="text-[10px] font-bold bg-amber-100 text-amber-900 px-1.5 py-0.2 rounded-md">মেইন ফটো &amp; ডিফল্ট সিলেক্টেড</span>
-                        </label>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <img
-                          src={roomImages.drawing_room || editingProduct.image_url}
-                          alt="Drawing Room"
-                          className="w-12 h-12 rounded-xl object-cover border border-slate-200 shrink-0"
-                        />
-                        <input
-                          type="url"
-                          required
-                          value={roomImages.drawing_room || ''}
-                          onChange={(e) => updateEditingProductRoomImage('drawing_room', e.target.value)}
-                          placeholder="ড্রয়িং রুম ভিউ ছবির লিঙ্ক..."
-                          className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-[#0f3d44] font-mono focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                        />
-                      </div>
-                    </div>
-
-                    {/* 2. Office Room */}
-                    <div className="p-3 bg-white rounded-xl border border-slate-200 space-y-2">
-                      <label className="font-bold text-slate-800 text-xs block">
-                        ২. অফিস রুম (Office Room View)
-                      </label>
-                      <div className="flex items-center gap-2">
-                        <img
-                          src={roomImages.office_room || ''}
-                          alt="Office Room"
-                          className="w-12 h-12 rounded-xl object-cover border border-slate-200 shrink-0"
-                        />
-                        <input
-                          type="url"
-                          value={roomImages.office_room || ''}
-                          onChange={(e) => updateEditingProductRoomImage('office_room', e.target.value)}
-                          placeholder="অফিস রুম ছবির লিঙ্ক..."
-                          className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-[#0f3d44] font-mono focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                        />
-                      </div>
-                    </div>
-
-                    {/* 3. Prayer / Reading Room (Dynamic based on Category) */}
-                    <div className="p-3 bg-white rounded-xl border border-teal-200 space-y-2">
-                      <div className="flex items-center justify-between">
-                        <label className="font-bold text-teal-900 text-xs block">
-                          ৩. {room3Label}
-                        </label>
-                        <span className="text-[10px] text-teal-700 font-bold">
-                          {isIslamic ? '🕌 ইসলামিক ক্যাটাগরি' : '🌿 ন্যাচারাল ক্যাটাগরি'}
-                        </span>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <img
-                          src={roomImages.prayer_or_reading_room || ''}
-                          alt={room3Label}
-                          className="w-12 h-12 rounded-xl object-cover border border-slate-200 shrink-0"
-                        />
-                        <input
-                          type="url"
-                          value={roomImages.prayer_or_reading_room || ''}
-                          onChange={(e) => updateEditingProductRoomImage('prayer_or_reading_room', e.target.value)}
-                          placeholder="নামাজের ঘর বা রিডিং রুম ছবির লিঙ্ক..."
-                          className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-[#0f3d44] font-mono focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                        />
-                      </div>
-                    </div>
-
-                    {/* 4. Bedroom */}
-                    <div className="p-3 bg-white rounded-xl border border-slate-200 space-y-2">
-                      <label className="font-bold text-slate-800 text-xs block">
-                        ৪. বেডরুম (Bedroom View)
-                      </label>
-                      <div className="flex items-center gap-2">
-                        <img
-                          src={roomImages.bedroom || ''}
-                          alt="Bedroom"
-                          className="w-12 h-12 rounded-xl object-cover border border-slate-200 shrink-0"
-                        />
-                        <input
-                          type="url"
-                          value={roomImages.bedroom || ''}
-                          onChange={(e) => updateEditingProductRoomImage('bedroom', e.target.value)}
-                          placeholder="বেডরুম ছবির লিঙ্ক..."
-                          className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-[#0f3d44] font-mono focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                        />
-                      </div>
-                    </div>
-                  </div>
-                );
-              })()}
-
-              {/* 3. SIZES (MEDIUM & LARGE - STRICT LENGTH × WIDTH), BOTH PRICES & WEIGHT */}
-              <div className="bg-slate-50/80 p-4 rounded-2xl border border-slate-200/80 space-y-3">
-                <h4 className="font-extrabold text-xs text-[#0f3d44] flex items-center gap-1.5">
-                  <span className="w-5 h-5 rounded-full bg-indigo-100 text-indigo-700 flex items-center justify-center text-[10px] font-black">৩</span>
-                  <span>সাইজ ও মূল্য নির্ধারণ (Sizes: Length × Width, Both Prices &amp; Weight)</span>
-                </h4>
-
-                {/* MEDIUM SIZE */}
-                {(() => {
-                  const medSize = editingProduct.sizes?.[0] || {
-                    id: 's1',
-                    name: 'Medium (75cm × 40cm)',
-                    size_dimensions: editingProduct.size_dimensions || '75cm × 40cm',
-                    price: editingProduct.price,
-                    old_price: editingProduct.old_price,
-                    weight_grams: editingProduct.weight_grams || 1400
-                  };
-
-                  return (
-                    <div className="p-3 bg-white rounded-xl border border-indigo-100 space-y-2">
-                      <span className="font-black text-indigo-900 text-xs block">
-                        মিডিয়াম সাইজ (Medium Size - ডিফল্ট)
-                      </span>
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                        <div>
-                          <label className="text-[10px] font-bold text-slate-600 block">
-                            দৈর্ঘ্য ও প্রস্থ (Length × Width) *
-                          </label>
-                          <input
-                            type="text"
-                            required
-                            value={medSize.size_dimensions || ''}
-                            onChange={(e) => updateEditingProductSize(0, 'size_dimensions', e.target.value)}
-                            placeholder="যেমন: 75cm × 40cm"
-                            className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs font-bold text-[#0f3d44]"
-                          />
-                        </div>
-                        <div>
-                          <label className="text-[10px] font-bold text-slate-600 block">
-                            ওজন (Weight in grams) *
-                          </label>
-                          <input
-                            type="number"
-                            required
-                            value={medSize.weight_grams || 1400}
-                            onChange={(e) => updateEditingProductSize(0, 'weight_grams', Number(e.target.value))}
-                            className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs font-bold text-[#0f3d44]"
-                          />
-                        </div>
-                      </div>
-                      <div className="grid grid-cols-2 gap-2">
-                        <div>
-                          <label className="text-[10px] font-bold text-emerald-700 block">
-                            বিক্রয় মূল্য (Price ৳) *
-                          </label>
-                          <input
-                            type="number"
-                            required
-                            value={medSize.price || 0}
-                            onChange={(e) => updateEditingProductSize(0, 'price', Number(e.target.value))}
-                            className="w-full bg-emerald-50/50 border border-emerald-200 rounded-lg px-2.5 py-1.5 text-xs font-black text-emerald-900"
-                          />
-                        </div>
-                        <div>
-                          <label className="text-[10px] font-bold text-slate-500 block">
-                            পূর্বের মূল্য / কাটা মূল্য (Old Price ৳)
-                          </label>
-                          <input
-                            type="number"
-                            value={medSize.old_price || ''}
-                            onChange={(e) => updateEditingProductSize(0, 'old_price', e.target.value ? Number(e.target.value) : undefined)}
-                            className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs text-slate-600"
-                          />
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })()}
-
-                {/* LARGE SIZE */}
-                {(() => {
-                  const lrgSize = editingProduct.sizes?.[1] || {
-                    id: 's2',
-                    name: 'Large (120cm × 60cm)',
-                    size_dimensions: '120cm × 60cm',
-                    price: Math.round(editingProduct.price * 1.36),
-                    old_price: editingProduct.old_price ? Math.round(editingProduct.old_price * 1.36) : undefined,
-                    weight_grams: Math.round((editingProduct.weight_grams || 1400) * 1.57)
-                  };
-
-                  return (
-                    <div className="p-3 bg-white rounded-xl border border-purple-100 space-y-2">
-                      <span className="font-black text-purple-900 text-xs block">
-                        লার্জ সাইজ (Large Size)
-                      </span>
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                        <div>
-                          <label className="text-[10px] font-bold text-slate-600 block">
-                            দৈর্ঘ্য ও প্রস্থ (Length × Width) *
-                          </label>
-                          <input
-                            type="text"
-                            required
-                            value={lrgSize.size_dimensions || ''}
-                            onChange={(e) => updateEditingProductSize(1, 'size_dimensions', e.target.value)}
-                            placeholder="যেমন: 120cm × 60cm"
-                            className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs font-bold text-[#0f3d44]"
-                          />
-                        </div>
-                        <div>
-                          <label className="text-[10px] font-bold text-slate-600 block">
-                            ওজন (Weight in grams) *
-                          </label>
-                          <input
-                            type="number"
-                            required
-                            value={lrgSize.weight_grams || 2200}
-                            onChange={(e) => updateEditingProductSize(1, 'weight_grams', Number(e.target.value))}
-                            className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs font-bold text-[#0f3d44]"
-                          />
-                        </div>
-                      </div>
-                      <div className="grid grid-cols-2 gap-2">
-                        <div>
-                          <label className="text-[10px] font-bold text-purple-700 block">
-                            বিক্রয় মূল্য (Price ৳) *
-                          </label>
-                          <input
-                            type="number"
-                            required
-                            value={lrgSize.price || 0}
-                            onChange={(e) => updateEditingProductSize(1, 'price', Number(e.target.value))}
-                            className="w-full bg-purple-50/50 border border-purple-200 rounded-lg px-2.5 py-1.5 text-xs font-black text-purple-900"
-                          />
-                        </div>
-                        <div>
-                          <label className="text-[10px] font-bold text-slate-500 block">
-                            পূর্বের মূল্য / কাটা মূল্য (Old Price ৳)
-                          </label>
-                          <input
-                            type="number"
-                            value={lrgSize.old_price || ''}
-                            onChange={(e) => updateEditingProductSize(1, 'old_price', e.target.value ? Number(e.target.value) : undefined)}
-                            className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs text-slate-600"
-                          />
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })()}
-              </div>
-
-              {/* 4. DESCRIPTION & MATERIAL */}
-              <div className="bg-slate-50/80 p-4 rounded-2xl border border-slate-200/80 space-y-3">
-                <h4 className="font-extrabold text-xs text-[#0f3d44] flex items-center gap-1.5">
-                  <span className="w-5 h-5 rounded-full bg-indigo-100 text-indigo-700 flex items-center justify-center text-[10px] font-black">৪</span>
-                  <span>পণ্যের বিবরণ ও মেটেরিয়াল (Description &amp; Overview)</span>
-                </h4>
-
-                <div>
-                  <label className="font-bold text-slate-700 block mb-1">
-                    বাংলা সংক্ষিপ্ত বিবরণ (Bangla Short Overview)
-                  </label>
-                  <textarea
-                    rows={2}
-                    value={editingProduct.bangla_short_desc || ''}
-                    onChange={(e) => setEditingProduct({ ...editingProduct, bangla_short_desc: e.target.value })}
-                    placeholder="বাংলা বিবরণ..."
-                    className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs text-[#0f3d44] focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                  />
+                  <select
+                    value={productCategoryFilter}
+                    onChange={(e) => setProductCategoryFilter(e.target.value === 'all' ? 'all' : Number(e.target.value))}
+                    className="text-xs bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-slate-700"
+                  >
+                    <option value="all">সকল ক্যাটাগরি</option>
+                    {categories.map(c => (
+                      <option key={c.id} value={c.id}>{c.name}</option>
+                    ))}
+                  </select>
                 </div>
 
-                <div>
-                  <label className="font-bold text-slate-700 block mb-1">
-                    মেটেরিয়াল ও থিকনেস (Material)
-                  </label>
-                  <input
-                    type="text"
-                    value={editingProduct.material || 'Surgical Stainless Steel (2mm Thickness)'}
-                    onChange={(e) => setEditingProduct({ ...editingProduct, material: e.target.value })}
-                    className="w-full bg-white border border-slate-200 rounded-xl px-3.5 py-2 text-xs font-bold text-[#0f3d44]"
-                  />
-                </div>
-              </div>
-
-              {/* Save / Cancel Buttons */}
-              <div className="flex gap-2 pt-2">
                 <button
                   type="button"
-                  onClick={() => setEditingProduct(null)}
-                  className="w-1/2 py-3 rounded-xl border border-slate-200 text-xs font-bold text-slate-600 hover:bg-slate-100 cursor-pointer"
+                  onClick={() => setShowAddProductModal(true)}
+                  className="px-3 py-1.5 rounded-lg text-xs font-semibold text-white bg-slate-900 hover:bg-slate-800 transition-colors flex items-center gap-1.5 shadow-2xs cursor-pointer self-start sm:self-auto"
                 >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="w-1/2 py-3 rounded-xl text-xs font-black text-white bg-gradient-to-r from-[#14b8a6] via-[#4f46e5] via-[#9333ea] to-[#ec4899] shadow-md hover:opacity-95 cursor-pointer"
-                >
-                  সংরক্ষণ করুন (Save Changes)
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>নতুন প্রোডাক্ট যোগ করুন</span>
                 </button>
               </div>
-            </form>
-          </div>
-        </div>
-      )}
 
-      {/* MODAL 3: ORDER FULL DETAILS MODAL */}
-      {selectedOrderDetails && (
-        <div className="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto">
-          <div className="bg-white rounded-3xl max-w-2xl w-full border border-slate-200/80 shadow-2xl overflow-hidden my-8 animate-in fade-in zoom-in-95 duration-150">
-            <div className="p-5 sm:p-6 bg-gradient-to-r from-[#0f3d44] to-slate-900 text-white flex items-center justify-between">
-              <div className="space-y-0.5">
-                <div className="flex items-center gap-2">
-                  <span className="font-mono font-black text-base text-teal-300">
-                    Order #{selectedOrderDetails.order_number}
-                  </span>
-                  <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase ${
-                    selectedOrderDetails.status === 'delivered' ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30' :
-                    selectedOrderDetails.status === 'shipped' ? 'bg-indigo-500/20 text-indigo-300 border border-indigo-500/30' :
-                    selectedOrderDetails.status === 'processing' ? 'bg-purple-500/20 text-purple-300 border border-purple-500/30' :
-                    selectedOrderDetails.status === 'confirmed' ? 'bg-blue-500/20 text-blue-300 border border-blue-500/30' :
-                    'bg-amber-500/20 text-amber-300 border border-amber-500/30'
-                  }`}>
-                    ● {selectedOrderDetails.status}
-                  </span>
+              {/* Products Table */}
+              <div className="bg-white rounded-xl border border-slate-200/90 shadow-2xs overflow-hidden">
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-xs">
+                    <thead className="bg-slate-50/80 text-slate-500 font-semibold border-b border-slate-200/80">
+                      <tr>
+                        <th className="px-4 py-3">ছবি</th>
+                        <th className="px-4 py-3">প্রোডাক্ট নাম</th>
+                        <th className="px-4 py-3">ক্যাটাগরি</th>
+                        <th className="px-4 py-3">মূল্য (মিডিয়াম / লার্জ)</th>
+                        <th className="px-4 py-3">স্টক / ইনভেন্টরি</th>
+                        <th className="px-4 py-3 text-right">অ্যাকশন</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {filteredProducts.map((p, idx) => (
+                        <tr key={`prod-${p.id}-${idx}`} className="hover:bg-slate-50/60 transition-colors">
+                          <td className="px-4 py-3">
+                            <img
+                              src={p.image_url || 'https://images.unsplash.com/photo-1513519245088-0e12902e5a38?auto=format&fit=crop&w=100&q=80'}
+                              alt={p.name}
+                              className="w-12 h-12 object-cover rounded-lg border border-slate-200 bg-slate-100"
+                            />
+                          </td>
+                          <td className="px-4 py-3">
+                            <div className="font-semibold text-slate-900 line-clamp-1">{p.name}</div>
+                            <div className="text-[11px] text-slate-400 font-mono">ID: #{p.id}</div>
+                          </td>
+                          <td className="px-4 py-3 text-slate-600">
+                            {p.category_name || 'Wall Art'}
+                          </td>
+                          <td className="px-4 py-3 font-mono font-semibold text-slate-900 whitespace-nowrap">
+                            {formatPrice(p.price)}
+                            {p.sizes && p.sizes[1] && (
+                              <span className="text-slate-400 font-normal"> / {formatPrice(p.sizes[1].price)}</span>
+                            )}
+                          </td>
+                          <td className="px-4 py-3 whitespace-nowrap">
+                            <div className="flex items-center gap-1.5">
+                              <button
+                                type="button"
+                                disabled={savingStockId === p.id}
+                                onClick={() => handleQuickStockUpdate(p.id, -1)}
+                                className="w-6 h-6 rounded bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold flex items-center justify-center cursor-pointer"
+                              >
+                                -
+                              </button>
+                              <span className="w-8 text-center font-mono font-bold text-slate-900">
+                                {p.stock || 0}
+                              </span>
+                              <button
+                                type="button"
+                                disabled={savingStockId === p.id}
+                                onClick={() => handleQuickStockUpdate(p.id, 1)}
+                                className="w-6 h-6 rounded bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold flex items-center justify-center cursor-pointer"
+                              >
+                                +
+                              </button>
+                            </div>
+                          </td>
+                          <td className="px-4 py-3 text-right whitespace-nowrap">
+                            <div className="flex items-center justify-end gap-1.5">
+                              <button
+                                type="button"
+                                onClick={() => setEditingProduct(p)}
+                                className="p-1.5 rounded-lg text-slate-600 hover:bg-slate-100 cursor-pointer"
+                                title="এডিট"
+                              >
+                                <Edit className="w-3.5 h-3.5" />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={async () => {
+                                  if (window.confirm(`"${p.name}" প্রোডাক্টটি মুছে ফেলতে চান?`)) {
+                                    await deleteProduct(p.id);
+                                    showToast('প্রোডাক্ট মুছে ফেলা হয়েছে');
+                                  }
+                                }}
+                                className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 cursor-pointer"
+                                title="মুছে ফেলুন"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
                 </div>
-                <p className="text-xs text-slate-300">
-                  তারিখ: {new Date(selectedOrderDetails.created_at).toLocaleString('en-BD', { dateStyle: 'full', timeStyle: 'short' })}
-                </p>
-              </div>
-
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={() => setPrintInvoiceOrder(selectedOrderDetails)}
-                  className="px-3 py-1.5 rounded-xl bg-teal-500/20 hover:bg-teal-500/30 border border-teal-400/40 text-teal-200 text-xs font-bold flex items-center gap-1.5 cursor-pointer transition-colors"
-                >
-                  <Printer className="w-3.5 h-3.5" />
-                  <span>প্রিন্ট চালান</span>
-                </button>
-                <button
-                  onClick={() => setSelectedOrderDetails(null)}
-                  className="p-1.5 text-slate-400 hover:text-white rounded-xl hover:bg-white/10 cursor-pointer transition-colors"
-                >
-                  <X className="w-5 h-5" />
-                </button>
               </div>
             </div>
+          )}
 
-            <div className="p-6 space-y-6 max-h-[75vh] overflow-y-auto text-xs">
-              {/* Customer Contact Quick Bar */}
-              <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200/80 grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <span className="text-slate-400 block mb-0.5 text-[11px]">কাস্টমারের নাম ও যোগাযোগ:</span>
-                  <div className="font-extrabold text-slate-900 text-sm">{selectedOrderDetails.user_name}</div>
-                  <div className="flex items-center gap-2 mt-2">
-                    <a
-                      href={`tel:${selectedOrderDetails.user_phone}`}
-                      className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl bg-emerald-600 text-white font-bold text-xs hover:bg-emerald-700 shadow-xs"
-                    >
-                      <Phone className="w-3.5 h-3.5" />
-                      <span>কল করুন ({selectedOrderDetails.user_phone})</span>
-                    </a>
-                    {(() => {
-                      const cleanPhone = (selectedOrderDetails.user_phone || '').replace(/[^0-9]/g, '');
-                      const waPhone = cleanPhone.startsWith('88') ? cleanPhone : (cleanPhone.startsWith('0') ? '88' + cleanPhone : '880' + cleanPhone);
-                      const waMessage = encodeURIComponent(`আসসালামু আলাইকুম ${selectedOrderDetails.user_name || ''}, UNEX AURA থেকে আপনার অর্ডার #${selectedOrderDetails.order_number} সম্পর্কে যোগাযোগ করছি।`);
-                      return (
-                        <a
-                          href={`https://wa.me/${waPhone}?text=${waMessage}`}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl bg-[#25D366] text-white font-bold text-xs hover:opacity-90 shadow-xs"
-                        >
-                          <MessageCircle className="w-3.5 h-3.5" />
-                          <span>WhatsApp</span>
-                        </a>
-                      );
-                    })()}
+          {/* TAB: INVENTORY & STOCK MANAGEMENT */}
+          {activeTab === 'inventory' && (
+            <div className="space-y-4">
+              {/* Inventory KPI Cards */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
+                <div 
+                  onClick={() => setInventoryStockFilter('in_stock')}
+                  className={`p-4 rounded-xl border shadow-2xs space-y-1 cursor-pointer transition-all ${
+                    inventoryStockFilter === 'in_stock' ? 'bg-emerald-50/70 border-emerald-300' : 'bg-white border-slate-200/90'
+                  }`}
+                >
+                  <div className="flex items-center justify-between text-xs text-slate-500 font-medium">
+                    <span>স্টকে আছে (In Stock)</span>
+                    <CheckCircle2 className="w-4 h-4 text-emerald-600" />
                   </div>
+                  <div className="text-2xl font-bold text-slate-900">{products.filter(p => Number(p.stock || 0) > 5).length}</div>
+                  <div className="text-[11px] text-emerald-700 font-medium">&gt; 5 পিস পর্যাপ্ত স্টক</div>
                 </div>
 
-                <div>
-                  <span className="text-slate-400 block mb-0.5 text-[11px]">ডেলিভারি ঠিকানা ও শহর:</span>
-                  <div className="font-bold text-slate-800 leading-relaxed">
-                    {selectedOrderDetails.shipping_address}
+                <div 
+                  onClick={() => setInventoryStockFilter('low_stock')}
+                  className={`p-4 rounded-xl border shadow-2xs space-y-1 cursor-pointer transition-all ${
+                    inventoryStockFilter === 'low_stock' ? 'bg-amber-50/70 border-amber-300' : 'bg-white border-slate-200/90'
+                  }`}
+                >
+                  <div className="flex items-center justify-between text-xs text-amber-700 font-medium">
+                    <span>কম স্টক (Low Stock)</span>
+                    <AlertCircle className="w-4 h-4 text-amber-600" />
                   </div>
-                  <div className="font-bold text-teal-700 mt-1">
-                    শহর/জেলা: {selectedOrderDetails.city}
+                  <div className="text-2xl font-bold text-amber-900">{lowStockCount}</div>
+                  <div className="text-[11px] text-amber-700 font-medium">১ থেকে ৫ পিস বাকি</div>
+                </div>
+
+                <div 
+                  onClick={() => setInventoryStockFilter('out_of_stock')}
+                  className={`p-4 rounded-xl border shadow-2xs space-y-1 cursor-pointer transition-all ${
+                    inventoryStockFilter === 'out_of_stock' ? 'bg-rose-50/70 border-rose-300' : 'bg-white border-slate-200/90'
+                  }`}
+                >
+                  <div className="flex items-center justify-between text-xs text-rose-700 font-medium">
+                    <span>স্টক শেষ (Out of Stock)</span>
+                    <AlertCircle className="w-4 h-4 text-rose-600" />
                   </div>
+                  <div className="text-2xl font-bold text-rose-900">{outOfStockCount}</div>
+                  <div className="text-[11px] text-rose-700 font-medium">০ পিস (রি-স্টক প্রয়োজন)</div>
                 </div>
               </div>
 
-              {/* Status Update Toolbar */}
-              <div className="p-4 rounded-2xl bg-teal-50/70 border border-teal-200/80 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-                <div>
-                  <span className="font-bold text-[#0f3d44] block">অর্ডার প্রগ্রেস স্ট্যাটাস:</span>
-                  <span className="text-slate-500 text-[11px]">স্ট্যাটাস পরিবর্তন করলে স্বয়ংক্রিয়ভাবে ডাটাবেজ আপডেট হবে</span>
+              {/* Filter & Search Bar */}
+              <div className="bg-white p-4 rounded-xl border border-slate-200/90 shadow-2xs flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div className="relative flex-1 max-w-md">
+                  <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                  <input
+                    type="text"
+                    value={productSearch}
+                    onChange={(e) => setProductSearch(e.target.value)}
+                    placeholder="পণ্য অনুযায়ী স্টক খুঁজুন..."
+                    className="w-full pl-9 pr-3 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-lg text-slate-900 focus:bg-white focus:outline-none"
+                  />
                 </div>
-                <select
-                  value={selectedOrderDetails.status}
-                  onChange={(e) => handleUpdateOrderStatus(selectedOrderDetails.id, e.target.value)}
-                  className="bg-white border border-teal-300 rounded-xl px-3.5 py-2 text-xs font-bold text-[#0f3d44] focus:outline-none focus:ring-2 focus:ring-[#0f3d44]"
+
+                <div className="flex items-center gap-1.5 text-xs">
+                  {(['all', 'in_stock', 'low_stock', 'out_of_stock'] as const).map(flt => (
+                    <button
+                      key={flt}
+                      type="button"
+                      onClick={() => setInventoryStockFilter(flt)}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-semibold capitalize transition-colors cursor-pointer ${
+                        inventoryStockFilter === flt
+                          ? 'bg-slate-900 text-white shadow-2xs'
+                          : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                      }`}
+                    >
+                      {flt === 'all' && 'সব স্টক'}
+                      {flt === 'in_stock' && 'ইন স্টক'}
+                      {flt === 'low_stock' && 'লো স্টক'}
+                      {flt === 'out_of_stock' && 'আউট অব স্টক'}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Inventory Table */}
+              <div className="bg-white rounded-xl border border-slate-200/90 shadow-2xs overflow-hidden">
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-xs">
+                    <thead className="bg-slate-50/80 text-slate-500 font-semibold border-b border-slate-200/80">
+                      <tr>
+                        <th className="px-4 py-3">পণ্য</th>
+                        <th className="px-4 py-3">ক্যাটাগরি</th>
+                        <th className="px-4 py-3">বর্তমান স্টক</th>
+                        <th className="px-4 py-3">স্টক স্ট্যাটাস</th>
+                        <th className="px-4 py-3">দ্রুত আপডেট (Supabase)</th>
+                        <th className="px-4 py-3 text-right">ম্যানেজ</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {filteredInventory.length === 0 ? (
+                        <tr>
+                          <td colSpan={6} className="p-8 text-center text-slate-400">
+                            এই ফিল্টারে কোনো প্রোডাক্ট পাওয়া যায়নি
+                          </td>
+                        </tr>
+                      ) : (
+                        filteredInventory.map((p, idx) => {
+                          const stock = Number(p.stock || 0);
+                          return (
+                            <tr key={`inv-${p.id}-${idx}`} className="hover:bg-slate-50/60 transition-colors">
+                              <td className="px-4 py-3">
+                                <div className="flex items-center gap-2.5">
+                                  <img
+                                    src={p.image_url || 'https://images.unsplash.com/photo-1513519245088-0e12902e5a38?auto=format&fit=crop&w=100&q=80'}
+                                    alt=""
+                                    className="w-9 h-9 object-cover rounded-lg border border-slate-200 bg-slate-100 shrink-0"
+                                  />
+                                  <div>
+                                    <div className="font-semibold text-slate-900 line-clamp-1">{p.name}</div>
+                                    <span className="font-mono text-[10px] text-slate-400">ID: #{p.id}</span>
+                                  </div>
+                                </div>
+                              </td>
+
+                              <td className="px-4 py-3 text-slate-600">
+                                {p.category_name || 'Wall Art'}
+                              </td>
+
+                              <td className="px-4 py-3 font-mono font-bold text-slate-900 text-sm">
+                                {stock} পিস
+                              </td>
+
+                              <td className="px-4 py-3">
+                                {stock <= 0 ? (
+                                  <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-100 text-rose-800">
+                                    আউট অব স্টক
+                                  </span>
+                                ) : stock <= 5 ? (
+                                  <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800">
+                                    কম স্টক ({stock} টি)
+                                  </span>
+                                ) : (
+                                  <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800">
+                                    পর্যাপ্ত স্টক
+                                  </span>
+                                )}
+                              </td>
+
+                              <td className="px-4 py-3">
+                                <div className="flex items-center gap-1.5">
+                                  <button
+                                    type="button"
+                                    disabled={savingStockId === p.id}
+                                    onClick={() => handleQuickStockUpdate(p.id, -5)}
+                                    className="px-2 py-1 rounded bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-[10px] cursor-pointer"
+                                    title="৫টি কমান"
+                                  >
+                                    -5
+                                  </button>
+                                  <button
+                                    type="button"
+                                    disabled={savingStockId === p.id}
+                                    onClick={() => handleQuickStockUpdate(p.id, -1)}
+                                    className="w-6 h-6 rounded bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold flex items-center justify-center cursor-pointer"
+                                  >
+                                    -1
+                                  </button>
+                                  <button
+                                    type="button"
+                                    disabled={savingStockId === p.id}
+                                    onClick={() => handleQuickStockUpdate(p.id, 1)}
+                                    className="w-6 h-6 rounded bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold flex items-center justify-center cursor-pointer"
+                                  >
+                                    +1
+                                  </button>
+                                  <button
+                                    type="button"
+                                    disabled={savingStockId === p.id}
+                                    onClick={() => handleQuickStockUpdate(p.id, 5)}
+                                    className="px-2 py-1 rounded bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-[10px] cursor-pointer"
+                                    title="৫টি বাড়ান"
+                                  >
+                                    +5
+                                  </button>
+                                </div>
+                              </td>
+
+                              <td className="px-4 py-3 text-right">
+                                <button
+                                  type="button"
+                                  onClick={() => setEditingProduct(p)}
+                                  className="px-2.5 py-1 rounded bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium text-[11px] cursor-pointer"
+                                >
+                                  এডিট
+                                </button>
+                              </td>
+                            </tr>
+                          );
+                        })
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* TAB 4: CATEGORIES MANAGEMENT */}
+          {activeTab === 'categories' && (
+            <div className="space-y-6">
+              {/* Add Category Form */}
+              <div className="bg-white p-5 rounded-xl border border-slate-200/90 shadow-2xs space-y-4 max-w-xl">
+                <h3 className="text-xs font-bold text-slate-900 flex items-center gap-1.5">
+                  <Plus className="w-4 h-4 text-teal-600" />
+                  <span>নতুন ক্যাটাগরি তৈরি করুন</span>
+                </h3>
+
+                <form onSubmit={handleCreateCategory} className="space-y-3 text-xs">
+                  <div>
+                    <label className="block text-slate-600 font-medium mb-1">ক্যাটাগরি নাম *</label>
+                    <input
+                      type="text"
+                      required
+                      value={newCatName}
+                      onChange={(e) => setNewCatName(e.target.value)}
+                      placeholder="e.g. Islamic Surah Wall Art"
+                      className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-slate-900 focus:bg-white focus:outline-none"
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-slate-600 font-medium mb-1">আইকন (ইমোজি)</label>
+                      <input
+                        type="text"
+                        value={newCatIcon}
+                        onChange={(e) => setNewCatIcon(e.target.value)}
+                        placeholder="🕌"
+                        className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-slate-900 focus:bg-white focus:outline-none"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-slate-600 font-medium mb-1">ছবির লিঙ্ক (ঐচ্ছিক)</label>
+                      <input
+                        type="url"
+                        value={newCatImg}
+                        onChange={(e) => setNewCatImg(e.target.value)}
+                        placeholder="https://..."
+                        className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-slate-900 focus:bg-white focus:outline-none"
+                      />
+                    </div>
+                  </div>
+
+                  <button
+                    type="submit"
+                    className="px-4 py-2 rounded-lg bg-slate-900 hover:bg-slate-800 text-white font-semibold transition-colors cursor-pointer"
+                  >
+                    ক্যাটাগরি যোগ করুন
+                  </button>
+                </form>
+              </div>
+
+              {/* Categories List */}
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {categories.map((cat, idx) => (
+                  <div key={`cat-card-${cat.id}-${idx}`} className="bg-white p-4 rounded-xl border border-slate-200/90 shadow-2xs space-y-3 flex flex-col justify-between">
+                    <div className="space-y-3">
+                      <div className="flex items-start justify-between">
+                        <div className="flex items-center gap-2.5">
+                          <span className="text-2xl">{cat.icon || '🕌'}</span>
+                          <div>
+                            <h4 className="font-bold text-xs text-slate-900">{cat.name}</h4>
+                            <span className="text-[10px] text-slate-400 font-mono">slug: {cat.slug}</span>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <button
+                            type="button"
+                            onClick={() => setEditingCategory(cat)}
+                            className="p-1 text-slate-400 hover:text-slate-700 cursor-pointer"
+                            title="এডিট"
+                          >
+                            <Edit className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={async () => {
+                              if (window.confirm(`"${cat.name}" ক্যাটাগরি মুছে ফেলতে চান?`)) {
+                                deleteCategory(cat.id);
+                                showToast('ক্যাটাগরি মুছে ফেলা হয়েছে');
+                              }
+                            }}
+                            className="p-1 text-slate-400 hover:text-rose-600 cursor-pointer"
+                            title="মুছে ফেলুন"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      </div>
+
+                      {cat.image_url ? (
+                        <div className="w-full h-28 rounded-lg overflow-hidden bg-slate-100 border border-slate-100">
+                          <img src={cat.image_url} alt={cat.name} className="w-full h-full object-cover" />
+                        </div>
+                      ) : (
+                        <div className="w-full h-20 rounded-lg bg-slate-50 border border-dashed border-slate-200 flex items-center justify-center text-slate-400 text-xs italic">
+                          কোনো ছবি সেট করা নেই
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-500">
+                      <span>পণ্য সংখ্যা:</span>
+                      <span className="font-mono font-bold text-slate-900">
+                        {products.filter(p => p.category_id === cat.id).length} টি
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* TAB 5: DELIVERY & STEADFAST COURIER HUB */}
+          {activeTab === 'delivery' && (
+            <div className="space-y-6">
+              {/* Steadfast Status & Summary */}
+              <div className="bg-white p-5 rounded-xl border border-slate-200/90 shadow-2xs flex flex-col md:flex-row md:items-center justify-between gap-4">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center font-bold">
+                    <Truck className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <h2 className="text-sm font-bold text-slate-900">Steadfast Courier Integration</h2>
+                      <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                        settings.steadfast_api_key && settings.steadfast_secret_key
+                          ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                          : 'bg-amber-50 text-amber-700 border border-amber-200'
+                      }`}>
+                        {settings.steadfast_api_key && settings.steadfast_secret_key ? '● Connected' : '○ Setup Needed'}
+                      </span>
+                    </div>
+                    <p className="text-xs text-slate-500 mt-0.5">
+                      অর্ডার কনফার্ম করার পর এক ক্লিকে Steadfast-এ পার্সেল বুকিং এবং ট্র্যাকিং কোড জেনারেশন
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-3">
+                  <a
+                    href="https://portal.steadfast.com.bd/"
+                    target="_blank"
+                    rel="noreferrer"
+                    className="px-3 py-1.5 rounded-lg text-xs font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 transition-colors flex items-center gap-1.5 cursor-pointer"
+                  >
+                    <span>Steadfast Portal</span>
+                    <ExternalLink className="w-3.5 h-3.5" />
+                  </a>
+                </div>
+              </div>
+
+              {/* Ready to Book (Confirmed orders) */}
+              <div className="bg-white rounded-xl border border-slate-200/90 shadow-2xs overflow-hidden">
+                <div className="px-5 py-3 border-b border-slate-100 flex items-center justify-between bg-indigo-50/40">
+                  <div className="flex items-center gap-2">
+                    <Clock className="w-4 h-4 text-indigo-600" />
+                    <h3 className="text-xs font-bold text-slate-900">
+                      স্টেডফাস্টে পাঠানোর জন্য প্রস্তুত অর্ডার ({readyForSteadfastOrders.length})
+                    </h3>
+                  </div>
+                </div>
+
+                {readyForSteadfastOrders.length === 0 ? (
+                  <div className="p-6 text-center text-xs text-slate-400">
+                    কোনো আনশিপড কনফার্মড অর্ডার নেই। নতুন কনফার্মড অর্ডার আসলে এখানে সরাসরি পাঠাতে পারবেন।
+                  </div>
+                ) : (
+                  <div className="divide-y divide-slate-100">
+                    {readyForSteadfastOrders.map(o => (
+                      <div key={o.order_number || o.id} className="p-4 hover:bg-slate-50/60 transition-colors flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <span className="font-mono font-bold text-slate-900">#{o.order_number}</span>
+                            <span className="font-semibold text-slate-800">{o.user_name} ({o.user_phone})</span>
+                          </div>
+                          <p className="text-slate-500 text-[11px] mt-0.5">{o.shipping_address}</p>
+                        </div>
+
+                        <div className="flex items-center gap-2">
+                          <span className="font-bold text-slate-900 font-mono mr-2">{formatPrice(o.total_amount)}</span>
+                          <button
+                            type="button"
+                            onClick={() => handleOpenSteadfastModal(o)}
+                            className="px-3 py-1.5 rounded-lg text-xs font-semibold text-white bg-indigo-600 hover:bg-indigo-700 shadow-2xs transition-colors flex items-center gap-1.5 cursor-pointer"
+                          >
+                            <Truck className="w-3.5 h-3.5" />
+                            <span>স্টেডফাস্টে পাঠান</span>
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Already Booked on Steadfast */}
+              <div className="bg-white rounded-xl border border-slate-200/90 shadow-2xs overflow-hidden">
+                <div className="px-5 py-3 border-b border-slate-100">
+                  <h3 className="text-xs font-bold text-slate-900">
+                    বুকিংকৃত পার্সেল ও ট্র্যাকিং কোড ({steadfastBookedOrders.length})
+                  </h3>
+                </div>
+
+                <div className="divide-y divide-slate-100 text-xs">
+                  {steadfastBookedOrders.length === 0 ? (
+                    <div className="p-6 text-center text-slate-400">এখনো কোনো পার্সেল বুক করা হয়নি।</div>
+                  ) : (
+                    steadfastBookedOrders.map(o => {
+                      const trackingCode = o.steadfast_tracking_code || o.tracking_number;
+                      return (
+                        <div key={o.order_number || o.id} className="p-3.5 flex items-center justify-between gap-3 hover:bg-slate-50/60">
+                          <div>
+                            <span className="font-mono font-bold text-slate-900 mr-2">#{o.order_number}</span>
+                            <span className="text-slate-700 font-medium">{o.user_name}</span>
+                          </div>
+                          <div className="flex items-center gap-3">
+                            <span className="font-mono font-bold text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded border border-indigo-200">
+                              {trackingCode}
+                            </span>
+                            <a
+                              href={`https://steadfast.com.bd/t/${trackingCode}`}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="text-xs text-indigo-600 hover:underline flex items-center gap-1 font-semibold"
+                            >
+                              <span>ট্র্যাক</span>
+                              <ExternalLink className="w-3 h-3" />
+                            </a>
+                          </div>
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
+              </div>
+
+              {/* Steadfast API Credentials Form */}
+              <div className="bg-white p-5 rounded-xl border border-slate-200/90 shadow-2xs space-y-4 max-w-xl">
+                <h3 className="text-xs font-bold text-slate-900">Steadfast API Credentials</h3>
+                <form onSubmit={handleSaveSteadfastSettings} className="space-y-3 text-xs">
+                  <div>
+                    <label className="block text-slate-600 font-medium mb-1">Api-Key *</label>
+                    <input
+                      type="text"
+                      required
+                      value={steadfastApiKey}
+                      onChange={(e) => setSteadfastApiKey(e.target.value)}
+                      className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-slate-900 font-mono focus:bg-white focus:outline-none"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-slate-600 font-medium mb-1">Secret-Key *</label>
+                    <input
+                      type="password"
+                      required
+                      value={steadfastSecretKey}
+                      onChange={(e) => setSteadfastSecretKey(e.target.value)}
+                      className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-slate-900 font-mono focus:bg-white focus:outline-none"
+                    />
+                  </div>
+                  <button
+                    type="submit"
+                    disabled={isSavingSteadfast}
+                    className="px-4 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white font-semibold transition-colors cursor-pointer"
+                  >
+                    {isSavingSteadfast ? 'সেভ হচ্ছে...' : 'সেটিংস সেভ করুন'}
+                  </button>
+                </form>
+              </div>
+            </div>
+          )}
+
+          {/* TAB 6: CUSTOMERS MANAGEMENT */}
+          {activeTab === 'customers' && (
+            <div className="space-y-4">
+              {/* Header and Search */}
+              <div className="bg-white p-4 rounded-xl border border-slate-200/90 shadow-2xs flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div className="relative flex-1 max-w-md">
+                  <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                  <input
+                    type="text"
+                    value={customerSearch}
+                    onChange={(e) => setCustomerSearch(e.target.value)}
+                    placeholder="কাস্টমার নাম, ফোন বা ঠিকানা দিয়ে খুঁজুন..."
+                    className="w-full pl-9 pr-3 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-lg text-slate-900 focus:bg-white focus:outline-none"
+                  />
+                </div>
+
+                <div className="text-xs text-slate-500 font-medium">
+                  মোট কাস্টমার: <strong className="text-slate-900 font-mono">{customerList.length}</strong> জন
+                </div>
+              </div>
+
+              {/* Customers Table */}
+              <div className="bg-white rounded-xl border border-slate-200/90 shadow-2xs overflow-hidden">
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-xs">
+                    <thead className="bg-slate-50/80 text-slate-500 font-semibold border-b border-slate-200/80">
+                      <tr>
+                        <th className="px-4 py-3">কাস্টমার নাম</th>
+                        <th className="px-4 py-3">ফোন নম্বর</th>
+                        <th className="px-4 py-3">ঠিকানা ও শহর</th>
+                        <th className="px-4 py-3">অর্ডার সংখ্যা</th>
+                        <th className="px-4 py-3">মোট খরচ (BDT)</th>
+                        <th className="px-4 py-3 text-right">যোগাযোগ ও হিস্ট্রি</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {customerList.length === 0 ? (
+                        <tr>
+                          <td colSpan={6} className="p-8 text-center text-slate-400">
+                            কোনো কাস্টমার পাওয়া যায়নি
+                          </td>
+                        </tr>
+                      ) : (
+                        customerList.map((c, idx) => (
+                          <tr key={`cust-${c.phone}-${idx}`} className="hover:bg-slate-50/60 transition-colors">
+                            <td className="px-4 py-3 font-semibold text-slate-900 whitespace-nowrap">
+                              {c.name}
+                            </td>
+                            <td className="px-4 py-3 font-mono text-slate-700 whitespace-nowrap">
+                              {c.phone}
+                            </td>
+                            <td className="px-4 py-3 text-slate-600 max-w-[200px] truncate">
+                              {c.address} ({c.city})
+                            </td>
+                            <td className="px-4 py-3 font-mono font-bold text-slate-900 whitespace-nowrap">
+                              {c.orders.length} টি
+                            </td>
+                            <td className="px-4 py-3 font-mono font-bold text-emerald-700 whitespace-nowrap">
+                              {formatPrice(c.totalSpent)}
+                            </td>
+                            <td className="px-4 py-3 text-right whitespace-nowrap">
+                              <div className="flex items-center justify-end gap-1.5">
+                                {c.phone && c.phone !== 'N/A' && (
+                                  <>
+                                    <a
+                                      href={`tel:${c.phone}`}
+                                      className="p-1.5 rounded-lg text-slate-600 hover:bg-slate-100"
+                                      title="কল করুন"
+                                    >
+                                      <Phone className="w-3.5 h-3.5" />
+                                    </a>
+                                    <a
+                                      href={`https://wa.me/88${c.phone.replace(/[^0-9]/g, '')}`}
+                                      target="_blank"
+                                      rel="noreferrer"
+                                      className="p-1.5 rounded-lg text-emerald-600 hover:bg-emerald-50"
+                                      title="WhatsApp মেসেজ"
+                                    >
+                                      <MessageCircle className="w-3.5 h-3.5" />
+                                    </a>
+                                  </>
+                                )}
+                                <button
+                                  type="button"
+                                  onClick={() => setSelectedCustomerHistory(c)}
+                                  className="px-2 py-1 rounded bg-slate-100 hover:bg-slate-200 text-slate-700 text-[11px] font-medium cursor-pointer"
+                                >
+                                  অর্ডারসমূহ ({c.orders.length})
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        ))
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* TAB 7: BUSINESS REPORTS & SALES ANALYTICS */}
+          {activeTab === 'reports' && (
+            <div className="space-y-6">
+              {/* Date Filter Bar */}
+              <div className="bg-white p-4 rounded-xl border border-slate-200/90 shadow-2xs flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div className="flex items-center gap-2">
+                  <BarChart3 className="w-4 h-4 text-slate-700" />
+                  <h3 className="text-xs font-bold text-slate-900">ব্যবসার রিপোর্ট ও সেলস অ্যানালিটিক্স</h3>
+                </div>
+
+                <div className="flex items-center gap-1.5 text-xs">
+                  {(['all', '30days', '7days', 'today'] as const).map(range => (
+                    <button
+                      key={range}
+                      type="button"
+                      onClick={() => setReportDateRange(range)}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-semibold capitalize transition-colors cursor-pointer ${
+                        reportDateRange === range
+                          ? 'bg-slate-900 text-white shadow-2xs'
+                          : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                      }`}
+                    >
+                      {range === 'all' && 'সব সময় (All Time)'}
+                      {range === '30days' && 'বিগত ৩০ দিন'}
+                      {range === '7days' && 'বিগত ৭ দিন'}
+                      {range === 'today' && 'আজকে (Today)'}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* KPI Metrics based on selected range */}
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+                <div className="bg-white p-4 rounded-xl border border-slate-200/90 shadow-2xs space-y-1">
+                  <div className="text-xs text-slate-500 font-medium">মোট বিক্রয় (Total Sales)</div>
+                  <div className="text-2xl font-bold text-slate-900 font-mono">{formatPrice(reportStats.totalSales)}</div>
+                  <div className="text-[11px] text-slate-400">{reportStats.orderCount} টি অর্ডার থেকে</div>
+                </div>
+
+                <div className="bg-white p-4 rounded-xl border border-emerald-200/80 shadow-2xs space-y-1">
+                  <div className="text-xs text-emerald-800 font-medium">ডেলিভার্ড অর্ডার</div>
+                  <div className="text-2xl font-bold text-emerald-900 font-mono">{reportStats.deliveredCount}</div>
+                  <div className="text-[11px] text-emerald-700 font-medium">সফলভাবে ডেলিভারি সম্পন্ন</div>
+                </div>
+
+                <div className="bg-white p-4 rounded-xl border border-slate-200/90 shadow-2xs space-y-1">
+                  <div className="text-xs text-slate-500 font-medium">গড় অর্ডার মূল্য (AOV)</div>
+                  <div className="text-2xl font-bold text-slate-900 font-mono">{formatPrice(reportStats.avgOrderValue)}</div>
+                  <div className="text-[11px] text-slate-400">প্রতি অর্ডারে গড় আয়</div>
+                </div>
+
+                <div className="bg-white p-4 rounded-xl border border-blue-200/80 shadow-2xs space-y-1">
+                  <div className="text-xs text-blue-800 font-medium">কনফার্মড / কাটিং</div>
+                  <div className="text-2xl font-bold text-blue-900 font-mono">{reportStats.confirmedCount}</div>
+                  <div className="text-[11px] text-blue-700 font-medium">প্রসেসিংয়ে রয়েছে</div>
+                </div>
+              </div>
+
+              {/* 2 Column breakdown: Top Selling Products + Zone Breakdown */}
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                {/* Top Selling Products */}
+                <div className="bg-white rounded-xl border border-slate-200/90 shadow-2xs p-5 space-y-4">
+                  <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                    <h3 className="text-xs font-bold text-slate-900 flex items-center gap-1.5">
+                      <TrendingUp className="w-4 h-4 text-emerald-600" />
+                      <span>সর্বাধিক বিক্রিত ডিজাইন (Top Sellers)</span>
+                    </h3>
+                  </div>
+
+                  {reportStats.topSellingProducts.length === 0 ? (
+                    <div className="text-center text-xs text-slate-400 py-6">কোনো সেলস রেকর্ড পাওয়া যায়নি</div>
+                  ) : (
+                    <div className="space-y-3">
+                      {reportStats.topSellingProducts.map((p, idx) => (
+                        <div key={idx} className="flex items-center justify-between p-2.5 rounded-lg bg-slate-50 text-xs">
+                          <div className="min-w-0 pr-2">
+                            <div className="font-bold text-slate-900 truncate">{p.name}</div>
+                            <span className="text-[10px] text-slate-500">{p.count} টি পিস বিক্রি হয়েছে</span>
+                          </div>
+                          <span className="font-mono font-bold text-slate-900 whitespace-nowrap">{formatPrice(p.totalBDT)}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* Delivery Zone Breakdown */}
+                <div className="bg-white rounded-xl border border-slate-200/90 shadow-2xs p-5 space-y-4">
+                  <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                    <h3 className="text-xs font-bold text-slate-900 flex items-center gap-1.5">
+                      <MapPin className="w-4 h-4 text-indigo-600" />
+                      <span>ডেলিভারি এরিয়া বণ্টন</span>
+                    </h3>
+                  </div>
+
+                  <div className="space-y-3 text-xs">
+                    <div className="p-3 rounded-lg bg-slate-50 flex items-center justify-between">
+                      <span className="font-medium text-slate-700">ঢাকার ভেতরে (Inside Dhaka)</span>
+                      <span className="font-mono font-bold text-slate-900">{reportStats.dhakaOrders} টি অর্ডার</span>
+                    </div>
+
+                    <div className="p-3 rounded-lg bg-slate-50 flex items-center justify-between">
+                      <span className="font-medium text-slate-700">ঢাকার বাইরে (Outside Dhaka)</span>
+                      <span className="font-mono font-bold text-slate-900">{reportStats.outsideOrders} টি অর্ডার</span>
+                    </div>
+
+                    <div className="p-3 rounded-lg bg-slate-50 flex items-center justify-between">
+                      <span className="font-medium text-slate-700">বাতিল / রিটার্ন রেট</span>
+                      <span className="font-mono font-bold text-rose-700">
+                        {reportStats.orderCount > 0 ? Math.round((reportStats.cancelledCount / reportStats.orderCount) * 100) : 0}% ({reportStats.cancelledCount} টি)
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* TAB 8: SETTINGS (Store, Media, Meta, Google Sheets, Supabase) */}
+          {activeTab === 'settings' && (
+            <div className="space-y-6">
+              {/* Settings Subtab Navigation */}
+              <div className="bg-white p-1 rounded-xl border border-slate-200/90 shadow-2xs flex items-center gap-1 overflow-x-auto text-xs">
+                {(['shipping', 'media', 'security', 'meta', 'sheets', 'supabase'] as const).map(tab => (
+                  <button
+                    key={tab}
+                    type="button"
+                    onClick={() => setSettingsTab(tab)}
+                    className={`px-3 py-1.5 rounded-lg font-semibold capitalize whitespace-nowrap transition-colors cursor-pointer ${
+                      settingsTab === tab
+                        ? 'bg-slate-900 text-white shadow-2xs'
+                        : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
+                    }`}
+                  >
+                    {tab === 'shipping' && 'ডেলিভারি চার্জ'}
+                    {tab === 'media' && 'হিরো ভিডিও'}
+                    {tab === 'security' && 'পাসওয়ার্ড ও সিকিউরিটি'}
+                    {tab === 'meta' && 'Meta Pixel & CAPI'}
+                    {tab === 'sheets' && 'গুগল শিট সিঙ্ক'}
+                    {tab === 'supabase' && 'সুপাবেস ডাটাবেজ'}
+                  </button>
+                ))}
+              </div>
+
+              {/* Subtab Content */}
+              {settingsTab === 'shipping' && (
+                <div className="bg-white p-5 rounded-xl border border-slate-200/90 shadow-2xs space-y-4 max-w-xl">
+                  <h3 className="text-xs font-bold text-slate-900">ডেলিভারি চার্জ রুলস</h3>
+                  <form
+                    onSubmit={async (e) => {
+                      e.preventDefault();
+                      await updateSettings({
+                        ...settings,
+                        base_charge_dhaka: Number(dhakaBase),
+                        free_shipping_threshold_dhaka: Number(dhakaFree),
+                        base_charge_outside: Number(outsideBase)
+                      });
+                      showToast('ডেলিভারি চার্জ সফলভাবে আপডেট হয়েছে');
+                    }}
+                    className="space-y-3 text-xs"
+                  >
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-slate-600 font-medium mb-1">ঢাকার ভেতর ডেলিভারি (৳)</label>
+                        <input
+                          type="number"
+                          value={dhakaBase}
+                          onChange={(e) => setDhakaBase(Number(e.target.value))}
+                          className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-slate-900 font-bold focus:bg-white focus:outline-none"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-slate-600 font-medium mb-1">ঢাকার বাইরে ডেলিভারি (৳)</label>
+                        <input
+                          type="number"
+                          value={outsideBase}
+                          onChange={(e) => setOutsideBase(Number(e.target.value))}
+                          className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-slate-900 font-bold focus:bg-white focus:outline-none"
+                        />
+                      </div>
+                    </div>
+                    <div>
+                      <label className="block text-slate-600 font-medium mb-1">ঢাকায় ফ্রি ডেলিভারি লিমিট (৳)</label>
+                      <input
+                        type="number"
+                        value={dhakaFree}
+                        onChange={(e) => setDhakaFree(Number(e.target.value))}
+                        className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-slate-900 font-bold focus:bg-white focus:outline-none"
+                      />
+                    </div>
+                    <button
+                      type="submit"
+                      className="px-4 py-2 rounded-lg bg-slate-900 hover:bg-slate-800 text-white font-semibold transition-colors cursor-pointer"
+                    >
+                      ডেলিভারি সেটিংস সেভ করুন
+                    </button>
+                  </form>
+                </div>
+              )}
+
+              {settingsTab === 'media' && (
+                <div className="bg-white p-5 rounded-xl border border-slate-200/90 shadow-2xs space-y-4 max-w-xl">
+                  <h3 className="text-xs font-bold text-slate-900">হোমপেজ হিরো ভিডিও ও ব্যানার</h3>
+                  <form
+                    onSubmit={async (e) => {
+                      e.preventDefault();
+                      await updateSettings({
+                        ...settings,
+                        promo_video_url: promoVideoUrl.trim(),
+                        hero_banner_image: heroBannerImg.trim()
+                      });
+                      showToast('মিডিয়া লিংক সেভ করা হয়েছে');
+                    }}
+                    className="space-y-3 text-xs"
+                  >
+                    <div>
+                      <label className="block text-slate-600 font-medium mb-1">ভিডিও লিংক (Cloudinary / Direct MP4 / Youtube)</label>
+                      <input
+                        type="url"
+                        value={promoVideoUrl}
+                        onChange={(e) => setPromoVideoUrl(e.target.value)}
+                        className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-slate-900 font-mono text-[11px] focus:bg-white focus:outline-none"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-slate-600 font-medium mb-1">পোস্টার / ব্যানার ছবি লিংক</label>
+                      <input
+                        type="url"
+                        value={heroBannerImg}
+                        onChange={(e) => setHeroBannerImg(e.target.value)}
+                        className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-slate-900 font-mono text-[11px] focus:bg-white focus:outline-none"
+                      />
+                    </div>
+                    <button
+                      type="submit"
+                      className="px-4 py-2 rounded-lg bg-slate-900 hover:bg-slate-800 text-white font-semibold transition-colors cursor-pointer"
+                    >
+                      মিডিয়া সেটিংস সেভ করুন
+                    </button>
+                  </form>
+                </div>
+              )}
+
+              {settingsTab === 'security' && (
+                <div className="bg-white p-5 rounded-xl border border-slate-200/90 shadow-2xs space-y-4 max-w-xl">
+                  <h3 className="text-xs font-bold text-slate-900">পাসওয়ার্ড ও নোটিফিকেশন</h3>
+                  <form
+                    onSubmit={async (e) => {
+                      e.preventDefault();
+                      await updateSettings({
+                        ...settings,
+                        admin_password: adminPass.trim(),
+                        whatsapp_number: adminWhatsApp.trim()
+                      });
+                      showToast('সিকিউরিটি সেটিংস আপডেট করা হয়েছে');
+                    }}
+                    className="space-y-3 text-xs"
+                  >
+                    <div>
+                      <label className="block text-slate-600 font-medium mb-1">অ্যাডমিন পাসওয়ার্ড</label>
+                      <input
+                        type="password"
+                        required
+                        value={adminPass}
+                        onChange={(e) => setAdminPass(e.target.value)}
+                        className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-slate-900 font-mono focus:bg-white focus:outline-none"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-slate-600 font-medium mb-1">হোয়াটসঅ্যাপ নাম্বার (নোটিফিকেশন)</label>
+                      <input
+                        type="text"
+                        value={adminWhatsApp}
+                        onChange={(e) => setAdminWhatsApp(e.target.value)}
+                        className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-slate-900 font-mono focus:bg-white focus:outline-none"
+                      />
+                    </div>
+                    <button
+                      type="submit"
+                      className="px-4 py-2 rounded-lg bg-slate-900 hover:bg-slate-800 text-white font-semibold transition-colors cursor-pointer"
+                    >
+                      পাসওয়ার্ড সেভ করুন
+                    </button>
+                  </form>
+                </div>
+              )}
+
+              {settingsTab === 'meta' && (
+                <div className="bg-white p-5 rounded-xl border border-slate-200/90 shadow-2xs space-y-4 max-w-xl">
+                  <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                    <h3 className="text-xs font-bold text-slate-900">Meta Pixel &amp; Conversions API (CAPI)</h3>
+                    <span className="text-[10px] font-bold text-blue-700 bg-blue-50 px-2 py-0.5 rounded-md">
+                      Server-Side Active
+                    </span>
+                  </div>
+
+                  <form
+                    onSubmit={async (e) => {
+                      e.preventDefault();
+                      await updateSettings({
+                        ...settings,
+                        meta_pixel_id: adminMetaPixelId.trim(),
+                        meta_capi_access_token: adminMetaCapiToken.trim(),
+                        meta_capi_enabled: adminMetaCapiEnabled,
+                        meta_test_event_code: adminMetaTestCode.trim()
+                      });
+                      showToast('Meta Pixel ও CAPI সেটিংস সেভ হয়েছে');
+                    }}
+                    className="space-y-3 text-xs"
+                  >
+                    <div>
+                      <label className="block text-slate-600 font-medium mb-1">Meta Pixel ID</label>
+                      <input
+                        type="text"
+                        value={adminMetaPixelId}
+                        onChange={(e) => setAdminMetaPixelId(e.target.value)}
+                        className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-slate-900 font-mono focus:bg-white focus:outline-none"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-slate-600 font-medium mb-1">Conversions API Access Token</label>
+                      <textarea
+                        rows={3}
+                        value={adminMetaCapiToken}
+                        onChange={(e) => setAdminMetaCapiToken(e.target.value)}
+                        className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-slate-900 font-mono text-[11px] focus:bg-white focus:outline-none"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-slate-600 font-medium mb-1">Test Event Code (ঐচ্ছিক)</label>
+                      <input
+                        type="text"
+                        value={adminMetaTestCode}
+                        onChange={(e) => setAdminMetaTestCode(e.target.value)}
+                        placeholder="TEST12345"
+                        className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-slate-900 font-mono focus:bg-white focus:outline-none"
+                      />
+                    </div>
+
+                    <div className="flex items-center gap-2 pt-2">
+                      <button
+                        type="submit"
+                        className="px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-semibold transition-colors cursor-pointer"
+                      >
+                        Meta সেটিংস সেভ করুন
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleTestMetaCapi}
+                        disabled={isTestingMetaCapi}
+                        className="px-3 py-2 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium transition-colors cursor-pointer"
+                      >
+                        {isTestingMetaCapi ? 'টেস্ট হচ্ছে...' : 'টেস্ট ইভেন্ট পাঠান'}
+                      </button>
+                    </div>
+                  </form>
+                </div>
+              )}
+
+              {settingsTab === 'sheets' && (
+                <div className="bg-white rounded-xl border border-slate-200/90 shadow-2xs p-5">
+                  <GoogleSheetsSync />
+                </div>
+              )}
+
+              {settingsTab === 'supabase' && (
+                <div className="bg-white rounded-xl border border-slate-200/90 shadow-2xs p-5">
+                  <SupabaseManager />
+                </div>
+              )}
+            </div>
+          )}
+
+        </main>
+      </div>
+
+      {/* --- MODAL 1: ORDER DETAILS DRAWER / MODAL --- */}
+      {selectedOrderDetails && (
+        <div className="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-xs flex items-center justify-end sm:p-4">
+          <div className="bg-white w-full sm:max-w-xl h-full sm:h-auto sm:max-h-[92vh] sm:rounded-2xl border border-slate-200/90 shadow-xl overflow-y-auto flex flex-col justify-between">
+            <div className="p-5 sm:p-6 space-y-5">
+              {/* Drawer Header */}
+              <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+                <div className="flex items-center gap-2">
+                  <span className="font-mono font-bold text-sm text-slate-900">
+                    #{selectedOrderDetails.order_number}
+                  </span>
+                  <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                    selectedOrderDetails.status === 'delivered' ? 'bg-emerald-100 text-emerald-800' :
+                    selectedOrderDetails.status === 'shipped' ? 'bg-indigo-100 text-indigo-800' :
+                    selectedOrderDetails.status === 'confirmed' || selectedOrderDetails.status === 'processing' ? 'bg-blue-100 text-blue-800' :
+                    selectedOrderDetails.status === 'cancelled' ? 'bg-rose-100 text-rose-800' :
+                    'bg-amber-100 text-amber-800'
+                  }`}>
+                    {selectedOrderDetails.status}
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setSelectedOrderDetails(null)}
+                  className="p-1 rounded-lg text-slate-400 hover:bg-slate-100 cursor-pointer"
                 >
-                  <option value="pending">⏳ Pending (অপেক্ষমান)</option>
-                  <option value="confirmed">✅ Confirmed (কল দিয়ে কনফার্মড)</option>
-                  <option value="processing">⚙️ Processing (লেজার কাটিং প্রসেস)</option>
-                  <option value="shipped">🚚 Shipped (কুরিয়ারে পাঠানো হয়েছে)</option>
-                  <option value="delivered">🎉 Delivered (ডেলিভারি সম্পন্ন)</option>
-                  <option value="cancelled">❌ Cancelled (বাতিল)</option>
-                </select>
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              {/* Customer Info Card */}
+              <div className="bg-slate-50 p-3.5 rounded-xl border border-slate-200/80 space-y-1.5 text-xs">
+                <div className="font-bold text-slate-900 text-sm">{selectedOrderDetails.user_name}</div>
+                <div className="flex items-center justify-between">
+                  <span className="font-mono text-slate-700">{selectedOrderDetails.user_phone}</span>
+                  {selectedOrderDetails.user_phone && (
+                    <div className="flex items-center gap-2">
+                      <a
+                        href={`tel:${selectedOrderDetails.user_phone}`}
+                        className="px-2 py-1 rounded bg-white border border-slate-200 text-slate-700 hover:text-slate-900 flex items-center gap-1 font-medium text-[11px]"
+                      >
+                        <Phone className="w-3 h-3 text-teal-600" />
+                        <span>কল</span>
+                      </a>
+                      <a
+                        href={`https://wa.me/88${selectedOrderDetails.user_phone.replace(/[^0-9]/g, '')}`}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="px-2 py-1 rounded bg-emerald-50 border border-emerald-200 text-emerald-800 hover:bg-emerald-100 flex items-center gap-1 font-medium text-[11px]"
+                      >
+                        <MessageCircle className="w-3 h-3 text-emerald-600" />
+                        <span>WhatsApp</span>
+                      </a>
+                    </div>
+                  )}
+                </div>
+                <p className="text-slate-600 text-[11px] pt-1 border-t border-slate-200/60">
+                  {selectedOrderDetails.shipping_address} ({selectedOrderDetails.city || 'ঢাকা'})
+                </p>
               </div>
 
               {/* Items List */}
-              <div className="space-y-3">
-                <h4 className="font-extrabold text-sm text-[#0f3d44]">অর্ডারকৃত আইটেম তালিকা:</h4>
-                <div className="border border-slate-200 rounded-2xl overflow-hidden divide-y divide-slate-100">
-                  {(selectedOrderDetails.items || []).map((item, idx) => (
-                    <div key={idx} className="p-3.5 bg-white flex items-center justify-between gap-3">
-                      <div className="flex items-center gap-3">
-                        {item.product_image && (
-                          <img
-                            src={item.product_image}
-                            alt=""
-                            className="w-12 h-12 rounded-xl object-cover border border-slate-200"
-                          />
+              <div className="space-y-2">
+                <h4 className="text-xs font-bold text-slate-900">অর্ডারকৃত পণ্যসমূহ:</h4>
+                <div className="divide-y divide-slate-100 border border-slate-100 rounded-xl overflow-hidden">
+                  {Array.isArray(selectedOrderDetails.items) && selectedOrderDetails.items.map((it: any, itIdx: number) => (
+                    <div key={itIdx} className="p-3 flex items-center justify-between text-xs">
+                      <div className="flex items-center gap-2.5">
+                        {it.image_url && (
+                          <img src={it.image_url} alt="" className="w-10 h-10 object-cover rounded-lg border border-slate-200" />
                         )}
                         <div>
-                          <div className="font-bold text-slate-900 text-xs">{item.product_name}</div>
-                          <div className="text-[11px] text-slate-500 mt-0.5">
-                            সাইজ: <span className="font-semibold text-teal-700">{item.size || 'Medium'}</span> • পরিমাণ: <span className="font-bold">{item.quantity} টি</span>
+                          <div className="font-semibold text-slate-900">{it.product_name || it.name}</div>
+                          <div className="text-[11px] text-slate-400">
+                            {it.selected_size_name ? `${it.selected_size_name} • ` : ''}পরিমাণ: {it.quantity || 1}
                           </div>
                         </div>
                       </div>
-                      <div className="text-right">
-                        <div className="font-bold text-slate-900 text-xs">{formatPrice(item.price * item.quantity)}</div>
-                        <div className="text-[10px] text-slate-400">{formatPrice(item.price)} × {item.quantity}</div>
-                      </div>
+                      <span className="font-mono font-bold text-slate-900">{formatPrice((it.price || 0) * (it.quantity || 1))}</span>
                     </div>
                   ))}
                 </div>
               </div>
 
-              {/* Financial Calculation */}
-              <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200/80 space-y-2">
+              {/* Pricing Breakdown */}
+              <div className="bg-slate-50 p-3.5 rounded-xl border border-slate-200/80 space-y-1.5 text-xs">
                 <div className="flex items-center justify-between text-slate-600">
-                  <span>সাবটোটাল:</span>
-                  <span className="font-bold text-slate-800">{formatPrice(selectedOrderDetails.subtotal || selectedOrderDetails.total_amount)}</span>
+                  <span>সাবটোটাল</span>
+                  <span className="font-mono">{formatPrice(selectedOrderDetails.subtotal_amount || 0)}</span>
                 </div>
                 <div className="flex items-center justify-between text-slate-600">
-                  <span>ডেলিভারি চার্জ:</span>
-                  <span className="font-bold text-slate-800">
-                    {selectedOrderDetails.shipping_fee === 0 ? 'ফ্রি ডেলিভারি' : formatPrice(selectedOrderDetails.shipping_fee || 0)}
-                  </span>
+                  <span>ডেলিভারি চার্জ</span>
+                  <span className="font-mono">{formatPrice(selectedOrderDetails.delivery_charge || 0)}</span>
                 </div>
-                {selectedOrderDetails.discount_amount ? (
-                  <div className="flex items-center justify-between text-emerald-600">
-                    <span>কুপন ডিসকাউন্ট:</span>
-                    <span className="font-bold">- {formatPrice(selectedOrderDetails.discount_amount)}</span>
+                {Boolean(selectedOrderDetails.discount_amount) && (
+                  <div className="flex items-center justify-between text-rose-600">
+                    <span>ডিসকাউন্ট</span>
+                    <span className="font-mono">-{formatPrice(selectedOrderDetails.discount_amount || 0)}</span>
                   </div>
-                ) : null}
-                <div className="flex items-center justify-between text-slate-900 font-extrabold text-sm border-t border-slate-200 pt-2">
-                  <span>সর্বমোট প্রদেয় (Total):</span>
-                  <span className="text-emerald-700 text-base">{formatPrice(selectedOrderDetails.total_amount)}</span>
-                </div>
-                <div className="text-[11px] text-slate-500 pt-1">
-                  পেমেন্ট পদ্ধতি: <span className="font-bold uppercase text-slate-800">{selectedOrderDetails.payment_method || 'Cash on Delivery'}</span>
+                )}
+                <div className="flex items-center justify-between font-bold text-slate-900 text-sm pt-2 border-t border-slate-200">
+                  <span>সর্বমোট বিল</span>
+                  <span className="font-mono">{formatPrice(selectedOrderDetails.total_amount)}</span>
                 </div>
               </div>
 
-              {selectedOrderDetails.notes && (
-                <div className="p-3 bg-amber-50 rounded-xl border border-amber-200 text-amber-900">
-                  <span className="font-bold block mb-0.5">কাস্টমার স্পেশাল নোট:</span>
-                  <p>{selectedOrderDetails.notes}</p>
+              {/* Steadfast Status in Details */}
+              {selectedOrderDetails.steadfast_tracking_code ? (
+                <div className="p-3 rounded-xl bg-indigo-50 border border-indigo-200 text-xs flex items-center justify-between">
+                  <div>
+                    <span className="text-[11px] font-bold text-indigo-900 block">Steadfast Tracking Code</span>
+                    <span className="font-mono font-bold text-indigo-700">{selectedOrderDetails.steadfast_tracking_code}</span>
+                  </div>
+                  <a
+                    href={`https://steadfast.com.bd/t/${selectedOrderDetails.steadfast_tracking_code}`}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="px-2.5 py-1 rounded bg-indigo-600 text-white font-medium text-[11px]"
+                  >
+                    লাইভ ট্র্যাক
+                  </a>
                 </div>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => handleOpenSteadfastModal(selectedOrderDetails)}
+                  className="w-full py-2.5 rounded-xl text-xs font-semibold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
+                >
+                  <Truck className="w-4 h-4" />
+                  <span>স্টেডফাস্ট কুরিয়ারে বুক করুন</span>
+                </button>
               )}
             </div>
 
-            <div className="p-4 bg-slate-50 border-t border-slate-100 flex justify-end gap-2">
+            {/* Drawer Actions Footer */}
+            <div className="p-4 border-t border-slate-100 bg-slate-50 flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => handleOpenPriceEdit(selectedOrderDetails)}
+                  className="px-3 py-1.5 rounded-lg text-xs font-semibold text-slate-700 bg-white border border-slate-200 hover:bg-slate-50 cursor-pointer"
+                >
+                  দাম এডিট
+                </button>
+                <button
+                  type="button"
+                  disabled={syncingOrderId === selectedOrderDetails.id}
+                  onClick={() => handleManualSheetSync(selectedOrderDetails)}
+                  className="px-3 py-1.5 rounded-lg text-xs font-semibold text-emerald-800 bg-emerald-50 border border-emerald-200 hover:bg-emerald-100 cursor-pointer"
+                >
+                  {syncingOrderId === selectedOrderDetails.id ? 'যাচ্ছে...' : 'গুগল শিটে পাঠান'}
+                </button>
+              </div>
+
               <button
-                onClick={() => setSelectedOrderDetails(null)}
-                className="px-5 py-2.5 rounded-xl border border-slate-200 bg-white text-xs font-bold text-slate-700 hover:bg-slate-100 cursor-pointer"
+                type="button"
+                onClick={() => setPrintInvoiceOrder(selectedOrderDetails)}
+                className="px-3 py-1.5 rounded-lg text-xs font-semibold text-slate-900 bg-white border border-slate-200 hover:bg-slate-50 flex items-center gap-1.5 cursor-pointer"
               >
-                বন্ধ করুন
+                <FileText className="w-3.5 h-3.5 text-slate-500" />
+                <span>ইনভয়েস</span>
               </button>
             </div>
           </div>
         </div>
       )}
 
-      {/* MODAL 4: PRINTABLE INVOICE / PACKING SLIP */}
-      {printInvoiceOrder && (
-        <div className="fixed inset-0 z-50 bg-slate-950/75 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto">
-          <div className="bg-white rounded-3xl max-w-xl w-full border border-slate-200 shadow-2xl overflow-hidden my-8">
-            <div className="p-4 bg-slate-900 text-white flex items-center justify-between print:hidden">
-              <div className="flex items-center gap-2">
-                <Printer className="w-4 h-4 text-teal-400" />
-                <span className="font-bold text-xs">অর্ডার ইনভয়েস ও প্যাকিং স্লিপ</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={() => window.print()}
-                  className="px-3.5 py-1.5 rounded-xl bg-teal-500 hover:bg-teal-400 text-slate-950 font-black text-xs cursor-pointer shadow-md flex items-center gap-1.5"
-                >
-                  <Printer className="w-3.5 h-3.5" />
-                  <span>এখনই প্রিন্ট করুন</span>
-                </button>
-                <button
-                  onClick={() => setPrintInvoiceOrder(null)}
-                  className="p-1.5 text-slate-400 hover:text-white rounded-xl hover:bg-white/10 cursor-pointer"
-                >
-                  <X className="w-4 h-4" />
-                </button>
-              </div>
-            </div>
-
-            {/* Printable Document Body */}
-            <div id="printable-invoice" className="p-8 space-y-6 text-slate-800 text-xs bg-white">
-              {/* Header */}
-              <div className="flex items-start justify-between border-b-2 border-slate-900 pb-4">
-                <div>
-                  <h1 className="text-xl font-black tracking-tight text-slate-900">UNEX AURA</h1>
-                  <p className="text-[11px] text-slate-500 font-semibold">3D Surgical Stainless Steel Islamic Wall Art</p>
-                  <p className="text-[10px] text-slate-400 mt-1">Dada Market, Unique, Baipail, Ashulia, Dhaka-1341</p>
-                  <p className="text-[10px] text-slate-400">Hotline: 01623319639 | support@unexaura.com</p>
-                </div>
-                <div className="text-right">
-                  <div className="text-sm font-black font-mono text-slate-900">INVOICE</div>
-                  <div className="text-xs font-mono font-bold text-teal-700">#{printInvoiceOrder.order_number}</div>
-                  <div className="text-[10px] text-slate-500 mt-1">
-                    {new Date(printInvoiceOrder.created_at).toLocaleDateString('en-BD', { year: 'numeric', month: 'short', day: 'numeric' })}
-                  </div>
-                </div>
-              </div>
-
-              {/* Customer & Shipping */}
-              <div className="grid grid-cols-2 gap-4 bg-slate-50 p-4 rounded-xl border border-slate-200">
-                <div>
-                  <span className="font-bold text-[10px] uppercase tracking-wider text-slate-400 block mb-1">গ্রাহকের তথ্য:</span>
-                  <div className="font-extrabold text-slate-900 text-xs">{printInvoiceOrder.user_name}</div>
-                  <div className="font-bold text-slate-700">{printInvoiceOrder.user_phone}</div>
-                </div>
-                <div>
-                  <span className="font-bold text-[10px] uppercase tracking-wider text-slate-400 block mb-1">ডেলিভারি ঠিকানা:</span>
-                  <div className="text-slate-700">{printInvoiceOrder.shipping_address}</div>
-                  <div className="font-bold text-slate-800">{printInvoiceOrder.city}</div>
-                </div>
-              </div>
-
-              {/* Items Table */}
-              <div className="space-y-2">
-                <table className="w-full text-left border-collapse text-xs">
-                  <thead>
-                    <tr className="border-b border-slate-300 font-bold text-slate-700">
-                      <th className="py-2">আইটেম বিবরণ</th>
-                      <th className="py-2">সাইজ</th>
-                      <th className="py-2 text-center">পরিমাণ</th>
-                      <th className="py-2 text-right">মূল্য (৳)</th>
-                      <th className="py-2 text-right">মোট (৳)</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100">
-                    {(printInvoiceOrder.items || []).map((item, idx) => (
-                      <tr key={idx}>
-                        <td className="py-2 font-bold text-slate-900">{item.product_name}</td>
-                        <td className="py-2 text-slate-600">{item.size || 'Medium'}</td>
-                        <td className="py-2 text-center font-bold">{item.quantity}</td>
-                        <td className="py-2 text-right">{item.price}</td>
-                        <td className="py-2 text-right font-bold">{item.price * item.quantity}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-
-              {/* Summary */}
-              <div className="border-t border-slate-200 pt-3 space-y-1.5 max-w-xs ml-auto text-right">
-                <div className="flex justify-between text-slate-600">
-                  <span>সাবটোটাল:</span>
-                  <span className="font-bold">{printInvoiceOrder.subtotal || printInvoiceOrder.total_amount} ৳</span>
-                </div>
-                <div className="flex justify-between text-slate-600">
-                  <span>ডেলিভারি ফি:</span>
-                  <span className="font-bold">{printInvoiceOrder.shipping_fee || 0} ৳</span>
-                </div>
-                <div className="flex justify-between text-slate-900 font-black text-sm border-t border-slate-900 pt-1.5">
-                  <span>সর্বমোট প্রদেয়:</span>
-                  <span className="text-emerald-700">{printInvoiceOrder.total_amount} ৳</span>
-                </div>
-                <div className="text-[10px] text-slate-500 pt-1">
-                  পেমেন্ট পদ্ধতি: <span className="font-bold uppercase">{printInvoiceOrder.payment_method || 'Cash on Delivery'}</span>
-                </div>
-              </div>
-
-              {/* Footer Notice */}
-              <div className="border-t border-dashed border-slate-300 pt-4 text-center text-[10px] text-slate-500 space-y-1">
-                <p className="font-bold text-slate-700">UNEX AURA সাথে থাকার জন্য ধন্যবাদ!</p>
-                <p>১০০% খাঁটি সার্জিক্যাল স্টেইনলেস স্টিল ও ফ্রি ৩ডি ইনস্টলেশন স্পেসার কিট অন্তর্ভুক্ত।</p>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* MODAL: EDIT ORDER PRICE (2D Clean Minimalist Design) */}
+      {/* --- MODAL 2: PRICE EDIT MODAL --- */}
       {editingOrderPrice && (
-        <div className="fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl max-w-md w-full shadow-2xl border border-slate-200 overflow-hidden">
-            <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between bg-amber-50/60">
-              <div className="flex items-center gap-2">
-                <span className="p-2 rounded-lg bg-amber-500 text-white shadow-xs">
-                  <Edit className="w-4 h-4" />
-                </span>
-                <div>
-                  <h3 className="font-black text-sm text-slate-900">অর্ডারের মূল্য এডিট / ডিসকাউন্ট</h3>
-                  <p className="text-[11px] text-slate-500 font-mono">Order #{editingOrderPrice.order_number}</p>
-                </div>
-              </div>
+        <div className="fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl max-w-md w-full p-6 space-y-4 border border-slate-200 shadow-xl">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+              <h3 className="text-sm font-bold text-slate-900">
+                অর্ডার #{editingOrderPrice.order_number} এর মূল্য সমন্বয়
+              </h3>
               <button
                 type="button"
                 onClick={() => setEditingOrderPrice(null)}
-                className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-200 cursor-pointer"
+                className="text-slate-400 hover:text-slate-600"
               >
                 <X className="w-4 h-4" />
               </button>
             </div>
 
-            <form onSubmit={handleSavePriceEdit} className="p-5 space-y-4 text-xs">
-              <div>
-                <label className="font-bold text-slate-700 block mb-1">পণ্যের সাবটোটাল মূল্য (৳)</label>
-                <input
-                  type="number"
-                  min="0"
-                  value={editPriceSubtotal}
-                  onChange={(e) => {
-                    const sub = Number(e.target.value) || 0;
-                    setEditPriceSubtotal(sub);
-                    setEditPriceTotal(Math.max(0, sub + editPriceDelivery - editPriceDiscount));
-                  }}
-                  className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-sm font-bold text-slate-900 focus:outline-none focus:border-amber-500"
-                />
-              </div>
-
+            <form onSubmit={handleSavePriceEdit} className="space-y-3 text-xs">
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="font-bold text-slate-700 block mb-1">ডেলিভারি চার্জ (৳)</label>
+                  <label className="block text-slate-600 font-medium mb-1">সাবটোটাল (৳)</label>
                   <input
                     type="number"
-                    min="0"
-                    value={editPriceDelivery}
+                    value={editPriceSubtotal}
                     onChange={(e) => {
-                      const del = Number(e.target.value) || 0;
-                      setEditPriceDelivery(del);
-                      setEditPriceTotal(Math.max(0, editPriceSubtotal + del - editPriceDiscount));
+                      const val = Number(e.target.value);
+                      setEditPriceSubtotal(val);
+                      setEditPriceTotal(val + editPriceDelivery - editPriceDiscount);
                     }}
-                    className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-sm font-bold text-slate-900 focus:outline-none focus:border-amber-500"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-slate-900 font-mono font-bold"
                   />
                 </div>
                 <div>
-                  <label className="font-bold text-slate-700 block mb-1">বিশেষ ডিসকাউন্ট (৳)</label>
+                  <label className="block text-slate-600 font-medium mb-1">ডেলিভারি চার্জ (৳)</label>
                   <input
                     type="number"
-                    min="0"
-                    value={editPriceDiscount}
+                    value={editPriceDelivery}
                     onChange={(e) => {
-                      const disc = Number(e.target.value) || 0;
-                      setEditPriceDiscount(disc);
-                      setEditPriceTotal(Math.max(0, editPriceSubtotal + editPriceDelivery - disc));
+                      const val = Number(e.target.value);
+                      setEditPriceDelivery(val);
+                      setEditPriceTotal(editPriceSubtotal + val - editPriceDiscount);
                     }}
-                    className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-sm font-bold text-slate-900 focus:outline-none focus:border-amber-500"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-slate-900 font-mono font-bold"
                   />
                 </div>
               </div>
 
               <div>
-                <label className="font-bold text-slate-700 block mb-1">সর্বমোট প্রদেয় বিল (Total Amount ৳)</label>
+                <label className="block text-slate-600 font-medium mb-1">বিশেষ ডিসকাউন্ট (৳)</label>
                 <input
                   type="number"
-                  min="0"
-                  value={editPriceTotal}
-                  onChange={(e) => setEditPriceTotal(Number(e.target.value) || 0)}
-                  className="w-full bg-emerald-50 border-2 border-emerald-500 rounded-xl px-3.5 py-2.5 text-base font-black text-emerald-800 focus:outline-none"
+                  value={editPriceDiscount}
+                  onChange={(e) => {
+                    const val = Number(e.target.value);
+                    setEditPriceDiscount(val);
+                    setEditPriceTotal(editPriceSubtotal + editPriceDelivery - val);
+                  }}
+                  className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-rose-700 font-mono font-bold"
                 />
-                <span className="text-[10px] text-slate-500 mt-1 block">কাস্টমারকে ফোনে বিশেষ কোনো কমে দিলে এখানে পরিবর্তন করুন। এটিই সর্বমোট বিল হিসেবে হিসাব হবে।</span>
               </div>
 
               <div>
-                <label className="font-bold text-slate-700 block mb-1">নোট / কারণ (ঐচ্ছিক)</label>
-                <textarea
-                  rows={2}
-                  value={editPriceNotes}
-                  onChange={(e) => setEditPriceNotes(e.target.value)}
-                  placeholder="যেমন: ফোনে কথা বলে ২০০ টাকা ডিসকাউন্ট দেওয়া হলো..."
-                  className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-1.5 text-xs text-slate-800 resize-none focus:outline-none focus:border-amber-500"
+                <label className="block text-slate-600 font-medium mb-1">ফাইনাল টোটাল কালেকশন (৳)</label>
+                <input
+                  type="number"
+                  value={editPriceTotal}
+                  onChange={(e) => setEditPriceTotal(Number(e.target.value))}
+                  className="w-full bg-emerald-50 border border-emerald-300 rounded-lg px-3 py-2 text-emerald-900 font-mono font-bold text-sm"
                 />
               </div>
 
-              <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
+              <div>
+                <label className="block text-slate-600 font-medium mb-1">অর্ডার নোট / কারণ</label>
+                <input
+                  type="text"
+                  value={editPriceNotes}
+                  onChange={(e) => setEditPriceNotes(e.target.value)}
+                  placeholder="কাস্টমারের সাথে আলোচনা সাপেক্ষে ডিসকাউন্ট..."
+                  className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-slate-900"
+                />
+              </div>
+
+              <div className="pt-2 flex items-center justify-end gap-2 border-t border-slate-100">
                 <button
                   type="button"
                   onClick={() => setEditingOrderPrice(null)}
-                  className="px-4 py-2 rounded-xl border border-slate-300 text-slate-700 font-bold hover:bg-slate-100 cursor-pointer"
+                  className="px-3 py-2 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium cursor-pointer"
                 >
                   বাতিল
                 </button>
                 <button
                   type="submit"
                   disabled={isSavingPrice}
-                  className="px-5 py-2 rounded-xl bg-amber-600 hover:bg-amber-700 text-white font-black cursor-pointer shadow-sm disabled:opacity-50"
+                  className="px-4 py-2 rounded-lg bg-slate-900 hover:bg-slate-800 text-white font-semibold cursor-pointer"
                 >
                   {isSavingPrice ? 'সেভ হচ্ছে...' : 'মূল্য আপডেট করুন'}
                 </button>
@@ -5177,90 +2785,509 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate, initialTab = '
         </div>
       )}
 
-      {/* MODAL: STEADFAST COURIER BOOKING CONFIRMATION */}
+      {/* --- MODAL 3: STEADFAST BOOKING MODAL --- */}
       {steadfastOrder && (
-        <div className="fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl max-w-lg w-full shadow-2xl border border-slate-200 overflow-hidden">
-            <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between bg-indigo-50/50">
+        <div className="fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl max-w-md w-full p-6 space-y-4 border border-slate-200 shadow-xl text-xs">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
               <div className="flex items-center gap-2">
-                <span className="p-2 rounded-lg bg-indigo-600 text-white shadow-xs">
-                  <Truck className="w-4 h-4" />
-                </span>
-                <div>
-                  <h3 className="font-black text-sm text-indigo-950">Steadfast Courier পার্সেল বুকিং</h3>
-                  <p className="text-[11px] text-slate-500 font-mono">Invoice #{steadfastOrder.order_number}</p>
-                </div>
+                <Truck className="w-4 h-4 text-indigo-600" />
+                <h3 className="font-bold text-slate-900 text-sm">Steadfast পার্সেল বুকিং</h3>
               </div>
               <button
                 type="button"
                 onClick={() => setSteadfastOrder(null)}
-                className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-200 cursor-pointer"
+                className="text-slate-400 hover:text-slate-600"
               >
                 <X className="w-4 h-4" />
               </button>
             </div>
 
-            <div className="p-5 space-y-3.5 text-xs">
-              <div className="bg-slate-50 p-3.5 rounded-xl border border-slate-200 space-y-1.5">
-                <div className="flex justify-between">
-                  <span className="text-slate-500">প্রাপকের নাম:</span>
-                  <span className="font-bold text-slate-900">{steadfastOrder.user_name}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-slate-500">মোবাইল নম্বর:</span>
-                  <span className="font-mono font-bold text-slate-900">{steadfastOrder.user_phone}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-slate-500">ঠিকানা:</span>
-                  <span className="text-right font-medium text-slate-800 max-w-[240px] truncate">{steadfastOrder.shipping_address}, {steadfastOrder.city}</span>
-                </div>
-                <div className="flex justify-between pt-1.5 border-t border-slate-200">
-                  <span className="text-slate-500">ক্যাশ অন ডেলিভারি (COD Amount):</span>
-                  <span className="font-black text-emerald-700 text-sm">
-                    {formatPrice(steadfastOrder.payment_status === 'paid' ? 0 : steadfastOrder.total_amount)}
-                  </span>
-                </div>
+            {steadfastOrder.steadfast_tracking_code ? (
+              <div className="p-4 bg-amber-50 rounded-xl border border-amber-200 text-amber-900 space-y-2">
+                <p className="font-bold">সতর্কতা: এই অর্ডারে ইতিমধ্যে একটি বুকিং রয়েছে!</p>
+                <p className="text-[11px]">ট্র্যাকিং কোড: {steadfastOrder.steadfast_tracking_code}</p>
               </div>
+            ) : null}
 
-              <div>
-                <label className="font-bold text-slate-700 block mb-1">কুরিয়ার ডেলিভারি নোট / নির্দেশিকা</label>
-                <input
-                  type="text"
-                  value={steadfastNote}
-                  onChange={(e) => setSteadfastNote(e.target.value)}
-                  className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-900 focus:outline-none focus:border-indigo-500"
-                />
+            <div className="space-y-2 bg-slate-50 p-3 rounded-xl border border-slate-200">
+              <div className="flex justify-between">
+                <span className="text-slate-500">প্রাপক:</span>
+                <span className="font-bold text-slate-900">{steadfastOrder.user_name}</span>
               </div>
-
-              {!settings.steadfast_api_key && (
-                <div className="p-2.5 rounded-xl bg-amber-50 border border-amber-200 text-amber-800 text-[11px] space-y-1">
-                  <div className="font-bold">⚠️ আপনার স্টেডফাস্ট API Key কনফিগার করা নেই।</div>
-                  <div>Settings &gt; Steadfast Courier ট্যাবে গিয়ে API Key ও Secret Key বসিয়ে নিন। অথবা আপনি Steadfast প্যানেলে গিয়ে সরাসরি API Key পাবেন।</div>
-                </div>
-              )}
-
-              <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
-                <button
-                  type="button"
-                  onClick={() => setSteadfastOrder(null)}
-                  className="px-4 py-2 rounded-xl border border-slate-300 text-slate-700 font-bold hover:bg-slate-100 cursor-pointer"
-                >
-                  বাতিল
-                </button>
-                <button
-                  type="button"
-                  onClick={handleConfirmSteadfastBooking}
-                  disabled={isBookingSteadfast}
-                  className="px-5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-black cursor-pointer shadow-sm disabled:opacity-50 flex items-center gap-1.5"
-                >
-                  <Truck className="w-4 h-4" />
-                  <span>{isBookingSteadfast ? 'বুকিং হচ্ছে...' : 'স্টেডফাস্টে কনফার্ম করুন'}</span>
-                </button>
+              <div className="flex justify-between">
+                <span className="text-slate-500">ফোন:</span>
+                <span className="font-mono font-bold text-slate-900">{steadfastOrder.user_phone}</span>
               </div>
+              <div className="flex justify-between">
+                <span className="text-slate-500">ঠিকানা:</span>
+                <span className="text-slate-800 text-right max-w-[200px] truncate">{steadfastOrder.shipping_address}</span>
+              </div>
+              <div className="flex justify-between font-bold text-slate-900 pt-1 border-t border-slate-200">
+                <span>COD কালেকশন অ্যামাউন্ট:</span>
+                <span className="font-mono text-emerald-700">{formatPrice(steadfastOrder.total_amount)}</span>
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-slate-600 font-medium mb-1">পার্সেল নোট / ডেলিভারি নির্দেশিকা</label>
+              <input
+                type="text"
+                value={steadfastNote}
+                onChange={(e) => setSteadfastNote(e.target.value)}
+                className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-slate-900"
+              />
+            </div>
+
+            <div className="pt-2 flex items-center justify-end gap-2 border-t border-slate-100">
+              <button
+                type="button"
+                onClick={() => setSteadfastOrder(null)}
+                className="px-3 py-2 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium cursor-pointer"
+              >
+                বাতিল
+              </button>
+              <button
+                type="button"
+                disabled={isBookingSteadfast}
+                onClick={handleConfirmSteadfast}
+                className="px-4 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white font-semibold cursor-pointer flex items-center gap-1.5"
+              >
+                <Truck className="w-3.5 h-3.5" />
+                <span>{isBookingSteadfast ? 'বুকিং হচ্ছে...' : 'কনফার্ম ও বুক করুন'}</span>
+              </button>
             </div>
           </div>
         </div>
       )}
+
+      {/* --- MODAL 4: ADD PRODUCT MODAL --- */}
+      {showAddProductModal && (
+        <div className="fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl max-w-lg w-full p-6 space-y-4 border border-slate-200 shadow-xl max-h-[90vh] overflow-y-auto text-xs">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+              <h3 className="font-bold text-slate-900 text-sm">নতুন ওয়াল আর্ট প্রোডাক্ট যোগ করুন</h3>
+              <button
+                type="button"
+                onClick={() => setShowAddProductModal(false)}
+                className="text-slate-400 hover:text-slate-600"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <form onSubmit={handleAddProductSubmit} className="space-y-3">
+              <div>
+                <label className="block text-slate-600 font-medium mb-1">প্রোডাক্ট নাম *</label>
+                <input
+                  type="text"
+                  required
+                  value={newProdName}
+                  onChange={(e) => setNewProdName(e.target.value)}
+                  placeholder="e.g. আয়াতুল কুরসি গোল্ডেন স্টেইনলেস স্টিল আর্ট"
+                  className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-slate-900"
+                />
+              </div>
+
+              <div>
+                <label className="block text-slate-600 font-medium mb-1">ক্যাটাগরি *</label>
+                <select
+                  required
+                  value={newProdCatId}
+                  onChange={(e) => setNewProdCatId(Number(e.target.value))}
+                  className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-slate-900"
+                >
+                  <option value={0}>ক্যাটাগরি নির্বাচন করুন</option>
+                  {categories.map(c => (
+                    <option key={c.id} value={c.id}>{c.name}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-slate-600 font-medium mb-1">মিডিয়াম সাইজ মূল্য (৳)</label>
+                  <input
+                    type="number"
+                    required
+                    value={newProdMediumPrice}
+                    onChange={(e) => setNewProdMediumPrice(Number(e.target.value))}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-slate-900 font-bold"
+                  />
+                </div>
+                <div>
+                  <label className="block text-slate-600 font-medium mb-1">লার্জ সাইজ মূল্য (৳)</label>
+                  <input
+                    type="number"
+                    required
+                    value={newProdLargePrice}
+                    onChange={(e) => setNewProdLargePrice(Number(e.target.value))}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-slate-900 font-bold"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-slate-600 font-medium mb-1">প্রাথমিক স্টক (পিস)</label>
+                  <input
+                    type="number"
+                    value={newProdStock}
+                    onChange={(e) => setNewProdStock(Number(e.target.value))}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-slate-900"
+                  />
+                </div>
+                <div>
+                  <label className="block text-slate-600 font-medium mb-1">ম্যাটেরিয়াল</label>
+                  <input
+                    type="text"
+                    value={newProdMaterial}
+                    onChange={(e) => setNewProdMaterial(e.target.value)}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-slate-900"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-slate-600 font-medium mb-1">মূল ছবি লিংক (Image URL)</label>
+                <input
+                  type="url"
+                  value={newProdPrimaryImg}
+                  onChange={(e) => setNewProdPrimaryImg(e.target.value)}
+                  placeholder="https://..."
+                  className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-slate-900"
+                />
+              </div>
+
+              <div className="pt-2 flex items-center justify-end gap-2 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => setShowAddProductModal(false)}
+                  className="px-3 py-2 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium cursor-pointer"
+                >
+                  বাতিল
+                </button>
+                <button
+                  type="submit"
+                  className="px-4 py-2 rounded-lg bg-slate-900 hover:bg-slate-800 text-white font-semibold cursor-pointer"
+                >
+                  প্রোডাক্ট তৈরি করুন
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* --- MODAL: EDIT PRODUCT MODAL --- */}
+      {editingProduct && (
+        <div className="fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl max-w-lg w-full p-6 space-y-4 border border-slate-200 shadow-xl max-h-[90vh] overflow-y-auto text-xs">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+              <h3 className="font-bold text-slate-900 text-sm">প্রোডাক্ট এডিট করুন</h3>
+              <button
+                type="button"
+                onClick={() => setEditingProduct(null)}
+                className="text-slate-400 hover:text-slate-600"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveEditedProduct} className="space-y-3">
+              <div>
+                <label className="block text-slate-600 font-medium mb-1">প্রোডাক্ট নাম *</label>
+                <input
+                  type="text"
+                  required
+                  value={editingProduct.name}
+                  onChange={(e) => setEditingProduct({ ...editingProduct, name: e.target.value })}
+                  className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-slate-900"
+                />
+              </div>
+
+              <div>
+                <label className="block text-slate-600 font-medium mb-1">ক্যাটাগরি *</label>
+                <select
+                  required
+                  value={editingProduct.category_id}
+                  onChange={(e) => {
+                    const catId = Number(e.target.value);
+                    const cat = categories.find(c => c.id === catId);
+                    setEditingProduct({
+                      ...editingProduct,
+                      category_id: catId,
+                      category_name: cat ? cat.name : editingProduct.category_name
+                    });
+                  }}
+                  className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-slate-900"
+                >
+                  {categories.map(c => (
+                    <option key={c.id} value={c.id}>{c.name}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-slate-600 font-medium mb-1">মূল্য (৳)</label>
+                  <input
+                    type="number"
+                    required
+                    value={editingProduct.price}
+                    onChange={(e) => setEditingProduct({ ...editingProduct, price: Number(e.target.value) })}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-slate-900 font-bold"
+                  />
+                </div>
+                <div>
+                  <label className="block text-slate-600 font-medium mb-1">স্টক (পিস)</label>
+                  <input
+                    type="number"
+                    value={editingProduct.stock || 0}
+                    onChange={(e) => setEditingProduct({ ...editingProduct, stock: Number(e.target.value) })}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-slate-900 font-bold"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-slate-600 font-medium mb-1">ছবির লিঙ্ক (Image URL)</label>
+                <input
+                  type="url"
+                  value={editingProduct.image_url || ''}
+                  onChange={(e) => setEditingProduct({ ...editingProduct, image_url: e.target.value })}
+                  className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-slate-900"
+                />
+              </div>
+
+              <div>
+                <label className="block text-slate-600 font-medium mb-1">বিবরণ (Description)</label>
+                <textarea
+                  rows={3}
+                  value={editingProduct.description || ''}
+                  onChange={(e) => setEditingProduct({ ...editingProduct, description: e.target.value })}
+                  className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-slate-900"
+                />
+              </div>
+
+              <div className="pt-2 flex items-center justify-end gap-2 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => setEditingProduct(null)}
+                  className="px-3 py-2 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium cursor-pointer"
+                >
+                  বাতিল
+                </button>
+                <button
+                  type="submit"
+                  className="px-4 py-2 rounded-lg bg-slate-900 hover:bg-slate-800 text-white font-semibold cursor-pointer"
+                >
+                  সংরক্ষণ করুন
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* --- MODAL: EDIT CATEGORY MODAL --- */}
+      {editingCategory && (
+        <div className="fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl max-w-md w-full p-6 space-y-4 border border-slate-200 shadow-xl text-xs">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+              <h3 className="font-bold text-slate-900 text-sm">ক্যাটাগরি এডিট করুন</h3>
+              <button
+                type="button"
+                onClick={() => setEditingCategory(null)}
+                className="text-slate-400 hover:text-slate-600"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveEditedCategory} className="space-y-3">
+              <div>
+                <label className="block text-slate-600 font-medium mb-1">ক্যাটাগরি নাম *</label>
+                <input
+                  type="text"
+                  required
+                  value={editingCategory.name}
+                  onChange={(e) => setEditingCategory({ ...editingCategory, name: e.target.value })}
+                  className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-slate-900"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-slate-600 font-medium mb-1">আইকন</label>
+                  <input
+                    type="text"
+                    value={editingCategory.icon || '🕌'}
+                    onChange={(e) => setEditingCategory({ ...editingCategory, icon: e.target.value })}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-slate-900"
+                  />
+                </div>
+                <div>
+                  <label className="block text-slate-600 font-medium mb-1">ছবির লিঙ্ক</label>
+                  <input
+                    type="url"
+                    value={editingCategory.image_url || ''}
+                    onChange={(e) => setEditingCategory({ ...editingCategory, image_url: e.target.value })}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-slate-900"
+                  />
+                </div>
+              </div>
+
+              <div className="pt-2 flex items-center justify-end gap-2 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => setEditingCategory(null)}
+                  className="px-3 py-2 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium cursor-pointer"
+                >
+                  বাতিল
+                </button>
+                <button
+                  type="submit"
+                  className="px-4 py-2 rounded-lg bg-slate-900 hover:bg-slate-800 text-white font-semibold cursor-pointer"
+                >
+                  আপডেট করুন
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* --- MODAL: CUSTOMER ORDER HISTORY DRAWER --- */}
+      {selectedCustomerHistory && (
+        <div className="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-xs flex items-center justify-end sm:p-4">
+          <div className="bg-white w-full sm:max-w-lg h-full sm:h-auto sm:max-h-[92vh] sm:rounded-2xl border border-slate-200/90 shadow-xl overflow-y-auto flex flex-col justify-between">
+            <div className="p-5 sm:p-6 space-y-4 text-xs">
+              <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+                <div>
+                  <h3 className="font-bold text-slate-900 text-sm">{selectedCustomerHistory.name} এর অর্ডার হিস্ট্রি</h3>
+                  <span className="font-mono text-slate-500">{selectedCustomerHistory.phone}</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setSelectedCustomerHistory(null)}
+                  className="p-1 rounded-lg text-slate-400 hover:bg-slate-100 cursor-pointer"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              <div className="bg-slate-50 p-3 rounded-xl border border-slate-200 flex justify-between items-center">
+                <span>মোট অর্ডার: <strong className="font-mono">{selectedCustomerHistory.orders.length}</strong> টি</span>
+                <span>মোট খরচ: <strong className="font-mono text-emerald-700">{formatPrice(selectedCustomerHistory.orders.reduce((sum, o) => sum + (Number(o.total_amount) || 0), 0))}</strong></span>
+              </div>
+
+              <div className="space-y-3">
+                {selectedCustomerHistory.orders.map((ord, idx) => (
+                  <div key={idx} className="p-3 rounded-xl border border-slate-200 space-y-2">
+                    <div className="flex justify-between items-center">
+                      <span className="font-mono font-bold text-slate-900">#{ord.order_number}</span>
+                      <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                        ord.status === 'delivered' ? 'bg-emerald-100 text-emerald-800' :
+                        ord.status === 'confirmed' ? 'bg-blue-100 text-blue-800' :
+                        ord.status === 'shipped' ? 'bg-indigo-100 text-indigo-800' :
+                        'bg-amber-100 text-amber-800'
+                      }`}>
+                        {ord.status}
+                      </span>
+                    </div>
+                    <div className="text-slate-500 text-[11px]">{ord.created_at}</div>
+                    <div className="flex justify-between font-bold text-slate-900 pt-1 border-t border-slate-100">
+                      <span>মোট:</span>
+                      <span className="font-mono">{formatPrice(ord.total_amount)}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="p-4 border-t border-slate-100 bg-slate-50 flex justify-end">
+              <button
+                type="button"
+                onClick={() => setSelectedCustomerHistory(null)}
+                className="px-4 py-2 rounded-lg bg-slate-900 text-white font-medium cursor-pointer"
+              >
+                বন্ধ করুন
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* --- MODAL 5: PRINTABLE INVOICE MODAL --- */}
+      {printInvoiceOrder && (
+        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl max-w-lg w-full p-6 space-y-5 border border-slate-200 shadow-xl max-h-[90vh] overflow-y-auto text-xs">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-200">
+              <div>
+                <h3 className="font-bold text-slate-900 text-base">UNEX AURA INVOICE</h3>
+                <p className="text-[11px] text-slate-500">Order #{printInvoiceOrder.order_number}</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setPrintInvoiceOrder(null)}
+                className="text-slate-400 hover:text-slate-600"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="space-y-1">
+              <div className="font-bold text-slate-900">{printInvoiceOrder.user_name}</div>
+              <div className="text-slate-600">{printInvoiceOrder.user_phone}</div>
+              <div className="text-slate-600">{printInvoiceOrder.shipping_address}</div>
+            </div>
+
+            <table className="w-full text-left text-xs border border-slate-200">
+              <thead className="bg-slate-50 border-b border-slate-200 text-slate-600 font-semibold">
+                <tr>
+                  <th className="p-2">আইটেম</th>
+                  <th className="p-2">পরিমাণ</th>
+                  <th className="p-2 text-right">মূল্য</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {Array.isArray(printInvoiceOrder.items) && printInvoiceOrder.items.map((it: any, idx: number) => (
+                  <tr key={idx}>
+                    <td className="p-2">{it.product_name || it.name} {it.selected_size_name ? `(${it.selected_size_name})` : ''}</td>
+                    <td className="p-2">{it.quantity || 1}</td>
+                    <td className="p-2 text-right font-mono">{formatPrice((it.price || 0) * (it.quantity || 1))}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+
+            <div className="space-y-1 text-right text-xs">
+              <div>ডেলিভারি চার্জ: <span className="font-mono">{formatPrice(printInvoiceOrder.delivery_charge || 0)}</span></div>
+              <div className="font-bold text-sm text-slate-900">মোট পরিশোধযোগ্য: <span className="font-mono">{formatPrice(printInvoiceOrder.total_amount)}</span></div>
+            </div>
+
+            <div className="pt-3 border-t border-slate-100 flex items-center justify-between">
+              <button
+                type="button"
+                onClick={() => window.print()}
+                className="px-4 py-2 rounded-lg bg-slate-900 text-white font-semibold flex items-center gap-1.5 cursor-pointer"
+              >
+                <FileText className="w-3.5 h-3.5" />
+                <span>প্রিন্ট করুন</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setPrintInvoiceOrder(null)}
+                className="px-3 py-2 rounded-lg bg-slate-100 text-slate-700 font-medium cursor-pointer"
+              >
+                বন্ধ করুন
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 };

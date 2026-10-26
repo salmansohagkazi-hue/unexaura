@@ -204,7 +204,25 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [orders, setOrders] = useState<Order[]>(() => {
     try {
       const saved = localStorage.getItem('unex_placed_orders');
-      return saved ? JSON.parse(saved) : [];
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) {
+          const seenIds = new Set<string | number>();
+          return parsed.map((o: Order, idx: number) => {
+            let item = o;
+            if (item.order_number === 'UA-1009' && item.id === 2) {
+              item = { ...item, id: 1009 };
+            }
+            if (seenIds.has(item.id)) {
+              const num = parseInt(String(item.order_number || '').replace(/\D/g, ''), 10);
+              item = { ...item, id: num || (Date.now() + idx) };
+            }
+            seenIds.add(item.id);
+            return item;
+          });
+        }
+      }
+      return [];
     } catch {
       return [];
     }
@@ -275,7 +293,19 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         }
       });
 
-      const merged = Array.from(map.values()).sort((a, b) => {
+      const seenIds = new Set<string | number>();
+      const merged = Array.from(map.values()).map((o, idx) => {
+        let item = o;
+        if (item.order_number === 'UA-1009' && item.id === 2) {
+          item = { ...item, id: 1009 };
+        }
+        if (seenIds.has(item.id)) {
+          const num = parseInt(String(item.order_number || '').replace(/\D/g, ''), 10);
+          item = { ...item, id: num || (Date.now() + idx) };
+        }
+        seenIds.add(item.id);
+        return item;
+      }).sort((a, b) => {
         const numA = parseInt(String(a.order_number || '').replace(/\D/g, ''), 10) || 0;
         const numB = parseInt(String(b.order_number || '').replace(/\D/g, ''), 10) || 0;
         return numB - numA;

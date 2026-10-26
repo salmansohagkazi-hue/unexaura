@@ -738,73 +738,169 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       return { success: false, message: 'অর্ডার পাওয়া যায়নি' };
     }
 
+    const activeApiKey = (settings.steadfast_api_key || 'mjhiiwurrcir7uqf1kaxi5t8quc4ql4t').trim();
+    const activeSecretKey = (settings.steadfast_secret_key || '3vtq7ghmlmjk1y7ormoqot6l').trim();
+
+    if (!activeApiKey || !activeSecretKey) {
+      return { success: false, message: 'Steadfast API Key বা Secret Key পাওয়া যায়নি। সেটিংস থেকে কনফিগার করুন।' };
+    }
+
+    // Clean phone number (Steadfast expects standard Bangladeshi 11 digits: e.g. 017xxxxxxxx)
+    let cleanPhone = String(targetOrder.user_phone || '').trim().replace(/[^\d+]/g, '');
+    if (cleanPhone.startsWith('+880')) {
+      cleanPhone = '0' + cleanPhone.substring(4);
+    } else if (cleanPhone.startsWith('880')) {
+      cleanPhone = '0' + cleanPhone.substring(3);
+    }
+
+    const recipientName = String(targetOrder.user_name || 'Customer').trim();
+    const recipientAddress = String(targetOrder.shipping_address || 'Dhaka').trim();
+    const codAmount = targetOrder.payment_status === 'paid' ? 0 : Math.round(Number(targetOrder.total_amount || 0));
+    const parcelNote = String(customNote || targetOrder.order_notes || 'Handle with care - Laser cut metal wall art').trim();
+    const invoiceNum = String(targetOrder.order_number || `UA-${Date.now()}`);
+
+    let booked = false;
+    let trackingCode = '';
+    let consignmentId: string | number = '';
+    let lastErrorMessage = '';
+
+    // STRATEGY 1: Direct Steadfast Gateway API via portal.packzy.com
+    // (Full CORS supported with Access-Control-Allow-Origin: *, works on custom domains like unexaura.xyz, static CDNs, and serverless hosts)
     try {
-      const res = await fetch('/api/courier/steadfast/create-order', {
+      const directRes = await fetch('https://portal.packzy.com/api/v1/create_order', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'api-key': activeApiKey,
+          'secret-key': activeSecretKey,
+          'content-type': 'application/json',
+          'accept': 'application/json'
+        },
         body: JSON.stringify({
-          order_id: targetOrder.id,
-          invoice: targetOrder.order_number,
-          recipient_name: targetOrder.user_name,
-          recipient_phone: targetOrder.user_phone,
-          recipient_address: targetOrder.shipping_address,
-          cod_amount: targetOrder.payment_status === 'paid' ? 0 : targetOrder.total_amount,
-          note: customNote || targetOrder.order_notes || 'UNEX AURA Wall Art - Handle with care'
+          invoice: invoiceNum,
+          recipient_name: recipientName,
+          recipient_phone: cleanPhone,
+          recipient_address: recipientAddress,
+          cod_amount: codAmount,
+          note: parcelNote
         })
       });
 
-      const text = await res.text();
-      let data: any = {};
+      const directText = await directRes.text();
+      let directData: any = {};
       try {
-        data = JSON.parse(text);
+        directData = JSON.parse(directText);
       } catch {
-        data = { success: false, message: text || 'সার্ভার থেকে সঠিক JSON পাওয়া যায়নি' };
+        directData = { message: directText };
       }
 
-      if (!res.ok || !data.success) {
-        return {
-          success: false,
-          message: data.message || 'স্টেডফাস্ট কুরিয়ারে বুকিং করতে ব্যর্থ হয়েছে'
-        };
+      if (directRes.ok && (directData.status === 200 || directData.status === 201)) {
+        const consignment = directData.consignment || directData;
+        trackingCode = consignment?.tracking_code || directData?.tracking_code || '';
+        consignmentId = consignment?.consignment_id || directData?.consignment_id || '';
+        booked = true;
+      } else {
+        if (directData?.errors && typeof directData.errors === 'object') {
+          const firstKey = Object.keys(directData.errors)[0];
+          lastErrorMessage = Array.isArray(directData.errors[firstKey])
+            ? directData.errors[firstKey][0]
+            : JSON.stringify(directData.errors);
+        } else {
+          lastErrorMessage = directData?.message || '';
+        }
       }
+    } catch (directErr: any) {
+      console.warn('Direct Steadfast API attempt error, attempting backend proxy:', directErr);
+    }
 
-      const trackingCode = data.tracking_code || '';
-      const consignmentId = data.consignment_id || '';
-
-      setOrders(prev => {
-        const updated = prev.map(o => {
-          if (String(o.id) === String(orderId) || String(o.order_number) === String(orderId)) {
-            return {
-              ...o,
-              status: 'shipped' as const,
-              courier_name: 'Steadfast Courier',
-              tracking_number: trackingCode,
-              steadfast_tracking_code: trackingCode,
-              steadfast_consignment_id: consignmentId,
-              steadfast_status: 'in_review'
-            };
-          }
-          return o;
+    // STRATEGY 2: Backend Proxy (/api/courier/steadfast/create-order)
+    // Used if direct call was blocked or failed
+    if (!booked && !lastErrorMessage) {
+      try {
+        const proxyRes = await fetch('/api/courier/steadfast/create-order', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json'
+          },
+          body: JSON.stringify({
+            order_id: targetOrder.id,
+            invoice: invoiceNum,
+            recipient_name: recipientName,
+            recipient_phone: cleanPhone,
+            recipient_address: recipientAddress,
+            cod_amount: codAmount,
+            note: parcelNote,
+            api_key: activeApiKey,
+            secret_key: activeSecretKey
+          })
         });
-        try {
-          localStorage.setItem('unex_placed_orders', JSON.stringify(updated));
-        } catch {}
-        return updated;
-      });
 
-      showToast(`সফলভাবে স্টেডফাস্ট কুরিয়ারে বুক করা হয়েছে! ট্র্যাকিং: ${trackingCode}`);
-      return {
-        success: true,
-        message: 'স্টেডফাস্ট কুরিয়ারে বুকিং সফল হয়েছে',
-        tracking_code: trackingCode,
-        consignment_id: consignmentId
-      };
-    } catch (err: any) {
+        const proxyText = await proxyRes.text();
+        let proxyData: any = {};
+        try {
+          proxyData = JSON.parse(proxyText);
+        } catch {
+          proxyData = { message: proxyText };
+        }
+
+        if (proxyRes.ok && proxyData.success) {
+          trackingCode = proxyData.tracking_code || '';
+          consignmentId = proxyData.consignment_id || '';
+          booked = true;
+        } else {
+          lastErrorMessage = proxyData.message || lastErrorMessage;
+        }
+      } catch (proxyErr: any) {
+        console.warn('Proxy Steadfast API attempt error:', proxyErr);
+        if (!lastErrorMessage) {
+          lastErrorMessage = proxyErr.message || 'নেটওয়ার্ক সংযোগে সমস্যা হয়েছে';
+        }
+      }
+    }
+
+    if (!booked) {
       return {
         success: false,
-        message: err.message || 'কুরিয়ার রিকোয়েস্টে সমস্যা হয়েছে'
+        message: lastErrorMessage || 'স্টেডফাস্ট কুরিয়ারে বুকিং করতে ব্যর্থ হয়েছে'
       };
     }
+
+    // Update React orders state
+    setOrders(prev => {
+      const updated = prev.map(o => {
+        if (String(o.id) === String(orderId) || String(o.order_number) === String(orderId)) {
+          return {
+            ...o,
+            status: 'shipped' as const,
+            courier_name: 'Steadfast Courier',
+            tracking_number: trackingCode,
+            steadfast_tracking_code: trackingCode,
+            steadfast_consignment_id: consignmentId,
+            steadfast_status: 'in_review'
+          };
+        }
+        return o;
+      });
+      try {
+        localStorage.setItem('unex_placed_orders', JSON.stringify(updated));
+      } catch {}
+      return updated;
+    });
+
+    // Dual-sync to Supabase database (Real-time cloud persistence)
+    updateOrderInSupabase(targetOrder.order_number, {
+      status: 'shipped',
+      tracking_number: trackingCode,
+      courier_name: 'Steadfast Courier'
+    }).catch(e => console.warn('[Supabase Courier Sync]:', e));
+
+    showToast(`সফলভাবে স্টেডফাস্ট কুরিয়ারে বুক করা হয়েছে! ট্র্যাকিং: ${trackingCode}`);
+    return {
+      success: true,
+      message: 'স্টেডফাস্ট কুরিয়ারে বুকিং সফল হয়েছে',
+      tracking_code: trackingCode,
+      consignment_id: consignmentId
+    };
   };
 
   const deleteOrder = async (orderId: number | string): Promise<boolean> => {

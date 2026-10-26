@@ -356,34 +356,77 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate, initialTab = '
   const handleCheckSteadfastConnection = async () => {
     setIsCheckingSteadfastBalance(true);
     setSteadfastBalanceInfo(null);
-    try {
-      const q = new URLSearchParams({
-        api_key: steadfastApiKey.trim(),
-        secret_key: steadfastSecretKey.trim()
-      });
-      const res = await fetch(`/api/courier/steadfast/get-balance?${q.toString()}`);
-      const text = await res.text();
-      let data: any = {};
-      try { data = JSON.parse(text); } catch { data = { message: text }; }
 
-      if (res.ok && data.success) {
+    const apiKey = (steadfastApiKey || '').trim();
+    const secretKey = (steadfastSecretKey || '').trim();
+
+    if (!apiKey || !secretKey) {
+      setSteadfastBalanceInfo({ success: false, message: 'Api-Key ও Secret-Key পূরণ করা আবশ্যক' });
+      setIsCheckingSteadfastBalance(false);
+      return;
+    }
+
+    try {
+      let balanceData: any = null;
+      let isSuccess = false;
+
+      // Strategy 1: Direct CORS fetch to Steadfast Portal API
+      try {
+        const directRes = await fetch('https://portal.packzy.com/api/v1/get_balance', {
+          method: 'GET',
+          headers: {
+            'api-key': apiKey,
+            'secret-key': secretKey,
+            'accept': 'application/json'
+          }
+        });
+        const directText = await directRes.text();
+        try {
+          const parsed = JSON.parse(directText);
+          if (directRes.ok && parsed.status === 200) {
+            balanceData = parsed;
+            isSuccess = true;
+          }
+        } catch {}
+      } catch (e) {
+        console.warn('Direct get_balance attempt error:', e);
+      }
+
+      // Strategy 2: Backend proxy
+      if (!isSuccess) {
+        try {
+          const q = new URLSearchParams({ api_key: apiKey, secret_key: secretKey });
+          const proxyRes = await fetch(`/api/courier/steadfast/get-balance?${q.toString()}`);
+          const proxyText = await proxyRes.text();
+          const parsed = JSON.parse(proxyText);
+          if (proxyRes.ok && parsed.success) {
+            balanceData = parsed;
+            isSuccess = true;
+          }
+        } catch (e) {
+          console.warn('Proxy get_balance attempt error:', e);
+        }
+      }
+
+      if (isSuccess && balanceData) {
+        const bal = balanceData.current_balance ?? 0;
         setSteadfastBalanceInfo({
           success: true,
-          balance: data.current_balance,
-          message: `কানেকশন সক্রিয়! একাউন্ট ব্যালেন্স: ৳${(data.current_balance ?? 0).toLocaleString('en-BD')}`
+          balance: bal,
+          message: `কানেকশন সক্রিয়! একাউন্ট ব্যালেন্স: ৳${bal.toLocaleString('en-BD')}`
         });
-        showToast(`Steadfast কানেকশন সফল! ব্যালেন্স: ৳${data.current_balance ?? 0}`);
+        showToast(`Steadfast কানেকশন সফল! ব্যালেন্স: ৳${bal}`);
       } else {
         setSteadfastBalanceInfo({
           success: false,
-          message: data.message || 'API কি যাচাই করা সম্ভব হয়নি'
+          message: 'API কি অথবা Secret কি সঠিক নয়। অনুগ্রহ করে Steadfast পোর্টালে তথ্য মিলিয়ে দেখুন।'
         });
-        showToast('Steadfast কানেকশন ত্রুটি: ' + (data.message || 'চেক করুন'));
+        showToast('Steadfast কানেকশন ত্রুটি! কি যাচাই করুন।');
       }
     } catch (err: any) {
       setSteadfastBalanceInfo({
         success: false,
-        message: err.message || 'নেটওয়ার্ক এরর'
+        message: err.message || 'কানেকশন টেস্টে সমস্যা হয়েছে'
       });
     } finally {
       setIsCheckingSteadfastBalance(false);

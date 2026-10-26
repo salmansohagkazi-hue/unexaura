@@ -153,6 +153,8 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate, initialTab = '
   const [steadfastApiKey, setSteadfastApiKey] = useState(settings.steadfast_api_key || 'mjhiiwurrcir7uqf1kaxi5t8quc4ql4t');
   const [steadfastSecretKey, setSteadfastSecretKey] = useState(settings.steadfast_secret_key || '3vtq7ghmlmjk1y7ormoqot6l');
   const [isSavingSteadfast, setIsSavingSteadfast] = useState(false);
+  const [isCheckingSteadfastBalance, setIsCheckingSteadfastBalance] = useState(false);
+  const [steadfastBalanceInfo, setSteadfastBalanceInfo] = useState<{ success: boolean; balance?: number; message: string } | null>(null);
 
   // Single Order Google Sheet Syncing State
   const [syncingOrderId, setSyncingOrderId] = useState<number | string | null>(null);
@@ -348,6 +350,43 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate, initialTab = '
       showToast('Steadfast API কি সফলভাবে সেভ করা হয়েছে');
     } finally {
       setIsSavingSteadfast(false);
+    }
+  };
+
+  const handleCheckSteadfastConnection = async () => {
+    setIsCheckingSteadfastBalance(true);
+    setSteadfastBalanceInfo(null);
+    try {
+      const q = new URLSearchParams({
+        api_key: steadfastApiKey.trim(),
+        secret_key: steadfastSecretKey.trim()
+      });
+      const res = await fetch(`/api/courier/steadfast/get-balance?${q.toString()}`);
+      const text = await res.text();
+      let data: any = {};
+      try { data = JSON.parse(text); } catch { data = { message: text }; }
+
+      if (res.ok && data.success) {
+        setSteadfastBalanceInfo({
+          success: true,
+          balance: data.current_balance,
+          message: `কানেকশন সক্রিয়! একাউন্ট ব্যালেন্স: ৳${(data.current_balance ?? 0).toLocaleString('en-BD')}`
+        });
+        showToast(`Steadfast কানেকশন সফল! ব্যালেন্স: ৳${data.current_balance ?? 0}`);
+      } else {
+        setSteadfastBalanceInfo({
+          success: false,
+          message: data.message || 'API কি যাচাই করা সম্ভব হয়নি'
+        });
+        showToast('Steadfast কানেকশন ত্রুটি: ' + (data.message || 'চেক করুন'));
+      }
+    } catch (err: any) {
+      setSteadfastBalanceInfo({
+        success: false,
+        message: err.message || 'নেটওয়ার্ক এরর'
+      });
+    } finally {
+      setIsCheckingSteadfastBalance(false);
     }
   };
 
@@ -2026,13 +2065,46 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate, initialTab = '
                       className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-slate-900 font-mono focus:bg-white focus:outline-none"
                     />
                   </div>
-                  <button
-                    type="submit"
-                    disabled={isSavingSteadfast}
-                    className="px-4 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white font-semibold transition-colors cursor-pointer"
-                  >
-                    {isSavingSteadfast ? 'সেভ হচ্ছে...' : 'সেটিংস সেভ করুন'}
-                  </button>
+                  {steadfastBalanceInfo && (
+                    <div className={`p-3 rounded-lg border text-xs flex items-center justify-between ${
+                      steadfastBalanceInfo.success 
+                        ? 'bg-emerald-50 border-emerald-200 text-emerald-800' 
+                        : 'bg-rose-50 border-rose-200 text-rose-800'
+                    }`}>
+                      <div className="flex items-center gap-2">
+                        {steadfastBalanceInfo.success ? (
+                          <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                        ) : (
+                          <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+                        )}
+                        <span>{steadfastBalanceInfo.message}</span>
+                      </div>
+                      {steadfastBalanceInfo.success && steadfastBalanceInfo.balance !== undefined && (
+                        <span className="font-mono font-bold text-xs">
+                          {formatPrice(steadfastBalanceInfo.balance)}
+                        </span>
+                      )}
+                    </div>
+                  )}
+
+                  <div className="flex items-center gap-2 pt-1">
+                    <button
+                      type="submit"
+                      disabled={isSavingSteadfast}
+                      className="px-4 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white font-semibold transition-colors cursor-pointer"
+                    >
+                      {isSavingSteadfast ? 'সেভ হচ্ছে...' : 'সেটিংস সেভ করুন'}
+                    </button>
+                    <button
+                      type="button"
+                      disabled={isCheckingSteadfastBalance || !steadfastApiKey || !steadfastSecretKey}
+                      onClick={handleCheckSteadfastConnection}
+                      className="px-3 py-2 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold transition-colors flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                    >
+                      <RefreshCw className={`w-3.5 h-3.5 ${isCheckingSteadfastBalance ? 'animate-spin' : ''}`} />
+                      <span>{isCheckingSteadfastBalance ? 'যাচাই হচ্ছে...' : 'কানেকশন ও ব্যালেন্স টেস্ট'}</span>
+                    </button>
+                  </div>
                 </form>
               </div>
             </div>

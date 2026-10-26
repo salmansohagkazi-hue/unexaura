@@ -1555,6 +1555,47 @@ app.post('/api/google-sheets/sync-all', async (req, res) => {
 // ==========================================
 // STEADFAST COURIER INTEGRATION API ENDPOINTS
 // ==========================================
+// Primary: portal.packzy.com (Steadfast Gateway backend)
+// Secondary: portal.steadfast.com.bd
+const STEADFAST_BASE_URLS = [
+  'https://portal.packzy.com/api/v1',
+  'https://portal.steadfast.com.bd/api/v1'
+];
+
+async function callSteadfastApi(endpoint: string, method: 'GET' | 'POST', body: any, apiKey: string, secretKey: string) {
+  let lastError: any = null;
+  for (const baseUrl of STEADFAST_BASE_URLS) {
+    try {
+      const url = `${baseUrl}${endpoint}`;
+      const options: any = {
+        method,
+        headers: {
+          'Api-Key': apiKey,
+          'Secret-Key': secretKey,
+          'Content-Type': 'application/json',
+          'Accept': 'application/json'
+        }
+      };
+      if (method === 'POST' && body) {
+        options.body = JSON.stringify(body);
+      }
+      const sfRes = await fetch(url, options);
+      const text = await sfRes.text();
+      let sfData: any = null;
+      try {
+        sfData = JSON.parse(text);
+      } catch {
+        sfData = { message: text || 'Invalid JSON response from courier' };
+      }
+      return { ok: sfRes.ok, status: sfRes.status, data: sfData };
+    } catch (err: any) {
+      lastError = err;
+      console.warn(`[Steadfast API Endpoint "${endpoint}" failed on ${baseUrl}]:`, err.message);
+    }
+  }
+  throw lastError || new Error('All Steadfast Courier endpoints failed to connect');
+}
+
 app.post('/api/courier/steadfast/create-order', async (req, res) => {
   try {
     const { order_id, invoice, recipient_name, recipient_phone, recipient_address, cod_amount, note, api_key, secret_key } = req.body;
@@ -1577,31 +1618,40 @@ app.post('/api/courier/steadfast/create-order', async (req, res) => {
       });
     }
 
+    // Clean phone number (keep digits or leading plus)
+    let cleanPhone = String(recipient_phone).trim().replace(/[^\d+]/g, '');
+    if (cleanPhone.startsWith('+880')) {
+      cleanPhone = '0' + cleanPhone.substring(4);
+    } else if (cleanPhone.startsWith('880')) {
+      cleanPhone = '0' + cleanPhone.substring(3);
+    }
+
     const payload = {
       invoice: String(invoice || order_id || `UA-${Date.now()}`),
       recipient_name: String(recipient_name).trim(),
-      recipient_phone: String(recipient_phone).trim(),
+      recipient_phone: cleanPhone,
       recipient_address: String(recipient_address).trim(),
-      cod_amount: Number(cod_amount || 0),
+      cod_amount: Math.round(Number(cod_amount || 0)),
       note: String(note || 'Handle with care - Laser cut metal wall art').trim()
     };
 
-    const sfRes = await fetch('https://portal.steadfast.com.bd/api/v1/create_order', {
-      method: 'POST',
-      headers: {
-        'Api-Key': activeApiKey,
-        'Secret-Key': activeSecretKey,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify(payload)
-    });
+    const { ok, status, data: sfData } = await callSteadfastApi('/create_order', 'POST', payload, activeApiKey, activeSecretKey);
 
-    const sfData: any = await sfRes.json().catch(() => null);
-
-    if (!sfRes.ok || (sfData && sfData.status !== 200 && sfData.status !== 201)) {
-      return res.status(sfRes.status || 400).json({
+    if (!ok || (sfData && sfData.status !== 200 && sfData.status !== 201)) {
+      let errorMsg = sfData?.message || 'Failed to create parcel on Steadfast Courier';
+      if (sfData?.errors) {
+        if (typeof sfData.errors === 'object') {
+          const firstKey = Object.keys(sfData.errors)[0];
+          if (firstKey && Array.isArray(sfData.errors[firstKey])) {
+            errorMsg = sfData.errors[firstKey][0];
+          } else {
+            errorMsg = JSON.stringify(sfData.errors);
+          }
+        }
+      }
+      return res.status(status || 400).json({
         success: false,
-        message: sfData?.message || (sfData?.errors ? JSON.stringify(sfData?.errors) : 'Failed to create parcel on Steadfast Courier'),
+        message: errorMsg,
         raw: sfData
       });
     }
@@ -1657,6 +1707,7 @@ app.post('/api/courier/steadfast/create-order', async (req, res) => {
   }
 });
 
+// GET Steadfast Parcel Status by Tracking Code
 app.get('/api/courier/steadfast/status/:tracking_code', async (req, res) => {
   try {
     const trackingCode = req.params.tracking_code;
@@ -1667,16 +1718,38 @@ app.get('/api/courier/steadfast/status/:tracking_code', async (req, res) => {
       return res.status(400).json({ success: false, message: 'Steadfast keys not configured' });
     }
 
-    const sfRes = await fetch(`https://portal.steadfast.com.bd/api/v1/status_by_trackingcode/${encodeURIComponent(trackingCode)}`, {
-      method: 'GET',
-      headers: {
-        'Api-Key': apiKey,
-        'Secret-Key': secretKey
-      }
-    });
+    const { ok, data } = await callSteadfastApi(`/status_by_trackingcode/${encodeURIComponent(trackingCode)}`, 'GET', null, apiKey, secretKey);
+    res.json({ success: ok, data });
+  } catch (err: any) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
 
-    const data = await sfRes.json().catch(() => null);
-    res.json({ success: sfRes.ok, data });
+// GET Steadfast Merchant Balance & Connection Check
+app.get('/api/courier/steadfast/get-balance', async (req, res) => {
+  try {
+    const apiKey = (req.query.api_key as string) || settings.steadfast_api_key || INITIAL_SETTINGS.steadfast_api_key || 'mjhiiwurrcir7uqf1kaxi5t8quc4ql4t';
+    const secretKey = (req.query.secret_key as string) || settings.steadfast_secret_key || INITIAL_SETTINGS.steadfast_secret_key || '3vtq7ghmlmjk1y7ormoqot6l';
+
+    if (!apiKey || !secretKey) {
+      return res.status(400).json({ success: false, message: 'Steadfast keys not configured' });
+    }
+
+    const { ok, data } = await callSteadfastApi('/get_balance', 'GET', null, apiKey, secretKey);
+    if (!ok || (data && data.status !== 200)) {
+      return res.status(400).json({
+        success: false,
+        message: data?.message || 'Failed to authenticate with Steadfast API',
+        data
+      });
+    }
+
+    res.json({
+      success: true,
+      current_balance: data?.current_balance ?? 0,
+      message: 'Steadfast Courier API কানেকশন সফল!',
+      data
+    });
   } catch (err: any) {
     res.status(500).json({ success: false, message: err.message });
   }

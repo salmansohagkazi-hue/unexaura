@@ -753,7 +753,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         })
       });
 
-      const data = await res.json();
+      const text = await res.text();
+      let data: any = {};
+      try {
+        data = JSON.parse(text);
+      } catch {
+        data = { success: false, message: text || 'সার্ভার থেকে সঠিক JSON পাওয়া যায়নি' };
+      }
+
       if (!res.ok || !data.success) {
         return {
           success: false,

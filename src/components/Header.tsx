@@ -461,19 +461,6 @@ export const Header: React.FC<HeaderProps> = ({
             <span>See It On Your Wall</span>
           </button>
 
-          <button
-            onClick={() => {
-              setMobileMenuOpen(false);
-              handleNav('admin', { tab: 'orders' });
-            }}
-            className="w-full text-left px-4 py-2.5 rounded-xl text-sm font-semibold text-emerald-800 bg-emerald-50/80 border border-emerald-200/60 flex items-center justify-between"
-          >
-            <span className="flex items-center gap-2">
-              <Shield className="w-4 h-4 text-emerald-600" />
-              <span>Admin Portal (ম্যানেজমেন্ট)</span>
-            </span>
-          </button>
-
           <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-xs text-slate-600">
             <span>Currency:</span>
             <span className="font-extrabold text-[#0f3d44] bg-teal-50 text-teal-800 px-2.5 py-0.5 rounded border border-teal-200">

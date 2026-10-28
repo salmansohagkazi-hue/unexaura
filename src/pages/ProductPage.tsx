@@ -93,8 +93,8 @@ export const ProductPage: React.FC<ProductPageProps> = ({ slug, onNavigate, onOp
 
   const currentThickness = product.thickness || '0.6/0.8 mm (গোল্ডেন স্টেইনলেস স্টিল)';
   const currentMaterial = product.material || 'সার্জিক্যাল স্টেইনলেস স্টিল (0.6/0.8 mm থিকনেস)';
-  const currentBanglaDesc = product.bangla_short_desc || 'উচ্চমানের উপকরণে নির্মিত এই অনন্য গোল্ডেন ওয়াল আর্টটি আপনার ড্রয়িং রুম, লিভিং রুম বা বেডরুমে দেবে আভিজাত্যময় সৌন্দর্য। দেওয়ালে লাগানোর জন্য শক্তিশালী ডাবল সাইড টেপ দেওয়া আছে।';
-  const currentDescription = product.description;
+  const currentBanglaDesc = product.description || product.bangla_short_desc || 'উচ্চমানের উপকরণে নির্মিত এই অনন্য গোল্ডেন ওয়াল আর্টটি আপনার ড্রয়িং রুম, লিভিং রুম বা বেডরুমে দেবে আভিজাত্যময় সৌন্দর্য। দেওয়ালে লাগানোর জন্য শক্তিশালী ডাবল সাইড টেপ দেওয়া আছে।';
+  const currentDescription = product.description || product.bangla_short_desc;
 
   const currentQualities = product.qualities || [
     'দেওয়ালে লাগানোর জন্য শক্তিশালী ডাবল সাইড টেপ রয়েছে - কোনো ড্রিলিং ছাড়াই সহজে ঝুলানো যায়।',

@@ -373,8 +373,8 @@ export const HomePage: React.FC<HomePageProps> = ({ onNavigate, onOpenWallModal,
           </button>
         </div>
 
-        {/* Compact Horizontal Category Bar */}
-        <div className="bg-slate-50/80 p-1.5 sm:p-2 rounded-2xl border border-slate-200/80">
+        {/* Horizontal Category Carousel with Big Image Cards */}
+        <div className="bg-slate-50/70 p-2 sm:p-3 rounded-2xl border border-slate-200/80">
           <CategoryCarousel
             categories={categories}
             productCountMap={categories.reduce((acc, cat) => {

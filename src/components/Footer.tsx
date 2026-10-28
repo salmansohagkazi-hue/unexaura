@@ -119,11 +119,10 @@ export const Footer: React.FC<FooterProps> = ({ onNavigate }) => {
           <span className="text-slate-700">|</span>
           <button
             onClick={() => onNavigate('admin', { tab: 'orders' })}
-            className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-slate-900 border border-slate-800 text-slate-400 hover:text-teal-400 hover:border-teal-500/40 text-[11px] font-medium transition-colors cursor-pointer group"
-            title="Staff Login & Order Management Portal"
+            className="text-[10px] text-slate-600 hover:text-slate-400 opacity-50 hover:opacity-100 transition-opacity cursor-pointer font-mono tracking-wider"
+            title="Portal"
           >
-            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 group-hover:animate-ping"></span>
-            <span>🔒 Staff Portal (অর্ডার কন্ট্রোল)</span>
+            portal
           </button>
         </div>
         <div className="flex items-center gap-1">

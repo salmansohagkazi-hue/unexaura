@@ -1,5 +1,9 @@
 import { initializeApp, getApps, getApp } from 'firebase/app';
 import {
+  initializeAuth,
+  browserLocalPersistence,
+  browserSessionPersistence,
+  inMemoryPersistence,
   getAuth,
   signInWithPopup,
   GoogleAuthProvider,
@@ -11,7 +15,28 @@ import firebaseConfig from '../../firebase-applet-config.json';
 
 // Initialize Firebase App
 const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
-export const auth = getAuth(app);
+
+// Suppress transient IndexedDB closure error iframes/tab switches can trigger
+if (typeof window !== 'undefined') {
+  window.addEventListener('unhandledrejection', (event) => {
+    const msg = event.reason?.message || String(event.reason || '');
+    if (msg.includes('Database is closing/hidden') || event.reason?.name === 'DatabaseClosedError') {
+      event.preventDefault();
+      console.warn('Handled Firebase IndexedDB closed in iframe:', msg);
+    }
+  });
+}
+
+// Initialize Auth with localStorage & memory persistence instead of IndexedDB to prevent "Database is closing/hidden" errors
+export const auth = (() => {
+  try {
+    return initializeAuth(app, {
+      persistence: [browserLocalPersistence, browserSessionPersistence, inMemoryPersistence]
+    });
+  } catch {
+    return getAuth(app);
+  }
+})();
 
 // Google Auth Provider with Google Sheets and Drive scopes
 export const googleProvider = new GoogleAuthProvider();

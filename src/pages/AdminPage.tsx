@@ -179,14 +179,13 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate, initialTab = '
   // Add Product Form States
   const [newProdName, setNewProdName] = useState('');
   const [newProdCatId, setNewProdCatId] = useState<number>(0);
-  const [newProdMediumPrice, setNewProdMediumPrice] = useState<number>(1099);
-  const [newProdMediumOldPrice, setNewProdMediumOldPrice] = useState<number>(1499);
-  const [newProdLargePrice, setNewProdLargePrice] = useState<number>(1599);
-  const [newProdLargeOldPrice, setNewProdLargeOldPrice] = useState<number>(2199);
+  const [newProdPrice, setNewProdPrice] = useState<number>(1199);
+  const [newProdOldPrice, setNewProdOldPrice] = useState<number>(1499);
+  const [newProdDimensions, setNewProdDimensions] = useState('16 inch × 9 inch');
   const [newProdStock, setNewProdStock] = useState<number>(15);
   const [newProdPrimaryImg, setNewProdPrimaryImg] = useState('');
   const [newProdMaterial, setNewProdMaterial] = useState('Surgical Stainless Steel');
-  const [newProdDesc, setNewProdDesc] = useState('প্রিমিয়াম স্টেইনলেস স্টিল ৩ডি ভাসমান ইসলামিক ওয়াল আর্ট');
+  const [newProdDesc, setNewProdDesc] = useState('প্রিমিয়াম স্টেইনলেস স্টিল ৩ডি ভাসমান ইসলামিক ওয়াল আর্ট। দেওয়ালে লাগানোর জন্য শক্তিশালী ডাবল সাইড টেপ দেওয়া আছে।');
 
   // Categories Form States
   const [newCatName, setNewCatName] = useState('');
@@ -479,23 +478,34 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate, initialTab = '
     }
     const cat = categories.find(c => c.id === Number(newProdCatId));
     const primaryImg = newProdPrimaryImg.trim() || 'https://images.unsplash.com/photo-1513519245088-0e12902e5a38?auto=format&fit=crop&w=1000&q=80';
+    const finalPrice = Number(newProdPrice || 0);
+    const finalOldPrice = newProdOldPrice ? Number(newProdOldPrice) : undefined;
+    const finalDesc = newProdDesc.trim() || 'প্রিমিয়াম স্টেইনলেস স্টিল ৩ডি ভাসমান ইসলামিক ওয়াল আর্ট। দেওয়ালে লাগানোর জন্য শক্তিশালী ডাবল সাইড টেপ দেওয়া আছে।';
+    const finalDimensions = newProdDimensions.trim() || '16 inch × 9 inch';
 
     await addProduct({
       name: newProdName.trim(),
       category_id: Number(newProdCatId),
       category_name: cat ? cat.name : 'Wall Art',
-      price: Number(newProdMediumPrice),
-      old_price: newProdMediumOldPrice ? Number(newProdMediumOldPrice) : undefined,
+      price: finalPrice,
+      old_price: finalOldPrice,
       weight_grams: 800,
-      size_dimensions: '16 inch × 9 inch',
-      material: newProdMaterial,
-      description: newProdDesc,
+      size_dimensions: finalDimensions,
+      material: newProdMaterial.trim() || 'Surgical Stainless Steel',
+      description: finalDesc,
+      bangla_short_desc: finalDesc,
       image_url: primaryImg,
       stock: Number(newProdStock || 10),
       badge: 'NEW',
       sizes: [
-        { id: 'm', name: 'Medium (16" × 9")', size_dimensions: '16 inch × 9 inch', price: Number(newProdMediumPrice), old_price: newProdMediumOldPrice, weight_grams: 800 },
-        { id: 'l', name: 'Large (23" × 11")', size_dimensions: '23 inch × 11 inch', price: Number(newProdLargePrice), old_price: newProdLargeOldPrice, weight_grams: 1400 }
+        {
+          id: 'standard',
+          name: 'Standard',
+          size_dimensions: finalDimensions,
+          price: finalPrice,
+          old_price: finalOldPrice,
+          weight_grams: 800
+        }
       ]
     });
     showToast(`"${newProdName}" সফলভাবে ক্যাটালগে যুক্ত হয়েছে!`);
@@ -508,7 +518,30 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate, initialTab = '
   const handleSaveEditedProduct = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingProduct) return;
-    await updateProduct(editingProduct);
+    const finalPrice = Number(editingProduct.price || 0);
+    const finalOldPrice = editingProduct.old_price ? Number(editingProduct.old_price) : undefined;
+    const finalDesc = (editingProduct.description || editingProduct.bangla_short_desc || '').trim();
+    const finalDimensions = editingProduct.size_dimensions || '16 inch × 9 inch';
+
+    const updatedProduct = {
+      ...editingProduct,
+      price: finalPrice,
+      old_price: finalOldPrice,
+      description: finalDesc,
+      bangla_short_desc: finalDesc,
+      sizes: [
+        {
+          id: 'standard',
+          name: 'Standard',
+          size_dimensions: finalDimensions,
+          price: finalPrice,
+          old_price: finalOldPrice,
+          weight_grams: editingProduct.weight_grams || 800
+        }
+      ]
+    };
+
+    await updateProduct(updatedProduct);
     showToast(`"${editingProduct.name}" সফলভাবে আপডেট করা হয়েছে!`);
     setEditingProduct(null);
   };
@@ -3000,7 +3033,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate, initialTab = '
                   value={newProdName}
                   onChange={(e) => setNewProdName(e.target.value)}
                   placeholder="e.g. আয়াতুল কুরসি গোল্ডেন স্টেইনলেস স্টিল আর্ট"
-                  className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-slate-900"
+                  className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-slate-900 focus:bg-white focus:outline-none"
                 />
               </div>
 
@@ -3010,7 +3043,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate, initialTab = '
                   required
                   value={newProdCatId}
                   onChange={(e) => setNewProdCatId(Number(e.target.value))}
-                  className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-slate-900"
+                  className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-slate-900 focus:bg-white focus:outline-none"
                 >
                   <option value={0}>ক্যাটাগরি নির্বাচন করুন</option>
                   {categories.map(c => (
@@ -3021,57 +3054,86 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate, initialTab = '
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-slate-600 font-medium mb-1">মিডিয়াম সাইজ মূল্য (৳)</label>
+                  <label className="block text-slate-600 font-medium mb-1">বিক্রয় মূল্য (৳) *</label>
                   <input
                     type="number"
                     required
-                    value={newProdMediumPrice}
-                    onChange={(e) => setNewProdMediumPrice(Number(e.target.value))}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-slate-900 font-bold"
+                    value={newProdPrice}
+                    onChange={(e) => setNewProdPrice(Number(e.target.value))}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-slate-900 font-bold focus:bg-white focus:outline-none"
                   />
                 </div>
                 <div>
-                  <label className="block text-slate-600 font-medium mb-1">লার্জ সাইজ মূল্য (৳)</label>
+                  <label className="block text-slate-600 font-medium mb-1">ডিসকাউন্ট পূর্বের মূল্য (৳)</label>
                   <input
                     type="number"
-                    required
-                    value={newProdLargePrice}
-                    onChange={(e) => setNewProdLargePrice(Number(e.target.value))}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-slate-900 font-bold"
+                    value={newProdOldPrice || ''}
+                    onChange={(e) => setNewProdOldPrice(Number(e.target.value))}
+                    placeholder="ঐচ্ছিক (যেমন: 1499)"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-slate-900 font-bold focus:bg-white focus:outline-none"
                   />
                 </div>
               </div>
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-slate-600 font-medium mb-1">প্রাথমিক স্টক (পিস)</label>
+                  <label className="block text-slate-600 font-medium mb-1">স্টক সংখ্যা (পিস) *</label>
                   <input
                     type="number"
+                    required
                     value={newProdStock}
                     onChange={(e) => setNewProdStock(Number(e.target.value))}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-slate-900"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-slate-900 font-bold focus:bg-white focus:outline-none"
                   />
                 </div>
+                <div>
+                  <label className="block text-slate-600 font-medium mb-1">সাইজ বা পরিমাপ</label>
+                  <input
+                    type="text"
+                    value={newProdDimensions}
+                    onChange={(e) => setNewProdDimensions(e.target.value)}
+                    placeholder="e.g. 16 inch × 9 inch"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-slate-900 focus:bg-white focus:outline-none"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-slate-600 font-medium mb-1">ম্যাটেরিয়াল</label>
                   <input
                     type="text"
                     value={newProdMaterial}
                     onChange={(e) => setNewProdMaterial(e.target.value)}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-slate-900"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-slate-900 focus:bg-white focus:outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="block text-slate-600 font-medium mb-1">মূল ছবি লিংক (Image URL)</label>
+                  <input
+                    type="url"
+                    value={newProdPrimaryImg}
+                    onChange={(e) => setNewProdPrimaryImg(e.target.value)}
+                    placeholder="https://..."
+                    className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-slate-900 focus:bg-white focus:outline-none font-mono"
                   />
                 </div>
               </div>
 
+              {/* FULL DESCRIPTION - ONE ENTIRE EDITABLE TEXTBOX */}
               <div>
-                <label className="block text-slate-600 font-medium mb-1">মূল ছবি লিংক (Image URL)</label>
-                <input
-                  type="url"
-                  value={newProdPrimaryImg}
-                  onChange={(e) => setNewProdPrimaryImg(e.target.value)}
-                  placeholder="https://..."
-                  className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-slate-900"
+                <label className="block text-slate-700 font-bold mb-1">
+                  পণ্যের সম্পূর্ণ বিবরণ (Full Description) *
+                </label>
+                <textarea
+                  rows={5}
+                  required
+                  value={newProdDesc}
+                  onChange={(e) => setNewProdDesc(e.target.value)}
+                  placeholder="এখানে সম্পূর্ণ বিবরণ লিখুন..."
+                  className="w-full bg-slate-50 border border-slate-200 rounded-lg p-3 text-slate-900 text-xs focus:bg-white focus:outline-none font-normal leading-relaxed"
                 />
+                <span className="text-[11px] text-slate-400">এই বিবরণটি কাস্টমার ওয়েবসাইটে প্রোডাক্ট পেইজে সরাসরি দেখতে পাবেন।</span>
               </div>
 
               <div className="pt-2 flex items-center justify-end gap-2 border-t border-slate-100">
@@ -3145,44 +3207,88 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate, initialTab = '
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-slate-600 font-medium mb-1">মূল্য (৳)</label>
+                  <label className="block text-slate-600 font-medium mb-1">বিক্রয় মূল্য (৳) *</label>
                   <input
                     type="number"
                     required
                     value={editingProduct.price}
                     onChange={(e) => setEditingProduct({ ...editingProduct, price: Number(e.target.value) })}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-slate-900 font-bold"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-slate-900 font-bold focus:bg-white focus:outline-none"
                   />
                 </div>
                 <div>
-                  <label className="block text-slate-600 font-medium mb-1">স্টক (পিস)</label>
+                  <label className="block text-slate-600 font-medium mb-1">ডিসকাউন্ট পূর্বের মূল্য (৳)</label>
+                  <input
+                    type="number"
+                    value={editingProduct.old_price || ''}
+                    onChange={(e) => setEditingProduct({ ...editingProduct, old_price: e.target.value ? Number(e.target.value) : undefined })}
+                    placeholder="ঐচ্ছিক (যেমন: 1499)"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-slate-900 font-bold focus:bg-white focus:outline-none"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-slate-600 font-medium mb-1">স্টক (পিস) *</label>
                   <input
                     type="number"
                     value={editingProduct.stock || 0}
                     onChange={(e) => setEditingProduct({ ...editingProduct, stock: Number(e.target.value) })}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-slate-900 font-bold"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-slate-900 font-bold focus:bg-white focus:outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="block text-slate-600 font-medium mb-1">সাইজ বা পরিমাপ</label>
+                  <input
+                    type="text"
+                    value={editingProduct.size_dimensions || ''}
+                    onChange={(e) => setEditingProduct({ ...editingProduct, size_dimensions: e.target.value })}
+                    placeholder="e.g. 16 inch × 9 inch"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-slate-900 focus:bg-white focus:outline-none"
                   />
                 </div>
               </div>
 
-              <div>
-                <label className="block text-slate-600 font-medium mb-1">ছবির লিঙ্ক (Image URL)</label>
-                <input
-                  type="url"
-                  value={editingProduct.image_url || ''}
-                  onChange={(e) => setEditingProduct({ ...editingProduct, image_url: e.target.value })}
-                  className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-slate-900"
-                />
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-slate-600 font-medium mb-1">ম্যাটেরিয়াল</label>
+                  <input
+                    type="text"
+                    value={editingProduct.material || ''}
+                    onChange={(e) => setEditingProduct({ ...editingProduct, material: e.target.value })}
+                    placeholder="e.g. Surgical Stainless Steel"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-slate-900 focus:bg-white focus:outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="block text-slate-600 font-medium mb-1">ছবির লিঙ্ক (Image URL)</label>
+                  <input
+                    type="url"
+                    value={editingProduct.image_url || ''}
+                    onChange={(e) => setEditingProduct({ ...editingProduct, image_url: e.target.value })}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-slate-900 focus:bg-white focus:outline-none font-mono"
+                  />
+                </div>
               </div>
 
+              {/* FULL DESCRIPTION - ONE ENTIRE EDITABLE TEXTBOX */}
               <div>
-                <label className="block text-slate-600 font-medium mb-1">বিবরণ (Description)</label>
+                <label className="block text-slate-700 font-bold mb-1">
+                  পণ্যের সম্পূর্ণ বিবরণ (Full Description) *
+                </label>
                 <textarea
-                  rows={3}
-                  value={editingProduct.description || ''}
-                  onChange={(e) => setEditingProduct({ ...editingProduct, description: e.target.value })}
-                  className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-slate-900"
+                  rows={6}
+                  value={editingProduct.description || editingProduct.bangla_short_desc || ''}
+                  onChange={(e) => setEditingProduct({
+                    ...editingProduct,
+                    description: e.target.value,
+                    bangla_short_desc: e.target.value
+                  })}
+                  placeholder="এখানে সম্পূর্ণ বিবরণ লিখুন..."
+                  className="w-full bg-slate-50 border border-slate-200 rounded-lg p-3 text-slate-900 text-xs focus:bg-white focus:outline-none font-normal leading-relaxed"
                 />
+                <span className="text-[11px] text-slate-400">পুরো বিবরণটি এখানে এক ঘরে সম্পূর্ণ এডিট করতে পারবেন। যা লিখবেন তা ওয়েবসাইটে প্রদর্শিত হবে।</span>
               </div>
 
               <div className="pt-2 flex items-center justify-end gap-2 border-t border-slate-100">

@@ -38,10 +38,10 @@ export const CategoryCarousel: React.FC<CategoryCarouselProps> = ({
         <ChevronLeft className="w-4 h-4" />
       </button>
 
-      {/* COMPACT HORIZONTAL CAROUSEL - TAKES MINIMAL VERTICAL SPACE */}
+      {/* HORIZONTAL CAROUSEL - BIG IMAGES WITH COMPACT LABELS BENEATH */}
       <div
         ref={scrollContainerRef}
-        className="flex items-center gap-2.5 sm:gap-3.5 overflow-x-auto scrollbar-none scroll-smooth px-1 py-1"
+        className="flex items-stretch gap-3 sm:gap-4 overflow-x-auto scrollbar-none scroll-smooth px-1 py-1"
         style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
       >
         {/* ALL CATEGORIES BUTTON */}
@@ -49,19 +49,29 @@ export const CategoryCarousel: React.FC<CategoryCarouselProps> = ({
           <button
             type="button"
             onClick={onViewAll}
-            className="shrink-0 flex items-center gap-2.5 px-3.5 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white transition-all shadow-xs cursor-pointer group"
+            className="w-[125px] sm:w-[150px] shrink-0 flex flex-col items-center bg-white rounded-2xl p-2 border border-slate-200/90 hover:border-teal-500 shadow-2xs hover:shadow-md transition-all group cursor-pointer text-center select-none"
           >
-            <span className="w-8 h-8 rounded-lg bg-white/10 flex items-center justify-center text-sm">
-              ✨
-            </span>
-            <div className="text-left pr-1">
-              <div className="text-xs font-bold leading-tight">সব কালেকশন</div>
-              <div className="text-[10px] text-slate-300 font-medium">All Designs</div>
+            {/* BIG PROMINENT HERO IMAGE / BANNER */}
+            <div className="relative w-full aspect-square rounded-xl overflow-hidden bg-gradient-to-br from-[#0f3d44] via-slate-900 to-indigo-950 flex flex-col items-center justify-center p-3 text-white border border-slate-100 shadow-inner group-hover:scale-[1.03] transition-transform duration-500">
+              <span className="text-2xl sm:text-3xl mb-1 filter drop-shadow">✨</span>
+              <span className="text-[11px] sm:text-xs font-black tracking-wide text-amber-300 uppercase">
+                ALL
+              </span>
+            </div>
+
+            {/* COMPACT CATEGORY NAME UNDERNEATH */}
+            <div className="w-full mt-2 space-y-0.5">
+              <h4 className="font-extrabold text-xs sm:text-[13px] text-slate-800 group-hover:text-teal-700 transition-colors truncate">
+                সব কালেকশন
+              </h4>
+              <p className="text-[10px] text-slate-500 font-medium">
+                সকল ডিজাইন
+              </p>
             </div>
           </button>
         )}
 
-        {/* CATEGORY CARDS */}
+        {/* CATEGORY CARDS WITH BIG IMAGES & SMALL TITLE BELOW */}
         {categories.map((cat, idx) => {
           const count = productCountMap[cat.id] ?? 0;
 
@@ -70,10 +80,10 @@ export const CategoryCarousel: React.FC<CategoryCarouselProps> = ({
               key={`cat-carousel-${cat.id}-${idx}`}
               type="button"
               onClick={() => onSelectCategory(cat.id)}
-              className="shrink-0 flex items-center gap-2.5 p-1.5 pr-3 rounded-xl bg-white hover:bg-indigo-50/50 border border-slate-200/90 hover:border-indigo-400 shadow-2xs hover:shadow-xs transition-all cursor-pointer text-left group"
+              className="w-[125px] sm:w-[150px] shrink-0 flex flex-col items-center bg-white rounded-2xl p-2 border border-slate-200/90 hover:border-teal-500 shadow-2xs hover:shadow-md transition-all group cursor-pointer text-center select-none"
             >
-              {/* COMPACT THUMBNAIL */}
-              <div className="relative w-12 h-12 sm:w-14 sm:h-14 rounded-lg overflow-hidden bg-slate-100 shrink-0 border border-slate-100">
+              {/* BIG PROMINENT CATEGORY IMAGE */}
+              <div className="relative w-full aspect-square rounded-xl overflow-hidden bg-slate-100 border border-slate-100">
                 {cat.image_url ? (
                   <img
                     src={cat.image_url}
@@ -82,25 +92,28 @@ export const CategoryCarousel: React.FC<CategoryCarouselProps> = ({
                     onError={(e) => {
                       (e.target as HTMLElement).style.display = 'none';
                     }}
-                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                    className="w-full h-full object-cover group-hover:scale-108 transition-transform duration-500"
                   />
                 ) : (
-                  <div className="w-full h-full flex items-center justify-center text-lg bg-indigo-50 text-indigo-700">
+                  <div className="w-full h-full flex flex-col items-center justify-center text-3xl bg-teal-50 text-teal-700">
                     {cat.icon || '🕌'}
                   </div>
                 )}
+                {/* Subtle soft gradient overlay at bottom edge */}
+                <div className="absolute inset-0 bg-gradient-to-t from-black/20 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none" />
               </div>
 
-              {/* DETAILS */}
-              <div className="min-w-0 pr-1">
-                <h4 className="font-bold text-xs sm:text-sm text-slate-800 group-hover:text-indigo-600 transition-colors truncate max-w-[120px] sm:max-w-[150px]">
+              {/* COMPACT CATEGORY NAME UNDERNEATH */}
+              <div className="w-full mt-2 space-y-0.5">
+                <h4
+                  className="font-extrabold text-xs sm:text-[13px] text-slate-800 group-hover:text-teal-700 transition-colors truncate"
+                  title={cat.name}
+                >
                   {cat.name}
                 </h4>
-                <div className="flex items-center gap-1.5 mt-0.5">
-                  <span className="text-[10px] font-semibold text-slate-500">
-                    {count > 0 ? `${count} টি ডিজাইন` : 'প্রিমিয়াম'}
-                  </span>
-                </div>
+                <p className="text-[10px] text-slate-500 font-medium">
+                  {count > 0 ? `${count} টি ডিজাইন` : 'প্রিমিয়াম'}
+                </p>
               </div>
             </button>
           );
